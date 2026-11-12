@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FadeIn } from '@/components/motion';
 import { ChangeChip, Empty, Header, RowCard, Screen, Tile, t } from '@/components/ui';
 import { listProducts, type ProductRow } from '@/db';
 import { money, plural } from '@/format';
@@ -54,7 +55,8 @@ export default function Products() {
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={rows ? <Text style={st.count}>{plural(rows.length, "produit", "produits")}</Text> : undefined}
             ListEmptyComponent={rows ? <Empty title="Aucun résultat" text={`Aucun produit ne correspond à « ${search.trim()} ».`} /> : undefined}
-            renderItem={({ item: p }) => (
+            renderItem={({ item: p, index }) => (
+              <FadeIn index={index}>
               <RowCard label={p.name} onPress={() => router.push(`/product/${p.id}`)}>
                 <Tile text={p.name} />
                 <View style={st.grow}>
@@ -68,6 +70,7 @@ export default function Products() {
                   <ChangeChip from={p.prev_price} to={p.last_price} />
                 </View>
               </RowCard>
+              </FadeIn>
             )}
           />
         </>

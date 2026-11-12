@@ -2,6 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { CountUp, FadeIn } from '@/components/motion';
 import { Button, ChangeChip, Empty, RowCard, Screen, SectionTitle, Tile, t } from '@/components/ui';
 import { listProducts, listTrips, monthSummary, type MonthSummary, type ProductRow, type TripRow } from '@/db';
 import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
@@ -47,17 +48,17 @@ export default function Home() {
         </View>
         <Text style={st.hello}>Salam ! Ton carnet de courses</Text>
 
-        <View style={st.hero}>
+        <FadeIn><View style={st.hero}>
           <Text style={st.heroMeta}>
             {monthLabel(currentMonth())} · {plural(summary.trips, 'course', 'courses')}
           </Text>
           <View style={st.heroTotalRow}>
-            <Text style={st.heroTotal}>{money(summary.total)}</Text>
+            <CountUp style={st.heroTotal} value={summary.total} format={money} />
             <Text style={st.heroUnit}>MAD</Text>
           </View>
           <Text style={st.heroMeta}>{plural(summary.items, 'article noté', 'articles notés')} ce mois</Text>
           <Button label="Nouvelle course" icon="add" tone="light" onPress={() => router.push('/trip/new')} style={st.heroButton} />
-        </View>
+        </View></FadeIn>
 
         {trips.length === 0 ? (
           <View style={st.gapTop}>
@@ -72,9 +73,10 @@ export default function Home() {
               Mes dernières courses
             </SectionTitle>
             <View style={st.list}>
-              {trips.map((trip) => (
-                <RowCard key={trip.id} label={`${trip.store}, ${longDate(trip.date)}`} onPress={() => router.push(`/trip/${trip.id}`)}>
-                  <Tile text={trip.store} />
+              {trips.map((trip, i) => (
+                <FadeIn key={trip.id} index={i}>
+                <RowCard label={`${trip.store}, ${longDate(trip.date)}`} onPress={() => router.push(`/trip/${trip.id}`)}>
+                  <Tile kind="store" text={trip.store} />
                   <View style={st.grow}>
                     <Text style={t.name} numberOfLines={1}>{trip.store}</Text>
                     <Text style={t.meta}>
@@ -85,6 +87,7 @@ export default function Home() {
                     {money(trip.total)} <Text style={t.unit}>MAD</Text>
                   </Text>
                 </RowCard>
+                </FadeIn>
               ))}
             </View>
 
@@ -92,8 +95,9 @@ export default function Home() {
               Mes produits
             </SectionTitle>
             <View style={st.list}>
-              {products.map((p) => (
-                <RowCard key={p.id} label={p.name} onPress={() => router.push(`/product/${p.id}`)}>
+              {products.map((p, i) => (
+                <FadeIn key={p.id} index={i + 3}>
+                <RowCard label={p.name} onPress={() => router.push(`/product/${p.id}`)}>
                   <Tile text={p.name} />
                   <View style={st.grow}>
                     <Text style={t.name} numberOfLines={1}>{p.name}</Text>
@@ -106,6 +110,7 @@ export default function Home() {
                     <ChangeChip from={p.prev_price} to={p.last_price} />
                   </View>
                 </RowCard>
+                </FadeIn>
               ))}
             </View>
           </>

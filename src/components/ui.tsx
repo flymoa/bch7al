@@ -1,10 +1,13 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, shadow } from '@/theme';
 import { pct, pctChange } from '@/format';
+import { productIcon, storeIcon } from '@/icons';
+import { usePressScale } from './motion';
+import { Animated } from 'react-native';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -32,10 +35,13 @@ export function Header({ title, back = true, right }: { title: string; back?: bo
 }
 
 export function RoundButton({ icon, label, onPress, tone = 'plain' }: { icon: IconName; label: string; onPress: () => void; tone?: 'plain' | 'danger' }) {
+  const press = usePressScale(0.88);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [s.round, pressed && s.pressed]}>
-      <Ionicons name={icon} size={22} color={tone === 'danger' ? colors.danger : colors.ink} />
-    </Pressable>
+    <Animated.View style={press.style}>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={s.round}>
+        <Ionicons name={icon} size={22} color={tone === 'danger' ? colors.danger : colors.ink} />
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -45,18 +51,22 @@ export function Card({ children, style }: { children: ReactNode; style?: StylePr
 
 /** Row card that can be pressed. */
 export function RowCard({ children, onPress, label }: { children: ReactNode; onPress: () => void; label: string }) {
+  const press = usePressScale(0.975);
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [s.card, s.row, pressed && s.pressed]}>
-      {children}
-    </Pressable>
+    <Animated.View style={press.style}>
+      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={({ pressed }) => [s.card, s.row, pressed && s.rowPressed]}>
+        {children}
+      </Pressable>
+    </Animated.View>
   );
 }
 
-export function Tile({ text, size = 46 }: { text: string; size?: number }) {
-  const letter = (text.trim().charAt(0) || '?').toUpperCase();
+/** Rounded square with an icon guessed from the name: a product icon, or a store icon with kind="store". */
+export function Tile({ text, size = 46, kind = 'product' }: { text: string; size?: number; kind?: 'product' | 'store' }) {
+  const icon = kind === 'store' ? storeIcon(text) : productIcon(text);
   return (
     <View style={[s.tile, { width: size, height: size, borderRadius: size / 3 }]}>
-      <Text style={[s.tileText, { fontSize: size * 0.44 }]}>{letter}</Text>
+      <MaterialCommunityIcons name={icon as keyof typeof MaterialCommunityIcons.glyphMap} size={Math.round(size * 0.52)} color={colors.softText} />
     </View>
   );
 }
@@ -81,16 +91,21 @@ export function ChangeChip({ from, to }: { from: number | null; to: number | nul
 }
 
 export function Pill({ label, active, onPress, disabled }: { label: string; active: boolean; onPress: () => void; disabled?: boolean }) {
+  const press = usePressScale(0.92);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: active, disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [s.pill, active && s.pillActive, disabled && !active && s.disabled, pressed && s.pressed]}
-    >
-      <Text style={[s.pillText, active && s.pillTextActive]}>{label}</Text>
-    </Pressable>
+    <Animated.View style={press.style}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: active, disabled }}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={[s.pill, active && s.pillActive, disabled && !active && s.disabled]}
+      >
+        <Text style={[s.pillText, active && s.pillTextActive]}>{label}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -99,17 +114,22 @@ export function Button({ label, onPress, icon, tone = 'primary', disabled, style
 }) {
   const bg = tone === 'primary' ? colors.blue : tone === 'dark' ? colors.ink : colors.card;
   const fg = tone === 'light' ? colors.blue : tone === 'danger' ? colors.danger : colors.white;
+  const press = usePressScale(0.96);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [s.button, { backgroundColor: bg }, (tone === 'light' || tone === 'danger') && s.buttonOutline, disabled && s.disabled, pressed && s.pressed, style]}
-    >
-      {icon ? <Ionicons name={icon} size={22} color={fg} /> : null}
-      <Text style={[s.buttonText, { color: fg }]}>{label}</Text>
-    </Pressable>
+    <Animated.View style={press.style}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={press.onPressIn}
+        onPressOut={press.onPressOut}
+        style={[s.button, { backgroundColor: bg }, (tone === 'light' || tone === 'danger') && s.buttonOutline, disabled && s.disabled, style]}
+      >
+        {icon ? <Ionicons name={icon} size={22} color={fg} /> : null}
+        <Text style={[s.buttonText, { color: fg }]}>{label}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -129,6 +149,9 @@ export function SectionTitle({ children, action, onAction }: { children: string;
 export function Empty({ title, text }: { title: string; text: string }) {
   return (
     <Card style={s.empty}>
+      <View style={s.emptyIcon}>
+        <MaterialCommunityIcons name="basket-outline" size={34} color={colors.blue} />
+      </View>
       <Text style={s.emptyTitle}>{title}</Text>
       <Text style={s.emptyText}>{text}</Text>
     </Card>
@@ -137,6 +160,17 @@ export function Empty({ title, text }: { title: string; text: string }) {
 
 export function Txt({ children, style, numberOfLines }: { children: ReactNode; style?: StyleProp<TextStyle>; numberOfLines?: number }) {
   return <Text style={[s.txt, style]} numberOfLines={numberOfLines}>{children}</Text>;
+}
+
+function PlusButton() {
+  const press = usePressScale(0.86);
+  return (
+    <Animated.View style={[s.plusWrap, press.style]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Nouvelle course" onPress={() => router.push('/trip/new')} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={s.plus}>
+        <Ionicons name="add" size={32} color={colors.white} />
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 function BottomBar({ active }: { active: 'home' | 'trips' | 'products' | 'settings' }) {
@@ -154,16 +188,14 @@ function BottomBar({ active }: { active: 'home' | 'trips' | 'products' | 'settin
       onPress={() => active !== it.key && router.replace(it.href)}
       style={s.tab}
     >
-      <Ionicons name={it.icon} size={24} color={active === it.key ? colors.blue : colors.muted} />
+      <Ionicons name={(active === it.key ? it.icon.replace('-outline', '') : it.icon) as IconName} size={24} color={active === it.key ? colors.blue : colors.muted} />
       <Text style={[s.tabText, active === it.key && { color: colors.blue }]}>{it.label}</Text>
     </Pressable>
   );
   return (
     <View style={s.bar}>
       {items.slice(0, 2).map(tab)}
-      <Pressable accessibilityRole="button" accessibilityLabel="Nouvelle course" onPress={() => router.push('/trip/new')} style={({ pressed }) => [s.plus, pressed && s.pressed]}>
-        <Ionicons name="add" size={32} color={colors.white} />
-      </Pressable>
+      <PlusButton />
       {items.slice(2).map(tab)}
     </View>
   );
@@ -196,13 +228,16 @@ export const s = StyleSheet.create({
   sectionAction: { minHeight: 32, justifyContent: 'center' },
   sectionActionText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
   empty: { padding: 22, alignItems: 'center', gap: 6 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   emptyTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, textAlign: 'center' },
   emptyText: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, textAlign: 'center', lineHeight: 21 },
   txt: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
   bar: { marginHorizontal: 16, marginBottom: 12, marginTop: 6, backgroundColor: colors.card, borderRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingVertical: 6, ...shadow, elevation: 6 },
   tab: { minWidth: 62, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 1 },
   tabText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.muted },
-  plus: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', marginTop: -26, borderWidth: 5, borderColor: colors.bg },
+  plusWrap: { marginTop: -26 },
+  plus: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 5, borderColor: colors.bg },
+  rowPressed: { backgroundColor: '#F7F9FD' },
 });
 
 // Shared text styles used by the screens.

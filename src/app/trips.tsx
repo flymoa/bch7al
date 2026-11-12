@@ -2,6 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { CountUp, FadeIn } from '@/components/motion';
 import { Empty, Header, Pill, RowCard, Screen, Tile, t } from '@/components/ui';
 import { listMonths, listTrips, type TripRow } from '@/db';
 import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
@@ -57,7 +58,7 @@ export default function Trips() {
                   {monthLabel(month)} · {plural(trips.length, 'course', 'courses')}
                 </Text>
                 <Text style={st.summaryTotal}>
-                  {money(total)} <Text style={st.summaryUnit}>MAD</Text>
+                  <CountUp value={total} format={money} /> <Text style={st.summaryUnit}>MAD</Text>
                 </Text>
               </View>
               {trips.length > 0 ? (
@@ -67,9 +68,10 @@ export default function Trips() {
                 </View>
               ) : null}
             </View>
-            {trips.map((trip) => (
-              <RowCard key={trip.id} label={`${trip.store}, ${longDate(trip.date)}`} onPress={() => router.push(`/trip/${trip.id}`)}>
-                <Tile text={trip.store} />
+            {trips.map((trip, i) => (
+              <FadeIn key={trip.id} index={i}>
+              <RowCard label={`${trip.store}, ${longDate(trip.date)}`} onPress={() => router.push(`/trip/${trip.id}`)}>
+                <Tile kind="store" text={trip.store} />
                 <View style={st.grow}>
                   <Text style={t.name} numberOfLines={1}>{trip.store}</Text>
                   <Text style={t.meta}>
@@ -78,6 +80,7 @@ export default function Trips() {
                 </View>
                 <Text style={t.price}>{money(trip.total)}</Text>
               </RowCard>
+              </FadeIn>
             ))}
           </ScrollView>
         </>

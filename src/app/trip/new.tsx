@@ -4,6 +4,10 @@ import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
+import { Pop } from '@/components/motion';
+import { showToast } from '@/components/toast';
+import { productIcon } from '@/icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
 import { getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
 import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, todayIso } from '@/format';
@@ -89,6 +93,7 @@ export default function TripForm() {
     setName('');
     setPrice('');
     setQuantity('1');
+    setUnit(UNITS[0]);
     setError('');
   };
 
@@ -129,6 +134,7 @@ export default function TripForm() {
     setSaving(true);
     try {
       await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice }) => ({ name: n, unit: u, qty: q, unitPrice })) });
+      showToast(editId ? 'Course modifiée' : `Course enregistrée · ${money(total)} MAD`);
       router.canGoBack() ? router.back() : router.replace('/trips');
     } catch (e) {
       setSaving(false);
@@ -289,7 +295,11 @@ export default function TripForm() {
               {items.map((it, i) => {
                 const diff = it.last === null ? null : Math.round((it.unitPrice - it.last) * 100) / 100;
                 return (
-                  <Card key={productKey(it.name)} style={st.line}>
+                  <Pop key={productKey(it.name)}>
+                  <Card style={st.line}>
+                    <View style={st.lineIcon}>
+                      <MaterialCommunityIcons name={productIcon(it.name) as keyof typeof MaterialCommunityIcons.glyphMap} size={22} color={colors.softText} />
+                    </View>
                     <Pressable accessibilityRole="button" accessibilityLabel={`Corriger ${it.name}`} onPress={() => editLine(i)} style={st.lineMain}>
                       <Text style={t.name}>{it.name}</Text>
                       <Text style={t.meta}>
@@ -314,6 +324,7 @@ export default function TripForm() {
                     </View>
                     <Text style={st.lineTotal}>{money(it.qty * it.unitPrice)}</Text>
                   </Card>
+                  </Pop>
                 );
               })}
             </View>
@@ -355,6 +366,7 @@ const st = StyleSheet.create({
   basketHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, paddingTop: 18, paddingBottom: 8 },
   basketTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink },
   basket: { gap: 8 },
+  lineIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingRight: 12 },
   lineMain: { flex: 1, minWidth: 0, gap: 3, minHeight: 44, justifyContent: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },

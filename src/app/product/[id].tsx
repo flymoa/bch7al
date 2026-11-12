@@ -3,6 +3,7 @@ import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
+import { FadeIn, GrowBar } from '@/components/motion';
 import { Button, Card, ChangeChip, Chip, Empty, Header, Pill, RoundButton, Screen, Tile, s as ui, t } from '@/components/ui';
 import { getProduct, productHistory, updateProduct, type HistoryRow, type ProductRow } from '@/db';
 import { money, productKey, shortDate } from '@/format';
@@ -125,7 +126,7 @@ export default function ProductDetail() {
           <Chip label={`Vu le ${shortDate(last.date)} chez ${last.store}`} />
         </View>
 
-        <Card style={st.block}>
+        <FadeIn index={1}><Card style={st.block}>
           <View style={st.blockHead}>
             <Text style={st.blockTitle}>Son prix dans le temps</Text>
             {history.length > 1 ? <ChangeChip from={history[0].unit_price} to={last.unit_price} /> : null}
@@ -141,10 +142,7 @@ export default function ProductDetail() {
                 accessibilityLabel={`Prix de ${money(chart[0].unit_price)} à ${money(last.unit_price)} dirhams sur les ${chart.length} derniers achats`}
               >
                 {chart.map((h, i) => (
-                  <View
-                    key={i}
-                    style={[st.bar, { height: 22 + ((h.unit_price - chartLow) / chartSpan) * 74, backgroundColor: i === chart.length - 1 ? colors.blue : '#C9D8FA' }]}
-                  />
+                  <GrowBar key={i} index={i} style={st.bar} height={22 + ((h.unit_price - chartLow) / chartSpan) * 74} color={i === chart.length - 1 ? colors.blue : '#C9D8FA'} />
                 ))}
               </View>
               <View style={st.axis}>
@@ -167,13 +165,13 @@ export default function ProductDetail() {
               <Text style={st.statValue}>{money(avg)}</Text>
             </View>
           </View>
-        </Card>
+        </Card></FadeIn>
 
         <Text style={st.section}>Dernier prix par magasin</Text>
         <Card style={st.rows}>
           {stores.map((h, i) => (
             <View key={h.store} style={[st.rowLine, i > 0 && st.rowBorder]}>
-              <Tile text={h.store} size={34} />
+              <Tile kind="store" text={h.store} size={34} />
               <View style={ui.flex}>
                 <Text style={t.name} numberOfLines={1}>{h.store}</Text>
                 <Text style={t.meta}>{shortDate(h.date)}</Text>
@@ -216,8 +214,8 @@ const st = StyleSheet.create({
   block: { marginTop: 14, gap: 10, padding: 16 },
   blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   blockTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, flex: 1 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 96 },
-  bar: { flex: 1, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 4, height: 96 },
+  bar: { flex: 1, maxWidth: 28, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 },
   axis: { flexDirection: 'row', justifyContent: 'space-between' },
   stats: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8 },

@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { SQLiteProvider } from '@/sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ToastHost } from '@/components/toast';
 import { onOpen } from '@/db';
 import { colors } from '@/theme';
 
@@ -23,6 +24,7 @@ export default function RootLayout() {
           <Stack.Screen name="products" options={{ animation: 'none' }} />
           <Stack.Screen name="settings" options={{ animation: 'none' }} />
         </Stack>
+        <ToastHost />
       </SQLiteProvider>
     </SafeAreaProvider>
   );

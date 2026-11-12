@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Alert } from '@/alert';
 import { Button, Card, Empty, Header, Screen, Tile, s as ui, t } from '@/components/ui';
+import { showToast } from '@/components/toast';
 import { deleteTrip, getTrip, type ItemRow, type TripRow } from '@/db';
 import { longDate, money, plural, qty } from '@/format';
 import { colors, fonts } from '@/theme';
@@ -33,6 +34,7 @@ export default function TripDetail() {
         onPress: async () => {
           try {
             await deleteTrip(db, tripId);
+            showToast('Course supprimée');
             router.canGoBack() ? router.back() : router.replace('/trips');
           } catch (e) {
             Alert.alert('La suppression a échoué', String((e as Error).message ?? e));
@@ -60,7 +62,7 @@ export default function TripDetail() {
       <Header title="Course" />
       <ScrollView contentContainerStyle={st.content}>
         <View style={st.head}>
-          <Tile text={trip.store} size={64} />
+          <Tile kind="store" text={trip.store} size={64} />
           <View style={ui.flex}>
             <Text style={st.store}>{trip.store}</Text>
             <Text style={t.meta}>

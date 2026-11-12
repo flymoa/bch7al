@@ -11,7 +11,7 @@ def data_uri(m):
     ext = os.path.splitext(f)[1]
     return '"data:%s;base64,%s"' % (mime.get(ext, 'application/octet-stream'), base64.b64encode(open(f,'rb').read()).decode())
 # keep only fonts the app uses (Fredoka 600/700, Nunito 700/800, Ionicons) and small router images
-keep = re.compile(r'(Fredoka_(600SemiBold|700Bold)|Nunito_(700Bold|800ExtraBold)\.|Ionicons|expo-router/assets)')
+keep = re.compile(r'(Fredoka_(600SemiBold|700Bold)|Nunito_(700Bold|800ExtraBold)\.|Ionicons|MaterialCommunityIcons|expo-router/assets)')
 def repl(m):
     return data_uri(m) if keep.search(m.group(1)) else '""'
 js = re.sub(r'"(/assets/[^"]+)"', repl, js)
