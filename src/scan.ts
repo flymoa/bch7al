@@ -22,6 +22,6 @@ export async function scanReceipt(source: 'camera' | 'gallery'): Promise<Receipt
       lines.push({ text: line.text ?? '', top: f?.top ?? 0, left: f?.left ?? 0, height: f ? Math.max(1, f.bottom - f.top) : 20 });
     }
   }
-  if (lines.length === 0) return { store: null, date: null, items: [], total: null };
+  if (lines.length === 0) return { store: null, date: null, items: [], total: null, expected: null, rows: [] };
   return parseReceipt(toRows(lines));
 }

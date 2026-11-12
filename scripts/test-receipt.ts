@@ -97,3 +97,46 @@ console.log('All receipt checks passed.', r.items.length, 'items:', r.items.map(
   );
   console.log('Carrefour receipt read:', res.items.length, 'items, total', res.total);
 }
+
+// ---- Same Carrefour receipt with typical camera misreads ----
+{
+  const rows = [
+    'Carrefour Market', 'EL HOUDA', '12/11/2026 - 19:51:56',
+    '(4)2000002693406  FILET COLIN ALASKA B  34.90',
+    'SURGELE  34.90',
+    '(1)27009970305B2  EDAM BOULE FRICO AU  30.58', // 8 read as B
+    '1)2707827014620  FROMAGE FUME NATURE  14,62', // lost "(" and comma price
+    'FROMAGERIE  45.20',
+    '(l)7622202376115  CHEWING GUM ORIGINAL  3.95', // 1 read as l
+    'BISCUITERIE  3.95',
+    '(4)2303641 CHAMPIGNON DE PARIS  32.62',
+    '0.628 kg x 51.95 MAD/kg',
+    'FRUITS ET LEGUMES  32.62',
+    '116.96', 'TOTAL :', 'NOMBRE ARTICLES : 5',
+  ];
+  const res = parseReceipt(rows);
+  assert.deepEqual(res.items.map((i) => i.name), ['Filet Colin Alaska B', 'Edam Boule Frico Au', 'Fromage Fume Nature', 'Chewing Gum Original', 'Champignon De Paris']);
+  assert.equal(res.expected, 5);
+}
+
+// ---- A product whose code was not read at all must still be kept, and a group line must not become a product ----
+{
+  const rows = [
+    'Carrefour Market',
+    '(4)2000002693406  FILET COLIN ALASKA B  34.90',
+    'SURGELE  34.90',
+    'EDAM BOULE FRICO AU  30.58', // code missing entirely
+    '(1)2707827014620  FROMAGE FUME NATURE  14.62',
+    'FROMAGERIE  45.20',
+    'NOMBRE ARTICLES : 3',
+  ];
+  const res = parseReceipt(rows);
+  assert.deepEqual(res.items.map((i) => i.name), ['Filet Colin Alaska B', 'Edam Boule Frico Au', 'Fromage Fume Nature']);
+}
+
+// ---- Group line read without its amount matching (an item before it was missed) is still not a product ----
+{
+  const res = parseReceipt(['(1)2707827014620  FROMAGE FUME NATURE  14.62', 'FROMAGERIE  45.20', '(1)7622202376115  CHEWING GUM  3.95']);
+  assert.deepEqual(res.items.map((i) => i.name), ['Fromage Fume Nature', 'Chewing Gum']);
+}
+console.log('Misread checks passed.');

@@ -47,6 +47,7 @@ export default function TripForm() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState('');
+  const [scanRows, setScanRows] = useState<string[]>([]);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const formY = useRef(0);
 
@@ -169,6 +170,7 @@ export default function TripForm() {
     try {
       const res = await scanReceipt(source);
       if (!res) return;
+      setScanRows(res.rows);
       if (res.items.length === 0) {
         Alert.alert('Ticket illisible', "Aucun article n'a été reconnu. Reprends la photo bien à plat, avec de la lumière, ou saisis les articles à la main.");
         return;
@@ -193,8 +195,11 @@ export default function TripForm() {
       }
       const read = res.items.reduce((a, it) => a + it.qty * it.unitPrice, 0);
       const gap = res.total !== null ? Math.abs(res.total - read) : 0;
+      const missing = res.expected !== null && res.expected > res.items.length;
       setScanNote(
-        res.total !== null && gap > 0.5
+        missing
+          ? `Le ticket compte ${plural(res.expected!, 'article', 'articles')}, ${res.items.length} ${res.items.length > 1 ? 'ont été lus' : 'a été lu'}. Ajoute ceux qui manquent à la main, ou reprends la photo bien à plat et éclairée.`
+          : res.total !== null && gap > 0.5
           ? `${plural(res.items.length, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} MAD mais les articles font ${money(read)} MAD : vérifie s'il en manque.`
           : `${plural(res.items.length, 'article lu', 'articles lus')}. Vérifie les noms et les prix avant d'enregistrer.`,
       );
@@ -270,6 +275,16 @@ export default function TripForm() {
                 </Pressable>
               </View>
               {scanNote ? <Text style={st.scanNote}>{scanNote}</Text> : null}
+              {scanRows.length ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => Alert.alert('Texte lu sur le ticket', scanRows.join('\n'))}
+                  style={({ pressed }) => [st.rawBtn, pressed && ui.pressed]}
+                >
+                  <Ionicons name="document-text-outline" size={18} color={colors.blue} />
+                  <Text style={st.rawBtnText}>Voir le texte lu</Text>
+                </Pressable>
+              ) : null}
             </Card>
           )}
 
@@ -531,6 +546,8 @@ const st = sheet(() => ({
   scanBtn: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: colors.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   scanBtnLight: { backgroundColor: colors.card, borderWidth: 2, borderColor: colors.border },
   scanBtnText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.white },
+  rawBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, alignSelf: 'flex-start', paddingHorizontal: 4 },
+  rawBtnText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
   scanNote: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText, backgroundColor: colors.soft, borderRadius: 12, padding: 10, overflow: 'hidden' },
   weightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   calc: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText, backgroundColor: colors.soft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10, overflow: 'hidden' },

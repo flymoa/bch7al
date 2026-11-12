@@ -3,7 +3,23 @@ import { DEFAULT_STORES } from './theme-constants';
 
 export type OcrLine = { text: string; top: number; left: number; height: number };
 export type ReceiptItem = { name: string; qty: number; unitPrice: number; unit: 'pièce' | 'kg' };
-export type ReceiptResult = { store: string | null; date: string | null; items: ReceiptItem[]; total: number | null };
+export type ReceiptResult = {
+  store: string | null;
+  date: string | null;
+  items: ReceiptItem[];
+  total: number | null;
+  /** "NOMBRE ARTICLES : 5" when the receipt prints it. */
+  expected: number | null;
+  /** The rows as read, to show the user what the camera saw. */
+  rows: string[];
+};
+
+// Article code at the start of a line, tolerant of camera misreads:
+// "(4)2000002693406", "1)2707827014620", "(l)7622202376115", "(1)27009970305B2".
+const CODE = /^\s*[(\[{]?\s*[0-9lI|!]\s*[)\]}]\s*[0-9OoBSIl|]{5,}\s*|^\s*[0-9OoBSIl|]{8,}\s+/;
+
+// Supermarket departments printed as group subtotals (Carrefour, Marjane...).
+const DEPARTMENTS = /^(surgel[eé]s?|fromagerie|biscuiterie|fruits? et l[eé]gumes|boucherie|charcuterie|traiteur|cr[eè]merie|[eé]picerie( sal[eé]e| sucr[eé]e)?|boissons?|liquides?|droguerie|parfumerie|hygi[eè]ne|entretien|boulangerie|p[aâ]tisserie|viennoiserie|poissonnerie|volaille|produits? frais|frais|laitiers?|bazar|textile|confiserie|petit d[eé]jeuner|conserves?|surgel[eé]s? sal[eé]s|b[eé]b[eé]|animaux|electrom[eé]nager|multim[eé]dia)$/i;
 
 const KNOWN_STORES = [...DEFAULT_STORES, 'Acima', 'Aswak Assalam', 'Label Vie', 'Carrefour Market', 'Kazyon', 'Atacadao'].sort((a, b) => b.length - a.length);
 
@@ -39,8 +55,7 @@ export function toRows(lines: OcrLine[]): string[] {
 
 function cleanItemName(raw: string): string {
   return raw
-    .replace(/^\s*\(\d+\)\s*\d{3,}\s*/, '') // Carrefour: "(4)2000002693406"
-    .replace(/^\s*[\d]{4,}\s+/, '') // leading article code / barcode
+    .replace(CODE, '') // article code / barcode, even partly misread
     .replace(/[*#=_|]+/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim()
@@ -86,14 +101,19 @@ export function parseReceipt(rows: string[]): ReceiptResult {
   }
   const items: ReceiptItem[] = [];
   let pendingQty: { qty: number; unitPrice: number } | null = null;
-  // Receipts like Carrefour print a code before every article: then only coded lines are articles.
-  const coded = rows.filter((r) => /^\s*\(\d+\)\s*\d{3,}/.test(r)).length >= 2;
+  let expected: number | null = null;
   // Amount of the articles since the last group subtotal (e.g. "FROMAGERIE 45.20").
   let sinceGroup = 0;
 
   for (const raw of rows) {
     const row = raw.replace(/\s+/g, ' ').trim();
     if (!row) continue;
+
+    const count = row.match(/nombre\s*(?:d'?\s*)?articles?\s*:?\s*(\d{1,3})/i);
+    if (count) {
+      expected = Number(count[1]);
+      continue;
+    }
 
     if (/\b(total|net [aà] payer|[aà] payer)\b/i.test(row) && !/sous/i.test(row)) {
       const m = row.match(PRICE);
@@ -136,13 +156,13 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     if (SKIP.test(left) || lineTotal <= 0 || lineTotal > 100000) continue;
     // Tax table rows ("4  67.5200  0.00%  0.0000  67.52") are not articles.
     if (/%|\d[.,]\d{4}/.test(row)) continue;
-    const hasCode = /^\s*\(\d+\)\s*\d{3,}/.test(left);
-    // Group subtotal: no article code, and its amount equals the articles since the previous group.
-    if (!hasCode && sinceGroup > 0 && Math.abs(lineTotal - sinceGroup) < 0.02) {
+    const hasCode = CODE.test(left);
+    // Group subtotal ("FROMAGERIE 45.20"): a department name, or an uncoded line whose
+    // amount equals the articles since the previous group.
+    if (!hasCode && (DEPARTMENTS.test(left.trim()) || (sinceGroup > 0 && Math.abs(lineTotal - sinceGroup) < 0.02))) {
       sinceGroup = 0;
       continue;
     }
-    if (coded && !hasCode) continue;
 
     let qty = 1;
     let unitPrice = lineTotal;
@@ -173,5 +193,5 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     sinceGroup += lineTotal;
   }
 
-  return { store, date, items, total };
+  return { store, date, items, total, expected, rows };
 }
