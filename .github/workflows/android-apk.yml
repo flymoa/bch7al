@@ -41,7 +41,9 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+        # Code shrinking (R8) is off: it renames classes that Google's on-device text
+        # recognition looks up by name, which made receipt scanning crash.
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a -Pandroid.enableMinifyInReleaseBuilds=false -Pandroid.enableShrinkResourcesInReleaseBuilds=false
 
       - name: Rename
         run: cp android/app/build/outputs/apk/release/app-release.apk bch7al.apk
