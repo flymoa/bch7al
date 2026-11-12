@@ -5,12 +5,17 @@ export type OcrLine = { text: string; top: number; left: number; height: number 
 export type ReceiptItem = { name: string; qty: number; unitPrice: number; unit: 'pièce' | 'kg' };
 export type ReceiptResult = { store: string | null; date: string | null; items: ReceiptItem[]; total: number | null };
 
-const KNOWN_STORES = [...DEFAULT_STORES, 'Acima', 'Aswak Assalam', 'Label Vie', 'Carrefour Market', 'Kazyon', 'Atacadao'];
+const KNOWN_STORES = [...DEFAULT_STORES, 'Acima', 'Aswak Assalam', 'Label Vie', 'Carrefour Market', 'Kazyon', 'Atacadao'].sort((a, b) => b.length - a.length);
 
 // Lines that are never products.
-const SKIP = /\b(total|sous[- ]?total|tva|t\.v\.a|ht|ttc|esp[eè]ces?|rendu|monnaie|carte|cb|visa|cash|ticket|caisse|caissier|merci|client|fid[eé]lit[eé]|points?|remise totale|net a payer|net à payer|a payer|à payer|montant|change|tel|t[eé]l[eé]phone|ice|patente|rc|if\b|cnss|adresse|www|http|articles?|nombre|qt[eé] totale|solde|avoir|recu|reçu|facture|date|heure|n°|no\.)/i;
+const SKIP = /\b(total|sous[- ]?total|tva|t\.v\.a|ht|ttc|esp[eè]ces?|rendu|monnaie|carte|cb|visa|cash|ticket|caisse|caissier|merci|client|fid[eé]lit[eé]|points?|remise totale|net a payer|net à payer|a payer|à payer|montant|change|tel|t[eé]l[eé]phone|ice|patente|rc|if\b|cnss|adresse|www|http|articles?|nombre|qt[eé] totale|solde|avoir|recu|reçu|facture|date|heure|n°|no\.|timbre|droits?|operation|vente|ventilation|taux|code promo|solde|offerts?|bienvenue|paiement)/i;
 
 const PRICE = /(-?\d{1,5}(?:[ .]\d{3})*[.,]\d{2})\s*(?:dh|dhs|mad|€)?\s*[a-z]?$/i;
+
+/** Weights like "0.628" or "1,250": the dot is a decimal point here, never a thousands separator. */
+function weight(s: string): number {
+  return parseFloat(s.replace(',', '.'));
+}
 
 function num(s: string): number {
   return parseFloat(s.replace(/\s/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
@@ -34,6 +39,7 @@ export function toRows(lines: OcrLine[]): string[] {
 
 function cleanItemName(raw: string): string {
   return raw
+    .replace(/^\s*\(\d+\)\s*\d{3,}\s*/, '') // Carrefour: "(4)2000002693406"
     .replace(/^\s*[\d]{4,}\s+/, '') // leading article code / barcode
     .replace(/[*#=_|]+/g, ' ')
     .replace(/\s{2,}/g, ' ')
@@ -52,10 +58,8 @@ function softenCaps(name: string): string {
 
 export function parseReceipt(rows: string[]): ReceiptResult {
   let store: string | null = null;
-  for (const r of rows.slice(0, 6)) {
-    const hit = KNOWN_STORES.find((s) => r.toLowerCase().includes(s.toLowerCase()));
-    if (hit) { store = hit; break; }
-  }
+  const head = rows.slice(0, 8).join(' ').toLowerCase();
+  store = KNOWN_STORES.find((name) => head.includes(name.toLowerCase())) ?? null; // longest name first
 
   let date: string | null = null;
   for (const r of rows) {
@@ -72,8 +76,20 @@ export function parseReceipt(rows: string[]): ReceiptResult {
   }
 
   let total: number | null = null;
+  // The total amount is sometimes printed just above or below the word "TOTAL".
+  for (let i = 0; i < rows.length && total === null; i++) {
+    if (!/^\s*total\s*:?\s*$/i.test(rows[i])) continue;
+    for (const j of [i - 1, i + 1]) {
+      const m = rows[j]?.trim().match(/^(\d{1,5}(?:[ .]\d{3})*[.,]\d{2})\s*(?:dh|dhs|mad)?$/i);
+      if (m) { total = num(m[1]); break; }
+    }
+  }
   const items: ReceiptItem[] = [];
   let pendingQty: { qty: number; unitPrice: number } | null = null;
+  // Receipts like Carrefour print a code before every article: then only coded lines are articles.
+  const coded = rows.filter((r) => /^\s*\(\d+\)\s*\d{3,}/.test(r)).length >= 2;
+  // Amount of the articles since the last group subtotal (e.g. "FROMAGERIE 45.20").
+  let sinceGroup = 0;
 
   for (const raw of rows) {
     const row = raw.replace(/\s+/g, ' ').trim();
@@ -82,6 +98,18 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     if (/\b(total|net [aà] payer|[aà] payer)\b/i.test(row) && !/sous/i.test(row)) {
       const m = row.match(PRICE);
       if (m && total === null) total = num(m[1]);
+      continue;
+    }
+
+    // "0.628 kg x 51.95 MAD/kg" printed under a weighed article
+    const weightLine = row.match(/^(\d+[.,]\d{1,3})\s*kg\s*[x×*@]\s*(\d+[.,]\d{2})\s*(?:mad|dh|dhs)?\s*(?:\/\s*kg)?$/i);
+    if (weightLine) {
+      const last = items[items.length - 1];
+      if (last && last.unit === 'pièce' && last.qty === 1) {
+        last.qty = weight(weightLine[1]);
+        last.unitPrice = num(weightLine[2]);
+        last.unit = 'kg';
+      }
       continue;
     }
 
@@ -106,6 +134,15 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     const lineTotal = num(pm[1]);
     let left = row.slice(0, pm.index).trim();
     if (SKIP.test(left) || lineTotal <= 0 || lineTotal > 100000) continue;
+    // Tax table rows ("4  67.5200  0.00%  0.0000  67.52") are not articles.
+    if (/%|\d[.,]\d{4}/.test(row)) continue;
+    const hasCode = /^\s*\(\d+\)\s*\d{3,}/.test(left);
+    // Group subtotal: no article code, and its amount equals the articles since the previous group.
+    if (!hasCode && sinceGroup > 0 && Math.abs(lineTotal - sinceGroup) < 0.02) {
+      sinceGroup = 0;
+      continue;
+    }
+    if (coded && !hasCode) continue;
 
     let qty = 1;
     let unitPrice = lineTotal;
@@ -119,7 +156,7 @@ export function parseReceipt(rows: string[]): ReceiptResult {
       unitPrice = num(inline[2]);
       left = left.slice(0, inline.index).trim();
     } else if (weighed) {
-      qty = num(weighed[1]);
+      qty = weight(weighed[1]);
       unitPrice = weighed[2] ? num(weighed[2]) : lineTotal / qty;
       unit = 'kg';
       left = left.slice(0, weighed.index).trim();
@@ -133,6 +170,7 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     if (!/[a-zà-ÿ]{2,}/i.test(name)) continue;
     if (!(qty > 0) || !(unitPrice >= 0)) continue;
     items.push({ name, qty: Math.round(qty * 1000) / 1000, unitPrice: Math.round(unitPrice * 100) / 100, unit });
+    sinceGroup += lineTotal;
   }
 
   return { store, date, items, total };

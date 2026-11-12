@@ -47,3 +47,53 @@ assert.deepEqual(r4.items, [{ name: 'Eau Sidi Ali', qty: 2, unitPrice: 3, unit: 
 // nothing readable
 assert.deepEqual(parseReceipt(['merci de votre visite']).items, []);
 console.log('All receipt checks passed.', r.items.length, 'items:', r.items.map((i) => `${i.name} ${i.qty}×${i.unitPrice}`).join(' | '));
+
+// ---- Real Carrefour Market receipt (12/11/2026): group subtotals in bold, article codes, weighed line ----
+{
+  const R = (text: string, top: number, left = 10): OcrLine => ({ text, top, left, height: 18 });
+  const lines: OcrLine[] = [
+    R('Carrefour', 380, 350), R('market', 430, 460), R('LabelVie', 495, 600),
+    R('Carrefour Market', 570, 435), R('EL HOUDA', 603, 480), R('ICE 000078523000008', 637, 420),
+    R('P.N : 25900525', 668, 445), R('Tel 05 28 32 25 69', 698, 425),
+    R('12/11/2026 - 19:51:56', 800, 315), R('8 2 66238', 798, 630),
+    R('OPERATION : VENTE', 868, 435),
+    R('(4)2000002693406', 905, 225), R('FILET COLIN ALASKA B', 903, 435), R('34.90', 900, 750),
+    R('SURGELE', 938, 225), R('34.90', 938, 470),
+    R('(1)2700997030582', 972, 225), R('EDAM BOULE FRICO AU', 971, 437), R('30.58', 967, 752),
+    R('(1)2707827014620', 1006, 225), R('FROMAGE FUME NATURE', 1004, 437), R('14.62', 999, 752),
+    R('FROMAGERIE', 1041, 225), R('45.20', 1041, 472),
+    R('(1)7622202376115', 1072, 225), R('CHEWING GUM ORIGINAL', 1070, 438), R('3.95', 1065, 767),
+    R('BISCUITERIE', 1109, 222), R('3.95', 1109, 472),
+    R('(4)2303641', 1140, 225), R('CHAMPIGNON DE PARIS', 1138, 440), R('32.62', 1131, 757),
+    R('0.628 kg x 51.95 MAD/kg', 1174, 320),
+    R('FRUITS ET LEGUMES', 1208, 222), R('32.62', 1208, 472),
+    R('PAIEMENT', 1268, 490),
+    R('TOTAL :', 1308, 218), R('116.96', 1291, 760),
+    R('DONT DOIT DE TIMBRE : 0.29', 1343, 218),
+    R('200.00', 1393, 762), R('ESPECES', 1416, 216), R('0.29', 1431, 787),
+    R('DROITS TIMBRE', 1451, 216), R('83.04', 1468, 778), R('Rendu (ESPECES)', 1488, 218),
+    R('NOMBRE ARTICLES : 5', 1562, 215), R('Club Carrefour', 1592, 460),
+    R('Ancien Solde : 307 Points', 1670, 400),
+    R('VENTILATION PAR TAUX TVA', 1880, 210),
+    R('CODE', 1922, 208), R('TOT.HT', 1919, 316), R('TAUX', 1917, 449), R('T.V.A', 1914, 568), R('T.T.C', 1911, 697),
+    R('4', 1965, 210), R('67.5200', 1962, 304), R('0.00%', 1959, 437), R('0.0000', 1955, 557), R('67.52', 1952, 700),
+    R('1', 2007, 210), R('40.9583', 2005, 304), R('20.00%', 2001, 434), R('8.1917', 1997, 560), R('49.15', 1994, 700),
+    R('TOTAL', 2050, 208), R('8.1917', 2042, 560), R('116.67', 2038, 693),
+    R('50 DH OFFERTS SUR VOS COURSES EN LIGNE !', 2285, 310), R('Code Promo : WELCOME', 2398, 425),
+  ];
+  const res = parseReceipt(toRows(lines));
+  assert.equal(res.store, 'Carrefour Market');
+  assert.equal(res.date, '2026-11-12');
+  assert.equal(res.total, 116.96);
+  assert.deepEqual(
+    res.items.map((i) => [i.name, i.qty, i.unitPrice, i.unit]),
+    [
+      ['Filet Colin Alaska B', 1, 34.9, 'pièce'],
+      ['Edam Boule Frico Au', 1, 30.58, 'pièce'],
+      ['Fromage Fume Nature', 1, 14.62, 'pièce'],
+      ['Chewing Gum Original', 1, 3.95, 'pièce'],
+      ['Champignon De Paris', 0.628, 51.95, 'kg'],
+    ],
+  );
+  console.log('Carrefour receipt read:', res.items.length, 'items, total', res.total);
+}

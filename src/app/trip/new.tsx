@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
+import type { ScrollViewInstance } from 'react-native';
 import { Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
 import { scanAvailable, scanReceipt } from '@/scan';
@@ -14,7 +15,9 @@ import { getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/
 import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 
-type BasketItem = { name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean };
+type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean };
+type NewLine = Omit<BasketItem, 'id'>;
+let nextLineId = 1;
 
 const isMeasured = (unit: string) => unit === 'kg' || unit === 'L';
 const stepFor = (unit: string) => (isMeasured(unit) ? 0.25 : 1);
@@ -44,6 +47,8 @@ export default function TripForm() {
   const [saving, setSaving] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState('');
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const formY = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -61,7 +66,7 @@ export default function TripForm() {
         setStore(existing.trip.store);
         setDate(existing.trip.date);
         // When editing, the comparison with "last time" would include this very trip, so it is not shown.
-        setItems(existing.items.map((it) => ({ name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unit_price, last: null, known: true })));
+        setItems(existing.items.map((it) => ({ id: nextLineId++, name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unit_price, last: null, known: true })));
       }
     })();
     return () => {
@@ -92,10 +97,12 @@ export default function TripForm() {
     .filter((p) => (typedKey ? productKey(p.name).includes(typedKey) : true))
     .slice(0, 6);
 
-  const upsert = (item: BasketItem) => {
+  /** Adds a line. Typed items merge with the same product; scanned ones stay separate so duplicates can be spotted. */
+  const upsert = (line: NewLine, merge = true) => {
+    const item: BasketItem = { ...line, id: nextLineId++ };
     const key = productKey(item.name);
     setItems((cur) => {
-      const i = cur.findIndex((x) => productKey(x.name) === key);
+      const i = merge ? cur.findIndex((x) => productKey(x.name) === key) : -1;
       if (i < 0) return [...cur, item];
       const copy = [...cur];
       copy[i] = { ...copy[i], unitPrice: item.unitPrice, qty: copy[i].qty + item.qty };
@@ -132,9 +139,14 @@ export default function TripForm() {
     });
   };
 
+  const removeLine = (index: number) => {
+    setItems((cur) => cur.filter((_, i) => i !== index));
+  };
+
   /** Moves a basket line back into the form so its price or quantity can be corrected. */
   const editLine = (index: number) => {
     const it = items[index];
+    scrollRef.current?.scrollTo({ y: Math.max(0, formY.current - 12), animated: true });
     setName(it.name);
     setUnit(it.unit);
     setPriceMode('unit');
@@ -176,7 +188,8 @@ export default function TripForm() {
           unitPrice: it.unitPrice,
           last: editId ? null : existing?.last_price ?? null,
           known: !!existing,
-        });
+          scanned: true,
+        }, false);
       }
       const read = res.items.reduce((a, it) => a + it.qty * it.unitPrice, 0);
       const gap = res.total !== null ? Math.abs(res.total - read) : 0;
@@ -214,7 +227,7 @@ export default function TripForm() {
     <Screen>
       <Header title={editId ? 'Modifier la course' : 'Nouvelle course'} />
       <KeyboardAvoidingView style={ui.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
           <View style={st.dateRow}>
             <Pressable accessibilityRole="button" accessibilityLabel="Jour précédent" onPress={() => setDate(addDays(date, -1))} style={ui.round}>
               <Ionicons name="chevron-back" size={22} color={colors.ink} />
@@ -243,7 +256,7 @@ export default function TripForm() {
                 </View>
                 <View style={ui.flex}>
                   <Text style={st.scanTitle}>Scanner le ticket</Text>
-                  <Text style={t.meta}>{scanAvailable ? 'Les articles se remplissent tout seuls.' : "Disponible dans l'application Android."}</Text>
+                  <Text style={t.meta}>{scanAvailable ? 'Les articles se remplissent tout seuls.' : "Aperçu : charge un ticket d'exemple."}</Text>
                 </View>
               </View>
               <View style={st.scanButtons}>
@@ -295,6 +308,7 @@ export default function TripForm() {
             />
           ) : null}
 
+          <View onLayout={(e) => { formY.current = e.nativeEvent.layout.y; }}>
           <Card style={st.form}>
             <Text style={st.label}>Article</Text>
             <TextInput
@@ -406,6 +420,7 @@ export default function TripForm() {
               </Text>
             ) : null}
           </Card>
+          </View>
 
           {error ? (
             <Text style={st.error} accessibilityLiveRegion="polite">
@@ -423,36 +438,54 @@ export default function TripForm() {
             <View style={st.basket}>
               {items.map((it, i) => {
                 const diff = it.last === null ? null : Math.round((it.unitPrice - it.last) * 100) / 100;
+                const dup = items.filter((x) => productKey(x.name) === productKey(it.name)).length > 1;
                 return (
-                  <Pop key={productKey(it.name)}>
-                  <Card style={st.line}>
-                    <View style={st.lineIcon}>
-                      <MaterialCommunityIcons name={productIcon(it.name) as keyof typeof MaterialCommunityIcons.glyphMap} size={22} color={colors.softText} />
-                    </View>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Corriger ${it.name}`} onPress={() => editLine(i)} style={st.lineMain}>
-                      <Text style={t.name}>{it.name}</Text>
-                      <Text style={t.meta}>
-                        {money(it.unitPrice)} MAD / {it.unit}
-                      </Text>
-                      {diff === null ? (
-                        it.known ? null : <Chip label="Nouveau produit" />
-                      ) : diff === 0 ? (
-                        <Chip label="Même prix" />
-                      ) : (
-                        <Chip label={`${diff > 0 ? '+' : '−'}${money(Math.abs(diff))} depuis la dernière fois`} tone={diff > 0 ? 'up' : 'down'} />
-                      )}
-                    </Pressable>
-                    <View style={st.stepper}>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`Retirer ${fmtQty(stepFor(it.unit))} ${it.unit}`} onPress={() => changeQty(i, -1)} style={st.step}>
-                        <Ionicons name="remove" size={20} color={colors.ink} />
-                      </Pressable>
-                      <Text style={st.stepValue}>{qtyLabel(it.qty, it.unit)}</Text>
-                      <Pressable accessibilityRole="button" accessibilityLabel={`Ajouter ${fmtQty(stepFor(it.unit))} ${it.unit}`} onPress={() => changeQty(i, 1)} style={st.step}>
-                        <Ionicons name="add" size={20} color={colors.ink} />
-                      </Pressable>
-                    </View>
-                    <Text style={st.lineTotal}>{money(it.qty * it.unitPrice)}</Text>
-                  </Card>
+                  <Pop key={it.id}>
+                    <Card style={[st.line, dup && st.lineDup]}>
+                      <View style={st.lineTop}>
+                        <View style={st.lineIcon}>
+                          <MaterialCommunityIcons name={productIcon(it.name) as keyof typeof MaterialCommunityIcons.glyphMap} size={22} color={colors.softText} />
+                        </View>
+                        <View style={st.lineMain}>
+                          <Text style={t.name}>{it.name}</Text>
+                          <Text style={t.meta}>
+                            {qtyLabel(it.qty, it.unit)} × {money(it.unitPrice)} MAD{it.unit === 'pièce' ? '' : ` / ${it.unit}`}
+                          </Text>
+                          <View style={st.chips}>
+                            {dup ? <Chip label="Doublon ?" tone="up" icon="copy-outline" /> : null}
+                            {it.scanned ? <Chip label="Lu sur le ticket" icon="receipt-outline" /> : null}
+                            {diff === null ? (
+                              it.known || it.scanned ? null : <Chip label="Nouveau produit" />
+                            ) : diff === 0 ? (
+                              <Chip label="Même prix" />
+                            ) : (
+                              <Chip label={`${diff > 0 ? '+' : '−'}${money(Math.abs(diff))} vs dernière fois`} tone={diff > 0 ? 'up' : 'down'} />
+                            )}
+                          </View>
+                        </View>
+                        <Text style={st.lineTotal}>{money(it.qty * it.unitPrice)}</Text>
+                      </View>
+                      <View style={st.lineActions}>
+                        <View style={st.stepper}>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Retirer ${fmtQty(stepFor(it.unit))} ${it.unit} de ${it.name}`} onPress={() => changeQty(i, -1)} style={st.step}>
+                            <Ionicons name="remove" size={20} color={colors.ink} />
+                          </Pressable>
+                          <Text style={st.stepValue}>{qtyLabel(it.qty, it.unit)}</Text>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Ajouter ${fmtQty(stepFor(it.unit))} ${it.unit} à ${it.name}`} onPress={() => changeQty(i, 1)} style={st.step}>
+                            <Ionicons name="add" size={20} color={colors.ink} />
+                          </Pressable>
+                        </View>
+                        <View style={st.lineButtons}>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Modifier ${it.name}`} onPress={() => editLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
+                            <Ionicons name="create-outline" size={20} color={colors.blue} />
+                            <Text style={st.iconBtnText}>Modifier</Text>
+                          </Pressable>
+                          <Pressable accessibilityRole="button" accessibilityLabel={`Supprimer ${it.name}`} onPress={() => removeLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
+                            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    </Card>
                   </Pop>
                 );
               })}
@@ -507,7 +540,14 @@ const st = sheet(() => ({
   basketTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink },
   basket: { gap: 8 },
   lineIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  line: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingRight: 12 },
+  lineDup: { borderWidth: 2, borderColor: colors.upText },
+  lineTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  lineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8 },
+  lineButtons: { flexDirection: 'row', gap: 6 },
+  iconBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 10, borderRadius: 14, backgroundColor: colors.neutral, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  iconBtnText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 },
+  line: { paddingVertical: 10, paddingHorizontal: 12 },
   lineMain: { flex: 1, minWidth: 0, gap: 3, minHeight: 44, justifyContent: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   step: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.neutral, alignItems: 'center', justifyContent: 'center' },
