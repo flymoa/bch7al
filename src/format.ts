@@ -16,6 +16,13 @@ export function qty(v: number): string {
   return String(Math.round(v * 1000) / 1000).replace('.', ',');
 }
 
+/** 0.75 kg -> "750 g", 1.5 kg -> "1,5 kg", 0.33 L -> "330 mL", 3 pièce -> "3" */
+export function qtyLabel(q: number, unit: string): string {
+  if ((unit === 'kg' || unit === 'L') && q < 1) return Math.round(q * 1000) + (unit === 'kg' ? ' g' : ' mL');
+  if (unit === 'kg' || unit === 'L') return qty(q) + ' ' + unit;
+  return qty(q);
+}
+
 /** "12,50" or "12.50" -> 12.5 ; invalid -> NaN */
 export function parseNumber(text: string): number {
   const t = text.trim().replace(/\s/g, '').replace(',', '.');

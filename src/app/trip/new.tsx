@@ -10,12 +10,14 @@ import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
 import { getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
-import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, todayIso } from '@/format';
+import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 
 type BasketItem = { name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean };
 
-const stepFor = (unit: string) => (unit === 'kg' || unit === 'L' ? 0.5 : 1);
+const isMeasured = (unit: string) => unit === 'kg' || unit === 'L';
+const stepFor = (unit: string) => (isMeasured(unit) ? 0.25 : 1);
+const smallUnit = (unit: string) => (unit === 'L' ? 'mL' : 'g');
 
 export default function TripForm() {
   useTheme();
@@ -33,6 +35,10 @@ export default function TripForm() {
   const [unit, setUnit] = useState<string>(UNITS[0]);
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
+  /** For kg / L: was the weight typed in grams (mL)? */
+  const [small, setSmall] = useState(false);
+  /** For kg / L: did the user type the price per kg, or the total they paid? */
+  const [priceMode, setPriceMode] = useState<'unit' | 'total'>('unit');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -65,6 +71,17 @@ export default function TripForm() {
   const match = byKey.get(typedKey);
   // A product keeps one unit for its whole history, otherwise prices could not be compared.
   const shownUnit = match ? match.unit : unit;
+  const measured = isMeasured(shownUnit);
+
+  // Turns what was typed into a quantity in kg / L / pieces and a price for one unit.
+  const computed = (() => {
+    const p = parseNumber(price);
+    const typed = parseNumber(quantity);
+    if (!(p >= 0) || !(typed > 0)) return null;
+    const q = measured && small ? typed / 1000 : typed;
+    const unitPrice = measured && priceMode === 'total' ? p / q : p;
+    return { qty: Math.round(q * 1000) / 1000, unitPrice: Math.round(unitPrice * 10000) / 10000, paid: q * unitPrice };
+  })();
 
   const basketKeys = new Set(items.map((it) => productKey(it.name)));
   const suggestions = products
@@ -85,15 +102,14 @@ export default function TripForm() {
 
   const addTyped = () => {
     const clean = cleanName(name);
-    const p = parseNumber(price);
-    const q = parseNumber(quantity);
     if (!productKey(clean)) return setError("Écris le nom de l'article.");
-    if (!(p >= 0) || Number.isNaN(p)) return setError('Écris le prix, par exemple 12,50.');
-    if (!(q > 0)) return setError('La quantité doit être plus grande que zéro.');
-    upsert({ name: match ? match.name : clean, unit: shownUnit, qty: q, unitPrice: p, last: editId ? null : match?.last_price ?? null, known: !!match });
+    if (!computed) return setError(measured ? 'Écris le poids et le prix, par exemple 750 g et 6,50.' : 'Écris le prix, par exemple 12,50, et une quantité plus grande que zéro.');
+    upsert({ name: match ? match.name : clean, unit: shownUnit, qty: computed.qty, unitPrice: computed.unitPrice, last: editId ? null : match?.last_price ?? null, known: !!match });
     setName('');
     setPrice('');
     setQuantity('1');
+    setSmall(false);
+    setPriceMode('unit');
     setUnit(UNITS[0]);
     setError('');
   };
@@ -118,8 +134,15 @@ export default function TripForm() {
     const it = items[index];
     setName(it.name);
     setUnit(it.unit);
-    setPrice(String(it.unitPrice).replace('.', ','));
-    setQuantity(fmtQty(it.qty));
+    setPriceMode('unit');
+    setPrice(String(Math.round(it.unitPrice * 100) / 100).replace('.', ','));
+    if (isMeasured(it.unit) && it.qty < 1) {
+      setSmall(true);
+      setQuantity(String(Math.round(it.qty * 1000)));
+    } else {
+      setSmall(false);
+      setQuantity(fmtQty(it.qty));
+    }
     setItems((cur) => cur.filter((_, i) => i !== index));
   };
 
@@ -246,11 +269,37 @@ export default function TripForm() {
               ))}
             </View>
 
+            {measured ? (
+              <>
+                <Text style={[st.label, st.gapTop]}>{shownUnit === 'kg' ? 'Poids acheté' : 'Volume acheté'}</Text>
+                <View style={st.weightRow}>
+                  <TextInput
+                    accessibilityLabel={`Quantité en ${small ? smallUnit(shownUnit) : shownUnit}`}
+                    value={quantity}
+                    onChangeText={(v) => {
+                      setQuantity(v);
+                      setError('');
+                    }}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                    style={[st.input, st.number, ui.flex]}
+                  />
+                  <Pill label={smallUnit(shownUnit)} active={small} onPress={() => setSmall(true)} />
+                  <Pill label={shownUnit} active={!small} onPress={() => setSmall(false)} />
+                </View>
+                <Text style={[st.label, st.gapTop]}>J'ai noté</Text>
+                <View style={st.wrap}>
+                  <Pill label={`Le prix du ${shownUnit === 'kg' ? 'kilo' : 'litre'}`} active={priceMode === 'unit'} onPress={() => setPriceMode('unit')} />
+                  <Pill label="Ce que j'ai payé" active={priceMode === 'total'} onPress={() => setPriceMode('total')} />
+                </View>
+              </>
+            ) : null}
+
             <View style={st.numbers}>
               <View style={ui.flex}>
-                <Text style={st.label}>Prix pour 1 {shownUnit}</Text>
+                <Text style={st.label}>{measured && priceMode === 'total' ? 'Prix payé (MAD)' : `Prix pour 1 ${shownUnit}`}</Text>
                 <TextInput
-                  accessibilityLabel={`Prix en dirhams pour 1 ${shownUnit}`}
+                  accessibilityLabel={measured && priceMode === 'total' ? 'Prix payé en dirhams' : `Prix en dirhams pour 1 ${shownUnit}`}
                   value={price}
                   onChangeText={(v) => {
                     setPrice(v);
@@ -262,21 +311,31 @@ export default function TripForm() {
                   style={[st.input, st.number]}
                 />
               </View>
-              <View style={st.qtyBox}>
-                <Text style={st.label}>Quantité</Text>
-                <TextInput
-                  accessibilityLabel="Quantité"
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  keyboardType="decimal-pad"
-                  selectTextOnFocus
-                  style={[st.input, st.number]}
-                />
-              </View>
+              {measured ? null : (
+                <View style={st.qtyBox}>
+                  <Text style={st.label}>Quantité</Text>
+                  <TextInput
+                    accessibilityLabel="Quantité"
+                    value={quantity}
+                    onChangeText={setQuantity}
+                    keyboardType="decimal-pad"
+                    selectTextOnFocus
+                    style={[st.input, st.number]}
+                  />
+                </View>
+              )}
               <Pressable accessibilityRole="button" accessibilityLabel="Ajouter l'article au panier" onPress={addTyped} style={({ pressed }) => [st.add, pressed && ui.pressed]}>
                 <Ionicons name="add" size={28} color={colors.white} />
               </Pressable>
             </View>
+            {measured && computed && price.trim() ? (
+              <Text style={st.calc} accessibilityLiveRegion="polite">
+                {qtyLabel(computed.qty, shownUnit)} ·{' '}
+                {priceMode === 'total'
+                  ? `soit ${money(computed.unitPrice)} MAD le ${shownUnit === 'kg' ? 'kilo' : 'litre'}`
+                  : `tu paies ${money(computed.paid)} MAD`}
+              </Text>
+            ) : null}
           </Card>
 
           {error ? (
@@ -318,7 +377,7 @@ export default function TripForm() {
                       <Pressable accessibilityRole="button" accessibilityLabel={`Retirer ${fmtQty(stepFor(it.unit))} ${it.unit}`} onPress={() => changeQty(i, -1)} style={st.step}>
                         <Ionicons name="remove" size={20} color={colors.ink} />
                       </Pressable>
-                      <Text style={st.stepValue}>{fmtQty(it.qty)}</Text>
+                      <Text style={st.stepValue}>{qtyLabel(it.qty, it.unit)}</Text>
                       <Pressable accessibilityRole="button" accessibilityLabel={`Ajouter ${fmtQty(stepFor(it.unit))} ${it.unit}`} onPress={() => changeQty(i, 1)} style={st.step}>
                         <Ionicons name="add" size={20} color={colors.ink} />
                       </Pressable>
@@ -362,6 +421,8 @@ const st = sheet(() => ({
   suggestText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.softText },
   numbers: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
   qtyBox: { width: 92 },
+  weightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  calc: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText, backgroundColor: colors.soft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10, overflow: 'hidden' },
   add: { width: 50, height: 50, borderRadius: 16, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
   error: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.danger, marginTop: 10, paddingHorizontal: 4 },
   basketHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, paddingTop: 18, paddingBottom: 8 },
@@ -372,7 +433,7 @@ const st = sheet(() => ({
   lineMain: { flex: 1, minWidth: 0, gap: 3, minHeight: 44, justifyContent: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   step: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.neutral, alignItems: 'center', justifyContent: 'center' },
-  stepValue: { fontFamily: fonts.title, fontSize: 17, color: colors.ink, minWidth: 30, textAlign: 'center' },
+  stepValue: { fontFamily: fonts.title, fontSize: 15, color: colors.ink, minWidth: 30, textAlign: 'center' },
   lineTotal: { fontFamily: fonts.title, fontSize: 17, color: colors.ink, minWidth: 64, textAlign: 'right' },
   footer: { backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14, gap: 10, elevation: 12 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },

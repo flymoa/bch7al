@@ -6,7 +6,7 @@ import { Alert } from '@/alert';
 import { Button, Card, Empty, Header, Screen, Tile, s as ui, t } from '@/components/ui';
 import { showToast } from '@/components/toast';
 import { deleteTrip, getTrip, type ItemRow, type TripRow } from '@/db';
-import { longDate, money, plural, qty } from '@/format';
+import { longDate, money, plural, qtyLabel } from '@/format';
 import { colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function TripDetail() {
@@ -84,7 +84,7 @@ export default function TripDetail() {
               <View style={ui.flex}>
                 <Text style={t.name}>{it.name}</Text>
                 <Text style={t.meta}>
-                  {qty(it.qty)} × {money(it.unit_price)} MAD / {it.unit}
+                  {qtyLabel(it.qty, it.unit)} × {money(it.unit_price)} MAD / {it.unit}
                 </Text>
               </View>
               <Text style={t.price}>{money(it.qty * it.unit_price)}</Text>

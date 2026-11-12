@@ -3,7 +3,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import * as D from '../src/db';
-import { money, parseNumber, productKey, parseCsv, toCsv, addDays, pctChange } from '../src/format';
+import { qtyLabel, money, parseNumber, productKey, parseCsv, toCsv, addDays, pctChange } from '../src/format';
 
 function adapter(): any {
   const raw = new DatabaseSync(':memory:');
@@ -34,6 +34,10 @@ async function main() {
   assert.equal(productKey('Œufs'), productKey('œufs'));
   assert.equal(productKey('Thé Sultan'), 'the sultan');
   assert.equal(addDays('2026-11-01', -1), '2026-10-31');
+  assert.equal(qtyLabel(0.75, 'kg'), '750 g');
+  assert.equal(qtyLabel(1.5, 'kg'), '1,5 kg');
+  assert.equal(qtyLabel(0.33, 'L'), '330 mL');
+  assert.equal(qtyLabel(3, 'pièce'), '3');
   assert.equal(pctChange(100, 104.3)!.toFixed(1), '4.3');
   assert.deepEqual(parseCsv(toCsv([['a;b', 'c"d', 3]])), [['a;b', 'c"d', '3']]);
 
