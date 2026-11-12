@@ -27,13 +27,16 @@
       "expo-sqlite",
       "expo-font",
       "expo-sharing",
-      "expo-document-picker"
+      "expo-document-picker",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#1D4ED8",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ]
     ],
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1D4ED8"
-    },
     "web": {
       "output": "single",
       "bundler": "metro"
