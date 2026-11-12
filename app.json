@@ -35,6 +35,13 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "bch7al? utilise l'appareil photo pour lire tes tickets de caisse.",
+          "photosPermission": "bch7al? ouvre tes photos pour lire un ticket de caisse."
+        }
       ]
     ],
     "web": {

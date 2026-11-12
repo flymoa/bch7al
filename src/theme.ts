@@ -116,4 +116,4 @@ export const fonts = {
 export const UNITS = ['pièce', 'kg', 'L', 'paquet'] as const;
 export type Unit = (typeof UNITS)[number];
 
-export const DEFAULT_STORES = ['Marjane', 'BIM', 'Carrefour', 'Souk', 'Hanout'];
+export { DEFAULT_STORES } from './theme-constants';

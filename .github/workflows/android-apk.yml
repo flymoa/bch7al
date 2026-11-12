@@ -1,0 +1,60 @@
+# Builds the Android APK on GitHub's servers on every push (or by hand from the Actions tab).
+# The APK is attached to the run, and also committed to the "apk" branch so it can be fetched with git.
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      - name: Checks
+        run: |
+          npx tsc --noEmit
+          npx tsx scripts/test-db.ts
+          npx tsx scripts/test-receipt.ts
+
+      - name: Generate the Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+      - name: Rename
+        run: cp android/app/build/outputs/apk/release/app-release.apk bch7al.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bch7al-apk
+          path: bch7al.apk
+
+      - name: Publish to the apk branch
+        run: |
+          mkdir out && cp bch7al.apk out/ && cd out
+          git init -q && git checkout -q -b apk
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add bch7al.apk && git commit -qm "APK from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" apk

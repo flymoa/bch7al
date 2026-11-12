@@ -12,6 +12,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     if (moduleName === '@/alert' || moduleName.endsWith('/alert')) {
       if (moduleName === '@/alert') return { type: 'sourceFile', filePath: path.resolve(__dirname, 'src/alert.web.ts') };
     }
+    if (moduleName === '@/scan') {
+      return { type: 'sourceFile', filePath: path.resolve(__dirname, 'src/scan.web.ts') };
+    }
   }
   return original ? original(context, moduleName, platform) : context.resolveRequest(context, moduleName, platform);
 };

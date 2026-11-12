@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { Alert } from '@/alert';
 import { Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
+import { scanAvailable, scanReceipt } from '@/scan';
 import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
@@ -41,6 +42,8 @@ export default function TripForm() {
   const [priceMode, setPriceMode] = useState<'unit' | 'total'>('unit');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -147,6 +150,47 @@ export default function TripForm() {
   };
 
   const total = items.reduce((sum, it) => sum + it.qty * it.unitPrice, 0);
+
+  const scan = async (source: 'camera' | 'gallery') => {
+    setError('');
+    setScanning(true);
+    try {
+      const res = await scanReceipt(source);
+      if (!res) return;
+      if (res.items.length === 0) {
+        Alert.alert('Ticket illisible', "Aucun article n'a été reconnu. Reprends la photo bien à plat, avec de la lumière, ou saisis les articles à la main.");
+        return;
+      }
+      if (res.store) {
+        const known = stores.find((s2) => productKey(s2) === productKey(res.store!));
+        setOtherStore(!known);
+        setStore(known ?? res.store);
+      }
+      if (res.date && res.date <= todayIso()) setDate(res.date);
+      for (const it of res.items) {
+        const existing = byKey.get(productKey(it.name));
+        upsert({
+          name: existing ? existing.name : it.name,
+          unit: existing ? existing.unit : it.unit,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+          last: editId ? null : existing?.last_price ?? null,
+          known: !!existing,
+        });
+      }
+      const read = res.items.reduce((a, it) => a + it.qty * it.unitPrice, 0);
+      const gap = res.total !== null ? Math.abs(res.total - read) : 0;
+      setScanNote(
+        res.total !== null && gap > 0.5
+          ? `${plural(res.items.length, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} MAD mais les articles font ${money(read)} MAD : vérifie s'il en manque.`
+          : `${plural(res.items.length, 'article lu', 'articles lus')}. Vérifie les noms et les prix avant d'enregistrer.`,
+      );
+    } catch (e) {
+      Alert.alert('Le scan a échoué', String((e as Error).message ?? e));
+    } finally {
+      setScanning(false);
+    }
+  };
   const today = todayIso();
 
   const save = async () => {
@@ -190,6 +234,31 @@ export default function TripForm() {
               <Ionicons name="chevron-forward" size={22} color={colors.ink} />
             </Pressable>
           </View>
+
+          {editId ? null : (
+            <Card style={st.scanCard}>
+              <View style={st.scanHead}>
+                <View style={st.scanIcon}>
+                  <Ionicons name="receipt-outline" size={24} color={colors.softText} />
+                </View>
+                <View style={ui.flex}>
+                  <Text style={st.scanTitle}>Scanner le ticket</Text>
+                  <Text style={t.meta}>{scanAvailable ? 'Les articles se remplissent tout seuls.' : "Disponible dans l'application Android."}</Text>
+                </View>
+              </View>
+              <View style={st.scanButtons}>
+                <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('camera')} style={({ pressed }) => [st.scanBtn, pressed && ui.pressed, scanning && ui.disabled]}>
+                  <Ionicons name="camera-outline" size={20} color={colors.white} />
+                  <Text style={st.scanBtnText}>{scanning ? 'Lecture…' : 'Photo'}</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('gallery')} style={({ pressed }) => [st.scanBtn, st.scanBtnLight, pressed && ui.pressed, scanning && ui.disabled]}>
+                  <Ionicons name="images-outline" size={20} color={colors.blue} />
+                  <Text style={[st.scanBtnText, { color: colors.blue }]}>Galerie</Text>
+                </Pressable>
+              </View>
+              {scanNote ? <Text style={st.scanNote}>{scanNote}</Text> : null}
+            </Card>
+          )}
 
           <Text style={st.label}>Où as-tu fait tes courses ?</Text>
           <View style={st.wrap}>
@@ -421,6 +490,15 @@ const st = sheet(() => ({
   suggestText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.softText },
   numbers: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
   qtyBox: { width: 92 },
+  scanCard: { marginBottom: 14, gap: 12, padding: 14 },
+  scanHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  scanIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  scanTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.ink },
+  scanButtons: { flexDirection: 'row', gap: 8 },
+  scanBtn: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: colors.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  scanBtnLight: { backgroundColor: colors.card, borderWidth: 2, borderColor: colors.border },
+  scanBtnText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.white },
+  scanNote: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText, backgroundColor: colors.soft, borderRadius: 12, padding: 10, overflow: 'hidden' },
   weightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   calc: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText, backgroundColor: colors.soft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10, overflow: 'hidden' },
   add: { width: 50, height: 50, borderRadius: 16, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
