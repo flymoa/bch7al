@@ -18,7 +18,12 @@
     },
     "scheme": "bch7al",
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "asyncRoutes": false
+        }
+      ],
       "expo-sqlite",
       "expo-font",
       "expo-sharing",
@@ -28,6 +33,13 @@
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#1D4ED8"
+    },
+    "web": {
+      "output": "single",
+      "bundler": "metro"
+    },
+    "experiments": {
+      "baseUrl": ""
     }
   }
 }

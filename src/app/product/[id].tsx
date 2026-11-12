@@ -1,7 +1,8 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert } from '@/alert';
 import { Button, Card, ChangeChip, Chip, Empty, Header, Pill, RoundButton, Screen, Tile, s as ui, t } from '@/components/ui';
 import { getProduct, productHistory, updateProduct, type HistoryRow, type ProductRow } from '@/db';
 import { money, productKey, shortDate } from '@/format';
@@ -127,7 +128,7 @@ export default function ProductDetail() {
         <Card style={st.block}>
           <View style={st.blockHead}>
             <Text style={st.blockTitle}>Son prix dans le temps</Text>
-            <ChangeChip from={history[0].unit_price} to={last.unit_price} />
+            {history.length > 1 ? <ChangeChip from={history[0].unit_price} to={last.unit_price} /> : null}
           </View>
           {history.length < 2 ? (
             <Text style={t.meta}>Un seul prix noté pour l'instant. Le graphique apparaît dès le deuxième achat.</Text>

@@ -1,7 +1,8 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert } from '@/alert';
 import { Button, Card, Empty, Header, Screen, Tile, s as ui, t } from '@/components/ui';
 import { deleteTrip, getTrip, type ItemRow, type TripRow } from '@/db';
 import { longDate, money, plural, qty } from '@/format';

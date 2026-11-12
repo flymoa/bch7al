@@ -2,7 +2,7 @@ import { Fredoka_600SemiBold, Fredoka_700Bold } from '@expo-google-fonts/fredoka
 import { Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import { SQLiteProvider } from 'expo-sqlite';
+import { SQLiteProvider } from '@/sqlite';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { onOpen } from '@/db';
