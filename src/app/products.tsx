@@ -7,9 +7,10 @@ import { FadeIn } from '@/components/motion';
 import { ChangeChip, Empty, Header, RowCard, Screen, Tile, t } from '@/components/ui';
 import { listProducts, type ProductRow } from '@/db';
 import { money, plural } from '@/format';
-import { colors, fonts, shadow } from '@/theme';
+import { colors, fonts, shadow, sheet, useTheme } from '@/theme';
 
 export default function Products() {
+  useTheme();
   const db = useSQLiteContext();
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<ProductRow[] | null>(null);
@@ -79,7 +80,7 @@ export default function Products() {
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   pad: { padding: 16 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, minHeight: 50, borderRadius: 25, backgroundColor: colors.card, ...shadow },
   search: { flex: 1, minHeight: 50, fontFamily: fonts.body, fontSize: 16, color: colors.ink },
@@ -87,4 +88,4 @@ const st = StyleSheet.create({
   count: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.muted, paddingHorizontal: 4 },
   grow: { flex: 1, minWidth: 0 },
   right: { alignItems: 'flex-end', gap: 3 },
-});
+}));

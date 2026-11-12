@@ -7,12 +7,13 @@ import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Alert } from '@/alert';
-import { Button, Card, Header, Screen } from '@/components/ui';
+import { Button, Card, Header, Pill, Screen } from '@/components/ui';
 import { counts, exportCsv, importCsv } from '@/db';
 import { plural, todayIso } from '@/format';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function Settings() {
+  const { pref, setPref } = useTheme();
   const db = useSQLiteContext();
   const [stats, setStats] = useState({ trips: 0, products: 0, items: 0 });
   const [busy, setBusy] = useState(false);
@@ -88,6 +89,16 @@ export default function Settings() {
         </Card>
 
         <Card style={st.card}>
+          <Text style={st.title}>Apparence</Text>
+          <View style={st.row}>
+            <Pill label="Automatique" active={pref === 'system'} onPress={() => setPref('system')} />
+            <Pill label="Clair" active={pref === 'light'} onPress={() => setPref('light')} />
+            <Pill label="Sombre" active={pref === 'dark'} onPress={() => setPref('dark')} />
+          </View>
+          <Text style={st.text}>Automatique suit le réglage de ton téléphone.</Text>
+        </Card>
+
+        <Card style={st.card}>
           <Text style={st.title}>Sauvegarde</Text>
           <Text style={st.text}>
             Crée un fichier avec toutes tes courses. Envoie-le vers Google Drive, ton e-mail ou WhatsApp pour le garder en lieu sûr. Il s'ouvre aussi dans Excel.
@@ -109,11 +120,12 @@ export default function Settings() {
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24, gap: 12 },
   card: { gap: 10, padding: 18 },
   title: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
   text: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, lineHeight: 21 },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   about: { alignItems: 'center', paddingTop: 8 },
   aboutText: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-});
+}));

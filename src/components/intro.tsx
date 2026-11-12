@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, sheet } from '@/theme';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const SEVEN = 'M62 54H138C128 78 104 100 100 130';
@@ -74,10 +74,10 @@ export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void })
   );
 }
 
-const st = StyleSheet.create({
-  screen: { backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+const st = sheet(() => ({
+  screen: { backgroundColor: '#1D4ED8', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
   dotWrap: { position: 'absolute', top: 0 },
   word: { fontFamily: fonts.titleBold, fontSize: 38, color: colors.white, textAlign: 'center', marginTop: 4 },
   seven: { color: '#A9C5FF' },
   tag: { fontFamily: fonts.body, fontSize: 15, color: '#DCE6FF', textAlign: 'center', marginTop: 2 },
-});
+}));

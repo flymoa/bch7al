@@ -13,7 +13,7 @@ export type MonthSummary = { trips: number; total: number; items: number };
 export type NewItem = { name: string; unit: string; qty: number; unitPrice: number };
 export type NewTrip = { id?: number; store: string; date: string; items: NewItem[] };
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 
 export async function migrate(db: Db): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -50,6 +50,10 @@ export async function migrate(db: Db): Promise<void> {
       CREATE INDEX trips_date ON trips(date);
     `);
     version = 1;
+  }
+  if (version === 1) {
+    await db.execAsync('CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);');
+    version = 2;
   }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
@@ -301,4 +305,15 @@ export async function counts(db: Db): Promise<{ trips: number; products: number;
     [],
   );
   return row ?? { trips: 0, products: 0, items: 0 };
+}
+
+// ---------- preferences ----------
+
+export async function getPref(db: Db, key: string): Promise<string | null> {
+  const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM prefs WHERE key = ?', [key]);
+  return row?.value ?? null;
+}
+
+export async function setPref(db: Db, key: string, value: string): Promise<void> {
+  await db.runAsync('INSERT INTO prefs (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value]);
 }

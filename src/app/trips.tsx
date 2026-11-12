@@ -6,9 +6,10 @@ import { CountUp, FadeIn } from '@/components/motion';
 import { Empty, Header, Pill, RowCard, Screen, Tile, t } from '@/components/ui';
 import { listMonths, listTrips, type TripRow } from '@/db';
 import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function Trips() {
+  useTheme();
   const db = useSQLiteContext();
   const [months, setMonths] = useState<string[]>([]);
   const [month, setMonth] = useState<string>(currentMonth());
@@ -89,7 +90,7 @@ export default function Trips() {
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   pad: { padding: 16 },
   months: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 8 },
@@ -100,4 +101,4 @@ const st = StyleSheet.create({
   avg: { alignItems: 'flex-end' },
   avgValue: { fontFamily: fonts.title, fontSize: 18, color: colors.white },
   grow: { flex: 1, minWidth: 0 },
-});
+}));

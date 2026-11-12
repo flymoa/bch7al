@@ -2,7 +2,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, sheet } from '@/theme';
 
 type Listener = (msg: string) => void;
 const listeners = new Set<Listener>();
@@ -37,13 +37,13 @@ export function ToastHost() {
       accessibilityLiveRegion="polite"
       style={[st.toast, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }] }]}
     >
-      <Ionicons name="checkmark-circle" size={22} color="#93B4FA" />
+      <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
       <Text style={st.text}>{msg}</Text>
     </Animated.View>
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   toast: { position: 'absolute', left: 24, right: 24, bottom: 100, backgroundColor: colors.ink, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 10, elevation: 10 },
-  text: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.white },
-});
+  text: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.onInk },
+}));

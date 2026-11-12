@@ -11,13 +11,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
 import { getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
 import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, todayIso } from '@/format';
-import { colors, DEFAULT_STORES, fonts, UNITS } from '@/theme';
+import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 
 type BasketItem = { name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean };
 
 const stepFor = (unit: string) => (unit === 'kg' || unit === 'L' ? 0.5 : 1);
 
 export default function TripForm() {
+  useTheme();
   const db = useSQLiteContext();
   const params = useLocalSearchParams<{ id?: string }>();
   const editId = params.id ? Number(params.id) : undefined;
@@ -345,7 +346,7 @@ export default function TripForm() {
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   content: { paddingHorizontal: 16, paddingBottom: 20 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   dateBox: { flex: 1, minHeight: 52, backgroundColor: colors.card, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
@@ -377,4 +378,4 @@ const st = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   totalLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted, flex: 1 },
   total: { fontFamily: fonts.title, fontSize: 28, color: colors.ink },
-});
+}));

@@ -7,11 +7,12 @@ import { FadeIn, GrowBar } from '@/components/motion';
 import { Button, Card, ChangeChip, Chip, Empty, Header, Pill, RoundButton, Screen, Tile, s as ui, t } from '@/components/ui';
 import { getProduct, productHistory, updateProduct, type HistoryRow, type ProductRow } from '@/db';
 import { money, productKey, shortDate } from '@/format';
-import { colors, fonts, UNITS } from '@/theme';
+import { colors, fonts, UNITS, sheet, useTheme } from '@/theme';
 
 const CHART_POINTS = 16;
 
 export default function ProductDetail() {
+  useTheme();
   const db = useSQLiteContext();
   const { id } = useLocalSearchParams<{ id: string }>();
   const productId = Number(id);
@@ -142,7 +143,7 @@ export default function ProductDetail() {
                 accessibilityLabel={`Prix de ${money(chart[0].unit_price)} à ${money(last.unit_price)} dirhams sur les ${chart.length} derniers achats`}
               >
                 {chart.map((h, i) => (
-                  <GrowBar key={i} index={i} style={st.bar} height={22 + ((h.unit_price - chartLow) / chartSpan) * 74} color={i === chart.length - 1 ? colors.blue : '#C9D8FA'} />
+                  <GrowBar key={i} index={i} style={st.bar} height={22 + ((h.unit_price - chartLow) / chartSpan) * 74} color={i === chart.length - 1 ? colors.blue : colors.barSoft} />
                 ))}
               </View>
               <View style={st.axis}>
@@ -199,7 +200,7 @@ export default function ProductDetail() {
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   pad: { padding: 16 },
   content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 28 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -225,4 +226,4 @@ const st = StyleSheet.create({
   rows: { paddingVertical: 4 },
   rowLine: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 8 },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.line },
-});
+}));

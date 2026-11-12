@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, fonts, shadow } from '@/theme';
+import { colors, fonts, shadow, sheet } from '@/theme';
 import { pct, pctChange } from '@/format';
 import { productIcon, storeIcon } from '@/icons';
 import { usePressScale } from './motion';
@@ -113,7 +113,7 @@ export function Button({ label, onPress, icon, tone = 'primary', disabled, style
   label: string; onPress: () => void; icon?: IconName; tone?: 'primary' | 'dark' | 'light' | 'danger'; disabled?: boolean; style?: StyleProp<ViewStyle>;
 }) {
   const bg = tone === 'primary' ? colors.blue : tone === 'dark' ? colors.ink : colors.card;
-  const fg = tone === 'light' ? colors.blue : tone === 'danger' ? colors.danger : colors.white;
+  const fg = tone === 'light' ? colors.blue : tone === 'danger' ? colors.danger : tone === 'dark' ? colors.onInk : colors.white;
   const press = usePressScale(0.96);
   return (
     <Animated.View style={press.style}>
@@ -201,7 +201,7 @@ function BottomBar({ active }: { active: 'home' | 'trips' | 'products' | 'settin
   );
 }
 
-export const s = StyleSheet.create({
+export const s = sheet(() => ({
   flex: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.7 },
@@ -216,10 +216,10 @@ export const s = StyleSheet.create({
   tileText: { fontFamily: fonts.titleBold, color: colors.softText },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 12 },
-  pill: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  pillActive: { backgroundColor: colors.ink },
+  pill: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  pillActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   pillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
-  pillTextActive: { color: colors.white },
+  pillTextActive: { color: colors.onInk },
   button: { minHeight: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 20 },
   buttonOutline: { borderWidth: 2, borderColor: colors.border },
   buttonText: { fontFamily: fonts.title, fontSize: 18 },
@@ -237,14 +237,14 @@ export const s = StyleSheet.create({
   tabText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.muted },
   plusWrap: { marginTop: -26 },
   plus: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 5, borderColor: colors.bg },
-  rowPressed: { backgroundColor: '#F7F9FD' },
-});
+  rowPressed: { backgroundColor: colors.cardPressed },
+}));
 
 // Shared text styles used by the screens.
-export const t = StyleSheet.create({
+export const t = sheet(() => ({
   name: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   price: { fontFamily: fonts.title, fontSize: 18, color: colors.ink },
   unit: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink },
   label: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.muted },
-});
+}));

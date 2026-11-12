@@ -6,9 +6,10 @@ import { CountUp, FadeIn } from '@/components/motion';
 import { Button, ChangeChip, Empty, RowCard, Screen, SectionTitle, Tile, t } from '@/components/ui';
 import { listProducts, listTrips, monthSummary, type MonthSummary, type ProductRow, type TripRow } from '@/db';
 import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function Home() {
+  useTheme();
   const db = useSQLiteContext();
   const [summary, setSummary] = useState<MonthSummary>({ trips: 0, total: 0, items: 0 });
   const [trips, setTrips] = useState<TripRow[]>([]);
@@ -120,7 +121,7 @@ export default function Home() {
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   brand: { fontFamily: fonts.titleBold, fontSize: 32, color: colors.ink },
@@ -138,4 +139,4 @@ const st = StyleSheet.create({
   list: { gap: 8 },
   grow: { flex: 1, minWidth: 0 },
   right: { alignItems: 'flex-end', gap: 3 },
-});
+}));

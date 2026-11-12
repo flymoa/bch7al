@@ -7,9 +7,10 @@ import { Button, Card, Empty, Header, Screen, Tile, s as ui, t } from '@/compone
 import { showToast } from '@/components/toast';
 import { deleteTrip, getTrip, type ItemRow, type TripRow } from '@/db';
 import { longDate, money, plural, qty } from '@/format';
-import { colors, fonts } from '@/theme';
+import { colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function TripDetail() {
+  useTheme();
   const db = useSQLiteContext();
   const { id } = useLocalSearchParams<{ id: string }>();
   const tripId = Number(id);
@@ -104,7 +105,7 @@ export default function TripDetail() {
   );
 }
 
-const st = StyleSheet.create({
+const st = sheet(() => ({
   pad: { padding: 16 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 12 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -115,4 +116,4 @@ const st = StyleSheet.create({
   totalLine: { borderTopWidth: 2, borderTopColor: colors.ink, justifyContent: 'space-between' },
   totalLabel: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
   total: { fontFamily: fonts.title, fontSize: 24, color: colors.ink },
-});
+}));
