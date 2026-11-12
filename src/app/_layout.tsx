@@ -64,7 +64,7 @@ export default function RootLayout() {
             <Stack.Screen name="index" options={{ animation: 'none' }} />
             <Stack.Screen name="trips" options={{ animation: 'none' }} />
             <Stack.Screen name="products" options={{ animation: 'none' }} />
-            <Stack.Screen name="settings" options={{ animation: 'none' }} />
+            <Stack.Screen name="stats" options={{ animation: 'none' }} />
           </Stack>
           <ToastHost />
         </SQLiteProvider>

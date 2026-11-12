@@ -317,3 +317,62 @@ export async function getPref(db: Db, key: string): Promise<string | null> {
 export async function setPref(db: Db, key: string, value: string): Promise<void> {
   await db.runAsync('INSERT INTO prefs (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value]);
 }
+
+// ---------- statistics ----------
+
+export type StoreSpend = { store: string; total: number; trips: number };
+export type ProductSpend = { id: number; name: string; total: number; qty: number; unit: string };
+export type PriceMove = { id: number; name: string; unit: string; before: number; now: number; change: number; spend: number };
+export type MonthStats = {
+  month: string;
+  total: number;
+  trips: number;
+  prevTotal: number;
+  byStore: StoreSpend[];
+  topProducts: ProductSpend[];
+  moves: PriceMove[];
+  /** Spend-weighted average price change vs. the last price paid before this month, in %. null when nothing to compare. */
+  inflation: number | null;
+  compared: number;
+};
+
+function prevMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
+export async function monthStats(db: Db, month: string): Promise<MonthStats> {
+  const sum = await monthSummary(db, month);
+  const prev = await monthSummary(db, prevMonth(month));
+  const byStore = await db.getAllAsync<StoreSpend>(
+    `SELECT s.name AS store, SUM(i.qty * i.unit_price) AS total, COUNT(DISTINCT t.id) AS trips
+     FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id
+     WHERE substr(t.date, 1, 7) = ? GROUP BY s.id ORDER BY total DESC`,
+    [month],
+  );
+  const topProducts = await db.getAllAsync<ProductSpend>(
+    `SELECT p.id, p.name, p.unit, SUM(i.qty * i.unit_price) AS total, SUM(i.qty) AS qty
+     FROM items i JOIN trips t ON t.id = i.trip_id JOIN products p ON p.id = i.product_id
+     WHERE substr(t.date, 1, 7) = ? GROUP BY p.id ORDER BY total DESC LIMIT 5`,
+    [month],
+  );
+  // For each product bought this month: latest price this month vs. latest price before the month started.
+  const rows = await db.getAllAsync<{ id: number; name: string; unit: string; now: number; before: number | null; spend: number }>(
+    `SELECT p.id, p.name, p.unit,
+       (SELECT i2.unit_price FROM items i2 JOIN trips t2 ON t2.id = i2.trip_id
+         WHERE i2.product_id = p.id AND substr(t2.date, 1, 7) = ?1 ORDER BY t2.date DESC, i2.id DESC LIMIT 1) AS now,
+       (SELECT i3.unit_price FROM items i3 JOIN trips t3 ON t3.id = i3.trip_id
+         WHERE i3.product_id = p.id AND t3.date < ?1 || '-01' ORDER BY t3.date DESC, i3.id DESC LIMIT 1) AS before,
+       SUM(i.qty * i.unit_price) AS spend
+     FROM items i JOIN trips t ON t.id = i.trip_id JOIN products p ON p.id = i.product_id
+     WHERE substr(t.date, 1, 7) = ?1 GROUP BY p.id`,
+    [month],
+  );
+  const moves: PriceMove[] = rows
+    .filter((r) => r.before !== null && r.before > 0)
+    .map((r) => ({ id: r.id, name: r.name, unit: r.unit, before: r.before as number, now: r.now, spend: r.spend, change: ((r.now - (r.before as number)) / (r.before as number)) * 100 }));
+  const weight = moves.reduce((a, m) => a + m.spend, 0);
+  const inflation = moves.length && weight > 0 ? moves.reduce((a, m) => a + m.change * m.spend, 0) / weight : null;
+  moves.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  return { month, total: sum.total, trips: sum.trips, prevTotal: prev.total, byStore, topProducts, moves, inflation, compared: moves.length };
+}

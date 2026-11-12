@@ -4,12 +4,12 @@ import { File, Paths } from 'expo-file-system';
 import { useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useSQLiteContext } from '@/sqlite';
-import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
 import { Alert } from '@/alert';
 import { Button, Card, Header, Pill, Screen } from '@/components/ui';
-import { counts, exportCsv, importCsv } from '@/db';
-import { plural, todayIso } from '@/format';
+import { counts, exportCsv, getPref, importCsv, setPref as savePref } from '@/db';
+import { money, parseNumber, plural, todayIso } from '@/format';
 import { colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function Settings() {
@@ -17,6 +17,30 @@ export default function Settings() {
   const db = useSQLiteContext();
   const [stats, setStats] = useState({ trips: 0, products: 0, items: 0 });
   const [busy, setBusy] = useState(false);
+  const [budget, setBudget] = useState('');
+  const [budgetSaved, setBudgetSaved] = useState('');
+
+  useEffect(() => {
+    getPref(db, 'budget').then((v) => {
+      const txt = v ? money(Number(v)).replace(',00', '') : '';
+      setBudget(txt);
+      setBudgetSaved(txt);
+    });
+  }, [db]);
+
+  const saveBudget = async () => {
+    const clean = budget.trim();
+    if (!clean) {
+      await savePref(db, 'budget', '');
+      setBudgetSaved('');
+      return Alert.alert('Budget retiré', "L'accueil n'affiche plus de budget.");
+    }
+    const v = parseNumber(clean);
+    if (!(v > 0)) return Alert.alert('Montant invalide', 'Écris un montant, par exemple 2000.');
+    await savePref(db, 'budget', String(v));
+    setBudget(money(v).replace(',00', ''));
+    setBudgetSaved(money(v).replace(',00', ''));
+  };
 
   const refresh = useCallback(async () => setStats(await counts(db)), [db]);
   useFocusEffect(
@@ -77,8 +101,8 @@ export default function Settings() {
   };
 
   return (
-    <Screen bottomBar="settings">
-      <Header title="Réglages" back={false} />
+    <Screen>
+      <Header title="Réglages" />
       <ScrollView contentContainerStyle={st.content}>
         <Card style={st.card}>
           <Text style={st.title}>Mes données</Text>
@@ -86,6 +110,24 @@ export default function Settings() {
             {plural(stats.trips, 'course', 'courses')}, {plural(stats.products, 'produit', 'produits')}, {plural(stats.items, 'prix noté', 'prix notés')}.
           </Text>
           <Text style={st.text}>Tout est enregistré sur ce téléphone. Rien n'est envoyé sur Internet.</Text>
+        </Card>
+
+        <Card style={st.card}>
+          <Text style={st.title}>Budget du mois</Text>
+          <Text style={st.text}>L'accueil montre combien il te reste. Laisse vide pour ne pas suivre de budget.</Text>
+          <View style={st.budgetRow}>
+            <TextInput
+              accessibilityLabel="Budget du mois en dirhams"
+              value={budget}
+              onChangeText={setBudget}
+              placeholder="Ex. 2000"
+              placeholderTextColor={colors.muted}
+              keyboardType="decimal-pad"
+              style={st.input}
+            />
+            <Text style={st.mad}>MAD</Text>
+          </View>
+          <Button label={budget.trim() === budgetSaved ? 'Budget enregistré' : 'Enregistrer le budget'} tone={budget.trim() === budgetSaved ? 'light' : 'primary'} onPress={saveBudget} disabled={busy} />
         </Card>
 
         <Card style={st.card}>
@@ -126,6 +168,9 @@ const st = sheet(() => ({
   title: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
   text: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, lineHeight: 21 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  budgetRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  input: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.title, fontSize: 18, color: colors.ink, backgroundColor: colors.card },
+  mad: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted },
   about: { alignItems: 'center', paddingTop: 8 },
   aboutText: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
 }));

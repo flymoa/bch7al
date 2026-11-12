@@ -3,8 +3,8 @@ import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
-import { Button, ChangeChip, Empty, RowCard, Screen, SectionTitle, Tile, t } from '@/components/ui';
-import { listProducts, listTrips, monthSummary, type MonthSummary, type ProductRow, type TripRow } from '@/db';
+import { Button, ChangeChip, RoundButton, Empty, RowCard, Screen, SectionTitle, Tile, t } from '@/components/ui';
+import { getPref, listProducts, listTrips, monthSummary, type MonthSummary, type ProductRow, type TripRow } from '@/db';
 import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
 import { colors, fonts, sheet, useTheme } from '@/theme';
 
@@ -14,17 +14,20 @@ export default function Home() {
   const [summary, setSummary] = useState<MonthSummary>({ trips: 0, total: 0, items: 0 });
   const [trips, setTrips] = useState<TripRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
+  const [budget, setBudget] = useState<number | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       (async () => {
-        const [sum, lastTrips, top] = await Promise.all([
+        const [sum, lastTrips, top, b] = await Promise.all([
           monthSummary(db, currentMonth()),
           listTrips(db, undefined, 3),
           listProducts(db, '', 'frequent', 3),
+          getPref(db, 'budget'),
         ]);
         if (alive) {
+          setBudget(b && Number(b) > 0 ? Number(b) : null);
           setSummary(sum);
           setTrips(lastTrips);
           setProducts(top);
@@ -46,6 +49,8 @@ export default function Home() {
           <View style={st.arabic}>
             <Text style={st.arabicText}>بشحال؟</Text>
           </View>
+          <View style={st.grow} />
+          <RoundButton icon="settings-outline" label="Réglages" onPress={() => router.push('/settings')} />
         </View>
         <Text style={st.hello}>Salam ! Ton carnet de courses</Text>
 
@@ -57,7 +62,20 @@ export default function Home() {
             <CountUp style={st.heroTotal} value={summary.total} format={money} />
             <Text style={st.heroUnit}>MAD</Text>
           </View>
-          <Text style={st.heroMeta}>{plural(summary.items, 'article noté', 'articles notés')} ce mois</Text>
+          {budget ? (
+            <View style={st.budget}>
+              <View style={st.budgetTrack} accessible accessibilityLabel={`${Math.round((summary.total / budget) * 100)} % du budget utilisé`}>
+                <View style={[st.budgetFill, { width: `${Math.min(100, (summary.total / budget) * 100)}%`, backgroundColor: summary.total > budget ? '#FFC27A' : colors.accent }]} />
+              </View>
+              <Text style={st.heroMeta}>
+                {summary.total > budget
+                  ? `Budget dépassé de ${money(summary.total - budget)} MAD`
+                  : `Il te reste ${money(budget - summary.total)} MAD sur ${money(budget).replace(',00', '')}`}
+              </Text>
+            </View>
+          ) : (
+            <Text style={st.heroMeta}>{plural(summary.items, 'article noté', 'articles notés')} ce mois</Text>
+          )}
           <Button label="Nouvelle course" icon="add" tone="light" onPress={() => router.push('/trip/new')} style={st.heroButton} />
         </View></FadeIn>
 
@@ -136,6 +154,9 @@ const st = sheet(() => ({
   heroUnit: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.white },
   heroButton: { marginTop: 12, borderWidth: 0, minHeight: 52 },
   gapTop: { marginTop: 18 },
+  budget: { gap: 6, marginTop: 4 },
+  budgetTrack: { height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.28)', overflow: 'hidden', maxWidth: 260 },
+  budgetFill: { height: 10, borderRadius: 5 },
   list: { gap: 8 },
   grow: { flex: 1, minWidth: 0 },
   right: { alignItems: 'flex-end', gap: 3 },

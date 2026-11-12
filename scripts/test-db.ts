@@ -133,6 +133,34 @@ async function main() {
   await assert.rejects(D.importCsv(db, 'nope;nope\n1;2\n'));
   assert.equal((await D.counts(db)).trips, 4);
 
+  // statistics on a fresh database
+  const sdb = adapter();
+  await D.onOpen(sdb);
+  await D.saveTrip(sdb, { store: 'BIM', date: '2026-10-05', items: [
+    { name: 'Lait', unit: 'L', qty: 4, unitPrice: 7 }, { name: 'Riz', unit: 'kg', qty: 1, unitPrice: 10 }] });
+  await D.saveTrip(sdb, { store: 'BIM', date: '2026-11-03', items: [
+    { name: 'Lait', unit: 'L', qty: 4, unitPrice: 7.7 }, { name: 'Riz', unit: 'kg', qty: 1, unitPrice: 9 }, { name: 'Sucre', unit: 'kg', qty: 2, unitPrice: 10 }] });
+  await D.saveTrip(sdb, { store: 'Souk', date: '2026-11-08', items: [{ name: 'Tomates', unit: 'kg', qty: 2, unitPrice: 6 }] });
+  const ms = await D.monthStats(sdb, '2026-11');
+  assert.equal(ms.trips, 2);
+  assert.equal(Math.round(ms.total * 100) / 100, 30.8 + 9 + 20 + 12);
+  assert.equal(ms.prevTotal, 38);
+  assert.deepEqual(ms.byStore.map((x) => x.store), ['BIM', 'Souk']);
+  assert.equal(ms.topProducts[0].name, 'Lait');
+  assert.equal(ms.compared, 2, 'only products with an earlier price are compared');
+  // lait +10 % on 30.8 MAD, riz -10 % on 9 MAD -> (10*30.8 - 10*9) / 39.8
+  assert.equal(ms.inflation!.toFixed(3), ((10 * 30.8 - 10 * 9) / 39.8).toFixed(3));
+  assert.equal(ms.moves[0].name, 'Lait');
+  const empty = await D.monthStats(sdb, '2025-01');
+  assert.equal(empty.inflation, null);
+  assert.equal(empty.total, 0);
+  const jan = await D.monthStats(sdb, '2027-01');
+  assert.equal(jan.prevTotal, 0);
+  await D.setPref(sdb, 'budget', '2000');
+  await D.setPref(sdb, 'budget', '2500');
+  assert.equal(await D.getPref(sdb, 'budget'), '2500');
+  assert.equal(await D.getPref(sdb, 'nope'), null);
+
   console.log('All database checks passed.');
 }
 

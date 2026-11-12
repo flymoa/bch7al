@@ -11,7 +11,7 @@ import { Animated } from 'react-native';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-export function Screen({ children, bottomBar }: { children: ReactNode; bottomBar?: 'home' | 'trips' | 'products' | 'settings' }) {
+export function Screen({ children, bottomBar }: { children: ReactNode; bottomBar?: 'home' | 'trips' | 'products' | 'stats' }) {
   return (
     <SafeAreaView style={s.screen} edges={['top', 'left', 'right', 'bottom']}>
       <View style={s.flex}>{children}</View>
@@ -173,12 +173,12 @@ function PlusButton() {
   );
 }
 
-function BottomBar({ active }: { active: 'home' | 'trips' | 'products' | 'settings' }) {
-  const items: { key: typeof active; label: string; icon: IconName; href: '/' | '/trips' | '/products' | '/settings' }[] = [
+function BottomBar({ active }: { active: 'home' | 'trips' | 'products' | 'stats' }) {
+  const items: { key: typeof active; label: string; icon: IconName; href: '/' | '/trips' | '/products' | '/stats' }[] = [
     { key: 'home', label: 'Accueil', icon: 'home-outline', href: '/' },
     { key: 'trips', label: 'Courses', icon: 'list-outline', href: '/trips' },
     { key: 'products', label: 'Produits', icon: 'cube-outline', href: '/products' },
-    { key: 'settings', label: 'Réglages', icon: 'settings-outline', href: '/settings' },
+    { key: 'stats', label: 'Stats', icon: 'stats-chart-outline', href: '/stats' },
   ];
   const tab = (it: (typeof items)[number]) => (
     <Pressable
