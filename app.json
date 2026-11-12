@@ -1,25 +1,33 @@
 {
   "expo": {
-    "name": "bch7al",
+    "name": "bch7al?",
     "slug": "bch7al",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#1D4ED8",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.bch7al.app"
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
+    "scheme": "bch7al",
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-font",
+      "expo-sharing",
+      "expo-document-picker"
+    ],
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1D4ED8"
     }
   }
 }
