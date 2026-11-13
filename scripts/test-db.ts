@@ -216,6 +216,30 @@ async function main() {
   assert.equal(D.previousMonth('2026-01'), '2025-12');
   assert.equal((await D.monthRecap(sdb, '2020-01')).mainStore, null);
 
+  // Arabic names: kept in the key, distinct from each other, and savable
+  assert.equal(productKey('فطر اسود عبار'), 'فطر اسود عبار');
+  assert.notEqual(productKey('مايفين 180غ'), productKey('حليب 180غ'));
+  assert.equal(productKey('أرز'), productKey('ارز'));
+  assert.equal(productKey('زيت ١ لتر'), productKey('زيت 1 لتر'));
+  await D.saveTrip(sdb, { store: 'Soufi', date: '2026-11-12', items: [
+    { name: 'فطر اسود عبار', unit: 'kg', qty: 0.04, unitPrice: 270 }, { name: 'مايفين 180غ', unit: 'pièce', qty: 1, unitPrice: 7 },
+    { name: 'شعرية صنية 250 غ', unit: 'pièce', qty: 2, unitPrice: 9 }] });
+  assert.equal((await D.listProducts(sdb, 'فطر')).length, 1);
+  assert.equal((await D.listProducts(sdb, 'مايفين')).length, 1);
+
+  // Upgrade: Arabic products saved with the old digit-only keys get proper keys
+  const old = adapter();
+  await D.onOpen(old);
+  await old.runAsync('INSERT INTO stores (name, key) VALUES (?, ?)', ['Soufi', 'soufi']);
+  await old.runAsync('INSERT INTO products (name, key, unit) VALUES (?, ?, ?)', ['مايفين 180غ', '180', 'pièce']);
+  await old.runAsync('INSERT INTO trips (store_id, date) VALUES (1, ?)', ['2026-11-01']);
+  await old.runAsync('INSERT INTO items (trip_id, product_id, qty, unit_price) VALUES (1, 1, 1, 7)', []);
+  await old.execAsync('PRAGMA user_version = 3');
+  await D.onOpen(old);
+  assert.equal((await old.getFirstAsync('SELECT key FROM products WHERE id = 1')).key, productKey('مايفين 180غ'));
+  await D.saveTrip(old, { store: 'Soufi', date: '2026-11-12', items: [{ name: 'مايفين 180غ', unit: 'pièce', qty: 1, unitPrice: 7.5 }] });
+  assert.equal((await D.listProducts(old, 'مايفين'))[0].n, 2, 'new purchase joins the old history');
+
   console.log('All database checks passed.');
 }
 

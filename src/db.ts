@@ -13,7 +13,7 @@ export type MonthSummary = { trips: number; total: number; items: number };
 export type NewItem = { name: string; unit: string; qty: number; unitPrice: number };
 export type NewTrip = { id?: number; store: string; date: string; items: NewItem[] };
 
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 export async function migrate(db: Db): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -64,7 +64,51 @@ export async function migrate(db: Db): Promise<void> {
     );`);
     version = 3;
   }
+  if (version === 3) {
+    await rekeyArabic(db);
+    version = 4;
+  }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
+}
+
+/**
+ * Arabic names used to lose their letters in the key (only digits were left), so they
+ * could not be saved or were mixed up. Keys are recomputed; same-name rows are merged.
+ */
+async function rekeyArabic(db: Db): Promise<void> {
+  const ar = (t: string) => /[\u0600-\u06FF]/.test(t);
+  const products = await db.getAllAsync<{ id: number; name: string; key: string }>('SELECT id, name, key FROM products', []);
+  for (const p of products.filter((x) => ar(x.name))) {
+    const key = productKey(p.name);
+    if (!key || key === p.key) continue;
+    const other = await db.getFirstAsync<{ id: number }>('SELECT id FROM products WHERE key = ? AND id <> ?', [key, p.id]);
+    if (other) {
+      await db.runAsync('UPDATE items SET product_id = ? WHERE product_id = ?', [other.id, p.id]);
+      await db.runAsync('DELETE FROM products WHERE id = ?', [p.id]);
+    } else {
+      await db.runAsync('UPDATE products SET key = ? WHERE id = ?', [key, p.id]);
+    }
+  }
+  const stores = await db.getAllAsync<{ id: number; name: string; key: string }>('SELECT id, name, key FROM stores', []);
+  for (const st of stores.filter((x) => ar(x.name))) {
+    const key = productKey(st.name);
+    if (!key || key === st.key) continue;
+    const other = await db.getFirstAsync<{ id: number }>('SELECT id FROM stores WHERE key = ? AND id <> ?', [key, st.id]);
+    if (other) {
+      await db.runAsync('UPDATE trips SET store_id = ? WHERE store_id = ?', [other.id, st.id]);
+      await db.runAsync('DELETE FROM stores WHERE id = ?', [st.id]);
+    } else {
+      await db.runAsync('UPDATE stores SET key = ? WHERE id = ?', [key, st.id]);
+    }
+  }
+  const list = await db.getAllAsync<{ id: number; name: string; key: string }>('SELECT id, name, key FROM list_items', []);
+  for (const l of list.filter((x) => ar(x.name))) {
+    const key = productKey(l.name);
+    if (!key || key === l.key) continue;
+    const other = await db.getFirstAsync<{ id: number }>('SELECT id FROM list_items WHERE key = ? AND id <> ?', [key, l.id]);
+    if (other) await db.runAsync('DELETE FROM list_items WHERE id = ?', [l.id]);
+    else await db.runAsync('UPDATE list_items SET key = ? WHERE id = ?', [key, l.id]);
+  }
 }
 
 /** Runs on every open: SQLite only enforces foreign keys when asked to. */

@@ -30,13 +30,21 @@ export function parseNumber(text: string): number {
   return parseFloat(t);
 }
 
-/** Key used to recognise the same product typed differently: case, accents and spacing are ignored. */
+/**
+ * Key used to recognise the same product typed differently: case, accents and spacing are
+ * ignored. Arabic letters are kept (vowel marks and letter variants are unified).
+ */
 export function productKey(name: string): string {
   return name
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '') // Arabic vowel marks and tatweel
+    .replace(/[\u0622\u0623\u0625]/g, '\u0627') // alef variants -> ا
+    .replace(/\u0649/g, '\u064A') // ى -> ي
+    .replace(/\u0629/g, '\u0647') // ة -> ه
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660)) // Arabic digits
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[^a-z0-9\u0621-\u064A]+/g, ' ')
     .trim();
 }
 
