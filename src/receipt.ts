@@ -2,7 +2,17 @@
 import { DEFAULT_STORES } from './theme-constants';
 
 export type OcrLine = { text: string; top: number; left: number; height: number };
-export type ReceiptItem = { name: string; qty: number; unitPrice: number; unit: 'pièce' | 'kg' };
+export type ReceiptItem = {
+  name: string;
+  qty: number;
+  unitPrice: number;
+  unit: 'pièce' | 'kg';
+  /** The name could not be read (Arabic receipts): the user has to type it. */
+  unnamed?: boolean;
+};
+
+export const UNNAMED = 'Article à nommer';
+export const STAMP_DUTY = 'Droit de timbre';
 export type ReceiptResult = {
   store: string | null;
   date: string | null;
@@ -21,12 +31,22 @@ const CODE = /^\s*[(\[{]?\s*[0-9lI|!]\s*[)\]}]\s*[0-9OoBSIl|]{5,}\s*|^\s*[0-9OoB
 // Supermarket departments printed as group subtotals (Carrefour, Marjane...).
 const DEPARTMENTS = /^(surgel[eé]s?|fromagerie|biscuiterie|fruits? et l[eé]gumes|boucherie|charcuterie|traiteur|cr[eè]merie|[eé]picerie( sal[eé]e| sucr[eé]e)?|boissons?|liquides?|droguerie|parfumerie|hygi[eè]ne|entretien|boulangerie|p[aâ]tisserie|viennoiserie|poissonnerie|volaille|produits? frais|frais|laitiers?|bazar|textile|confiserie|petit d[eé]jeuner|conserves?|surgel[eé]s? sal[eé]s|b[eé]b[eé]|animaux|electrom[eé]nager|multim[eé]dia)$/i;
 
-const KNOWN_STORES = [...DEFAULT_STORES, 'Acima', 'Aswak Assalam', 'Label Vie', 'Carrefour Market', 'Kazyon', 'Atacadao'].sort((a, b) => b.length - a.length);
+const KNOWN_STORES = [...DEFAULT_STORES, 'Acima', 'Aswak Assalam', 'Label Vie', 'Carrefour Market', 'Kazyon', 'Atacadao', 'Soufi'].sort((a, b) => b.length - a.length);
 
 // Lines that are never products.
-const SKIP = /\b(total|sous[- ]?total|tva|t\.v\.a|ht|ttc|esp[eè]ces?|rendu|monnaie|carte|cb|visa|cash|ticket|caisse|caissier|merci|client|fid[eé]lit[eé]|points?|remise totale|net a payer|net à payer|a payer|à payer|montant|change|tel|t[eé]l[eé]phone|ice|patente|rc|if\b|cnss|adresse|www|http|articles?|nombre|qt[eé] totale|solde|avoir|recu|reçu|facture|date|heure|n°|no\.|timbre|droits?|operation|vente|ventilation|taux|code promo|solde|offerts?|bienvenue|paiement)/i;
+const SKIP = /\b(total|sous[- ]?total|tva|t\.v\.a|ht|ttc|esp[eè]ces?|rendu|monnaie|carte|cb|visa|cash|ticket|caisse|caissier|merci|client|fid[eé]lit[eé]|points?|remise totale|net a payer|net à payer|a payer|à payer|montant|change|tel|t[eé]l[eé]phone|ice|patente|rc|if\b|cnss|adresse|capital|fiscal|editeur|cache|client divers|www|http|articles?|nombre|qt[eé] totale|solde|avoir|recu|reçu|facture|date|heure|n°|no\.|timbre|droits?|operation|vente|ventilation|taux|code promo|solde|offerts?|bienvenue|paiement)/i;
 
-const PRICE = /(-?\d{1,5}(?:[ .]\d{3})*[.,]\d{2})\s*(?:dh|dhs|mad|€)?\s*[a-z]?$/i;
+const PRICE = /(-?\d{1,5}(?:[ .]\d{3})*[.,]\d{2})\s*(?:\(?\s*(?:dh|dhs|mad)\s*\)?|€)?\s*[a-z]?$/i;
+const MONEY = /(?<![\d.,])\d{1,5}[.,]\d{2}(?![\d])/g;
+
+/** Removes printing marks that are not part of names or prices: "*12.50", VAT codes "%20" / "Z20". */
+function tidy(row: string): string {
+  return row
+    .replace(/\*\s*(?=-?\d)/g, '')
+    .replace(/(^|\s)[%Z]\s?\d{1,2}\.?(?=\s|$)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 /** Weights like "0.628" or "1,250": the dot is a decimal point here, never a thousands separator. */
 function weight(s: string): number {
@@ -104,20 +124,32 @@ export function parseReceipt(rows: string[]): ReceiptResult {
   let expected: number | null = null;
   // Amount of the articles since the last group subtotal (e.g. "FROMAGERIE 45.20").
   let sinceGroup = 0;
+  // Receipts that print an article code on each line (Carrefour) also print group subtotals.
+  const codedReceipt = rows.filter((r) => CODE.test(r)).length >= 2;
 
   for (const raw of rows) {
-    const row = raw.replace(/\s+/g, ' ').trim();
+    const row = tidy(raw);
     if (!row) continue;
 
-    const count = row.match(/nombre\s*(?:d'?\s*)?articles?\s*:?\s*(\d{1,3})/i);
+    const count = row.match(/nombre\s*(?:d'?\s*)?articles?\s*:?\s*(\d{1,3})|articles?\s*:\s*(\d{1,3})\s*-?\s*articles?/i);
     if (count) {
-      expected = Number(count[1]);
+      expected = Number(count[1] ?? count[2]);
       continue;
     }
 
     if (/\b(total|net [aà] payer|[aà] payer)\b/i.test(row) && !/sous/i.test(row)) {
       const m = row.match(PRICE);
-      if (m && total === null) total = num(m[1]);
+      // "TOTAL TTC" / "NET A PAYER" is what was paid; a plain "TOTAL" may come before the stamp duty.
+      if (m && (total === null || /ttc|payer/i.test(row))) total = num(m[1]);
+      continue;
+    }
+
+    // Stamp duty is part of what was paid: keep it as its own line so the trip total matches.
+    const stamp = row.match(/^(?:dont\s*)?(?:droits?|doits?)\s*(?:de\s*)?timbre\s*:?\s*(\d+[.,]\d{2})/i);
+    if (stamp) {
+      if (!items.some((i) => i.name === STAMP_DUTY) && num(stamp[1]) > 0) {
+        items.push({ name: STAMP_DUTY, qty: 1, unitPrice: num(stamp[1]), unit: 'pièce' });
+      }
       continue;
     }
 
@@ -149,17 +181,37 @@ export function parseReceipt(rows: string[]): ReceiptResult {
       continue;
     }
 
+    // Tax tables and similar number-only rows are not articles.
+    if (/\d[.,]\d{4}/.test(row)) continue;
+    if (/%/.test(row) && !/[a-zà-ÿ]{3,}/i.test(row)) continue;
+
+    // Right-to-left receipts start the row with numbers: "total  price  name  qty".
+    if (/^\d/.test(row)) {
+      const col = columnRow(row);
+      if (col) {
+        items.push(col);
+        sinceGroup += col.qty * col.unitPrice;
+        continue;
+      }
+    }
+
     const pm = row.match(PRICE);
-    if (!pm) continue;
+    if (!pm) {
+      const col = columnRow(row);
+      if (col) {
+        items.push(col);
+        sinceGroup += col.qty * col.unitPrice;
+      }
+      continue;
+    }
     const lineTotal = num(pm[1]);
     let left = row.slice(0, pm.index).trim();
     if (SKIP.test(left) || lineTotal <= 0 || lineTotal > 100000) continue;
-    // Tax table rows ("4  67.5200  0.00%  0.0000  67.52") are not articles.
-    if (/%|\d[.,]\d{4}/.test(row)) continue;
     const hasCode = CODE.test(left);
     // Group subtotal ("FROMAGERIE 45.20"): a department name, or an uncoded line whose
     // amount equals the articles since the previous group.
-    if (!hasCode && (DEPARTMENTS.test(left.trim()) || (sinceGroup > 0 && Math.abs(lineTotal - sinceGroup) < 0.02))) {
+    const byAmount = codedReceipt && !/\d/.test(left) && sinceGroup > 0 && Math.abs(lineTotal - sinceGroup) < 0.02;
+    if (!hasCode && (DEPARTMENTS.test(left.trim()) || byAmount)) {
       sinceGroup = 0;
       continue;
     }
@@ -188,10 +240,49 @@ export function parseReceipt(rows: string[]): ReceiptResult {
 
     const name = softenCaps(cleanItemName(left));
     if (!/[a-zà-ÿ]{2,}/i.test(name)) continue;
+    if (SKIP.test(name)) continue;
     if (!(qty > 0) || !(unitPrice >= 0)) continue;
     items.push({ name, qty: Math.round(qty * 1000) / 1000, unitPrice: Math.round(unitPrice * 100) / 100, unit });
     sinceGroup += lineTotal;
   }
 
   return { store, date, items, total, expected, rows };
+}
+
+/**
+ * A row made of columns "total  unit price  [name]  quantity", as on receipts printed
+ * right to left (Arabic). The camera reads the numbers; the name usually cannot be read.
+ */
+function columnRow(row: string): ReceiptItem | null {
+  if (/total|rendu|cache|esp[eè]ces|tva|timbre|monnaie|carte/i.test(row)) return null;
+  const amounts = [...row.matchAll(MONEY)].map((m) => num(m[0]));
+  if (amounts.length < 2) return null;
+  const tail = row.match(/(\d+(?:[.,]\d{1,3})?)\s*$/);
+  if (!tail) return null;
+  const q = weight(tail[1]);
+  const [a, b] = amounts;
+  for (const [lineTotal, unitPrice] of [[a, b], [b, a]]) {
+    if (!(lineTotal > 0) || !(unitPrice > 0) || !(q > 0)) continue;
+    const whole = Number.isInteger(q);
+    // Whole quantities must add up exactly; weights are often printed cut short (0.04 for 0.045).
+    const ok = whole ? Math.abs(q * unitPrice - lineTotal) < 0.05 : Math.abs(q * unitPrice - lineTotal) <= Math.max(0.02, lineTotal * 0.2);
+    if (!ok) continue;
+    const qty = whole ? q : Math.round((lineTotal / unitPrice) * 1000) / 1000;
+    const rest = row
+      .replace(MONEY, ' ')
+      .replace(/\d+(?:[.,]\d+)?/g, ' ')
+      .replace(/[^a-zà-ÿ\s]/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    // Arabic names come out as nothing or as a few stray letters; "Article" is a placeholder too.
+    const readable = /[a-zà-ÿ]{4,}/i.test(rest) && !/^articles?$/i.test(rest);
+    return {
+      name: readable ? softenCaps(rest.replace(/^./, (c) => c.toUpperCase())) : UNNAMED,
+      qty,
+      unitPrice: Math.round(unitPrice * 100) / 100,
+      unit: whole ? 'pièce' : 'kg',
+      unnamed: !readable,
+    };
+  }
+  return null;
 }

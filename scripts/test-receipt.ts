@@ -93,8 +93,11 @@ console.log('All receipt checks passed.', r.items.length, 'items:', r.items.map(
       ['Fromage Fume Nature', 1, 14.62, 'pièce'],
       ['Chewing Gum Original', 1, 3.95, 'pièce'],
       ['Champignon De Paris', 0.628, 51.95, 'kg'],
+      ['Droit de timbre', 1, 0.29, 'pièce'],
     ],
   );
+  const paid = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  assert.ok(Math.abs(paid - 116.96) < 0.02, 'items + stamp duty = what was paid');
   console.log('Carrefour receipt read:', res.items.length, 'items, total', res.total);
 }
 
@@ -140,3 +143,71 @@ console.log('All receipt checks passed.', r.items.length, 'items:', r.items.map(
   assert.deepEqual(res.items.map((i) => i.name), ['Fromage Fume Nature', 'Chewing Gum']);
 }
 console.log('Misread checks passed.');
+
+// ---- Real BIM receipt (12.11.2026): VAT code "%20" or "Z20" and a star before each price ----
+{
+  const rows = [
+    'BIM MAROC', 'MAHASIN AMCERNATE', 'IMM SIS A LOTISSEMENT AMSERNAT LOT N° 59', 'AGADIR',
+    '12.11.2026 13:42  N° Ticket : 47', '2087001121160537004',
+    'PILES ALC4P LR06 POW  %20  *12.50',
+    'PILES LR03 4PC POWER  Z20  *12.50',
+    'GAUF CACO CENTRO142G  %20  *8.90',
+    'TOTAL  *33.90 DH',
+    'DROITS DE TIMBRE  *0.08 DH',
+    'TOTAL TTC  *33.98 DH',
+    'DONT TVA  *5.65 DH',
+    'Especes  *40.00', 'RENDU  *-6.02',
+    'TVA  TauxTVA  TVA Montant  TVA incluse',
+    '%0.  0.00  *0.00  *0.00',
+    '%20  28.25  *5.65  *33.90',
+    'NOMBRE ARTICLES : 3',
+    'TP:32020417  Id.Fiscal:1108770', 'R.C. No:8633 - Mohammedia  CNSS:7794987', 'ICE :001527053000001',
+    'S.CAPITAL:264.824.000,00 DH', 'MERCI DE VOTRE VISITE ET A BIENTOT...',
+  ];
+  const res = parseReceipt(rows);
+  assert.equal(res.store, 'BIM');
+  assert.equal(res.date, '2026-11-12');
+  assert.equal(res.total, 33.98, 'TOTAL TTC is what was paid');
+  assert.equal(res.expected, 3);
+  assert.deepEqual(res.items.map((i) => [i.name, i.qty, i.unitPrice]), [
+    ['Piles ALC4P LR06 Pow', 1, 12.5],
+    ['Piles LR03 4PC Power', 1, 12.5],
+    ['Gauf Caco CENTRO142G', 1, 8.9],
+    ['Droit de timbre', 1, 0.08],
+  ]);
+  const sum = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  assert.equal(Math.round(sum * 100) / 100, 33.98, 'items + stamp duty = what was paid');
+}
+
+// ---- Arabic receipt (Soufi, 12-11-2026): the camera reads the numbers but not the Arabic names ----
+{
+  const rows = [
+    'P-1/1', 'soufi', 'ALIMENTATION', 'N° : 24057681', 'Le : 12-11-2026 [19:21]', 'M : Client Divers',
+    '28.00  28.00  1',
+    '7.00  7.00  180  1', // "180g" of the Arabic name survives as a number
+    '18.00  9.00  250  2',
+    '10.80  240.00  0.04', // weighed: really 0.045 kg, printed cut to 0.04
+    '5.40  90.00  0.06',
+    '10.00  10.00  200  1',
+    '24.00  24.00  250  1',
+    '33.00  33.00  jal  400  1',
+    '7.00  7.00  Article  1',
+    'Total :  143.20  ( Dhs )',
+    'Cache :  143.20', 'Rendu :  0.00',
+    'Editeur : abd  Article : 9 - Articles',
+  ];
+  const res = parseReceipt(rows);
+  assert.equal(res.store, 'Soufi');
+  assert.equal(res.date, '2026-11-12');
+  assert.equal(res.total, 143.2);
+  assert.equal(res.expected, 9);
+  assert.equal(res.items.length, 9);
+  assert.ok(res.items.every((i) => i.unnamed), 'Arabic names cannot be read: every line asks for a name');
+  assert.deepEqual(res.items.map((i) => [i.qty, i.unitPrice, i.unit]), [
+    [1, 28, 'pièce'], [1, 7, 'pièce'], [2, 9, 'pièce'], [0.045, 240, 'kg'], [0.06, 90, 'kg'],
+    [1, 10, 'pièce'], [1, 24, 'pièce'], [1, 33, 'pièce'], [1, 7, 'pièce'],
+  ]);
+  const sum = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  assert.equal(Math.round(sum * 100) / 100, 143.2);
+}
+console.log('BIM and Arabic checks passed.');

@@ -8,6 +8,7 @@ import type { ScrollViewInstance } from 'react-native';
 import { Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
 import { scanAvailable, scanReceipt } from '@/scan';
+import { STAMP_DUTY } from '@/receipt';
 import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
@@ -15,7 +16,7 @@ import { getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/
 import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 
-type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean };
+type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean; unnamed?: boolean };
 type NewLine = Omit<BasketItem, 'id'>;
 let nextLineId = 1;
 
@@ -148,7 +149,7 @@ export default function TripForm() {
   const editLine = (index: number) => {
     const it = items[index];
     scrollRef.current?.scrollTo({ y: Math.max(0, formY.current - 12), animated: true });
-    setName(it.name);
+    setName(it.unnamed ? '' : it.name);
     setUnit(it.unit);
     setPriceMode('unit');
     setPrice(String(Math.round(it.unitPrice * 100) / 100).replace('.', ','));
@@ -182,7 +183,7 @@ export default function TripForm() {
       }
       if (res.date && res.date <= todayIso()) setDate(res.date);
       for (const it of res.items) {
-        const existing = byKey.get(productKey(it.name));
+        const existing = it.unnamed ? undefined : byKey.get(productKey(it.name));
         upsert({
           name: existing ? existing.name : it.name,
           unit: existing ? existing.unit : it.unit,
@@ -191,17 +192,22 @@ export default function TripForm() {
           last: editId ? null : existing?.last_price ?? null,
           known: !!existing,
           scanned: true,
+          unnamed: it.unnamed,
         }, false);
       }
       const read = res.items.reduce((a, it) => a + it.qty * it.unitPrice, 0);
       const gap = res.total !== null ? Math.abs(res.total - read) : 0;
-      const missing = res.expected !== null && res.expected > res.items.length;
+      const articles = res.items.filter((i) => i.name !== STAMP_DUTY).length;
+      const unnamedCount = res.items.filter((i) => i.unnamed).length;
+      const missing = res.expected !== null && res.expected > articles;
       setScanNote(
         missing
-          ? `Le ticket compte ${plural(res.expected!, 'article', 'articles')}, ${res.items.length} ${res.items.length > 1 ? 'ont été lus' : 'a été lu'}. Ajoute ceux qui manquent à la main, ou reprends la photo bien à plat et éclairée.`
+          ? `Le ticket compte ${plural(res.expected!, 'article', 'articles')}, ${articles} ${articles > 1 ? 'ont été lus' : 'a été lu'}. Ajoute ceux qui manquent à la main, ou reprends la photo bien à plat et éclairée.`
+          : unnamedCount > 0
+          ? `${plural(articles, 'article lu', 'articles lus')}. Les noms en arabe ne peuvent pas être lus : touche « Modifier » sur chaque ligne « Nom à écrire » pour taper le nom. Les prix et quantités sont déjà remplis.`
           : res.total !== null && gap > 0.5
-          ? `${plural(res.items.length, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} MAD mais les articles font ${money(read)} MAD : vérifie s'il en manque.`
-          : `${plural(res.items.length, 'article lu', 'articles lus')}. Vérifie les noms et les prix avant d'enregistrer.`,
+          ? `${plural(articles, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} MAD mais les articles font ${money(read)} MAD : vérifie s'il en manque.`
+          : `${plural(articles, 'article lu', 'articles lus')}${articles < res.items.length ? ' + droit de timbre' : ''}. Vérifie les noms et les prix avant d'enregistrer.`,
       );
     } catch (e) {
       Alert.alert('Le scan a échoué', String((e as Error).message ?? e));
@@ -214,6 +220,7 @@ export default function TripForm() {
   const save = async () => {
     if (!cleanName(store)) return setError('Choisis le magasin.');
     if (items.length === 0) return setError('Ajoute au moins un article.');
+    if (items.some((it) => it.unnamed)) return setError('Écris le nom des articles marqués « Nom à écrire » (bouton Modifier).');
     if (productKey(name) || price.trim()) {
       return setError("Un article est en cours de saisie. Touche + pour l'ajouter, ou efface-le.");
     }
@@ -261,7 +268,7 @@ export default function TripForm() {
                 </View>
                 <View style={ui.flex}>
                   <Text style={st.scanTitle}>Scanner le ticket</Text>
-                  <Text style={t.meta}>{scanAvailable ? 'Les articles se remplissent tout seuls.' : "Aperçu : charge un ticket d'exemple."}</Text>
+                  <Text style={t.meta}>{scanAvailable ? 'Les articles se remplissent tout seuls.' : "Aperçu : Photo = ticket BIM, Galerie = ticket en arabe."}</Text>
                 </View>
               </View>
               <View style={st.scanButtons}>
@@ -453,10 +460,10 @@ export default function TripForm() {
             <View style={st.basket}>
               {items.map((it, i) => {
                 const diff = it.last === null ? null : Math.round((it.unitPrice - it.last) * 100) / 100;
-                const dup = items.filter((x) => productKey(x.name) === productKey(it.name)).length > 1;
+                const dup = !it.unnamed && items.filter((x) => !x.unnamed && productKey(x.name) === productKey(it.name)).length > 1;
                 return (
                   <Pop key={it.id}>
-                    <Card style={[st.line, dup && st.lineDup]}>
+                    <Card style={[st.line, (dup || it.unnamed) && st.lineDup]}>
                       <View style={st.lineTop}>
                         <View style={st.lineIcon}>
                           <MaterialCommunityIcons name={productIcon(it.name) as keyof typeof MaterialCommunityIcons.glyphMap} size={22} color={colors.softText} />
@@ -468,7 +475,8 @@ export default function TripForm() {
                           </Text>
                           <View style={st.chips}>
                             {dup ? <Chip label="Doublon ?" tone="up" icon="copy-outline" /> : null}
-                            {it.scanned ? <Chip label="Lu sur le ticket" icon="receipt-outline" /> : null}
+                            {it.unnamed ? <Chip label="Nom à écrire" tone="up" icon="create-outline" /> : null}
+                            {it.scanned && !it.unnamed ? <Chip label="Lu sur le ticket" icon="receipt-outline" /> : null}
                             {diff === null ? (
                               it.known || it.scanned ? null : <Chip label="Nouveau produit" />
                             ) : diff === 0 ? (
