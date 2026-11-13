@@ -9,7 +9,7 @@ import { ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
 import { Alert } from '@/alert';
 import { Button, Card, Header, Pill, Screen } from '@/components/ui';
 import { counts, exportCsv, getPref, importCsv, setPref as savePref } from '@/db';
-import { visionRead } from '@/vision';
+import { geminiCheck } from '@/gemini';
 import { money, parseNumber, plural, todayIso } from '@/format';
 import { colors, fonts, sheet, useTheme } from '@/theme';
 
@@ -25,19 +25,16 @@ export default function Settings() {
   const [visionMsg, setVisionMsg] = useState('');
 
   useEffect(() => {
-    getPref(db, 'visionKey').then((k) => {
+    getPref(db, 'geminiKey').then((k) => {
       setVisionKey(k ?? '');
       setVisionSaved(!!k);
     });
   }, [db]);
 
-  // A tiny white image: a valid key answers with no text, a wrong key answers with an error.
-  const TEST_IMAGE = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-
   const saveVision = async () => {
     const k = visionKey.trim();
     if (!k) {
-      await savePref(db, 'visionKey', '');
+      await savePref(db, 'geminiKey', '');
       setVisionSaved(false);
       setVisionMsg('Clé retirée : les tickets sont lus sur le téléphone.');
       return;
@@ -45,10 +42,11 @@ export default function Settings() {
     setBusy(true);
     setVisionMsg('Vérification de la clé…');
     try {
-      await visionRead(TEST_IMAGE, k);
-      await savePref(db, 'visionKey', k);
+      const model = await geminiCheck(k);
+      await savePref(db, 'geminiKey', k);
+      await savePref(db, 'geminiModel', model);
       setVisionSaved(true);
-      setVisionMsg('Clé valide. Les tickets seront lus avec Google Vision (français et arabe).');
+      setVisionMsg('Clé valide. Les tickets seront lus avec Gemini (français et arabe).');
     } catch (e) {
       setVisionSaved(false);
       setVisionMsg(`La clé ne marche pas : ${String((e as Error).message ?? e)}`);
@@ -146,7 +144,7 @@ export default function Settings() {
           <Text style={st.text}>
             {plural(stats.trips, 'course', 'courses')}, {plural(stats.products, 'produit', 'produits')}, {plural(stats.items, 'prix noté', 'prix notés')}.
           </Text>
-          <Text style={st.text}>Tout est enregistré sur ce téléphone. Seules les photos de tickets partent sur Internet, et seulement si Google Vision est activé (plus bas).</Text>
+          <Text style={st.text}>Tout est enregistré sur ce téléphone. Seules les photos de tickets partent sur Internet, et seulement si la lecture Gemini est activée (plus bas).</Text>
         </Card>
 
         <Card style={st.card}>
@@ -168,12 +166,15 @@ export default function Settings() {
         </Card>
 
         <Card style={st.card}>
-          <Text style={st.title}>Lecture des tickets en arabe</Text>
+          <Text style={st.title}>Lecture précise des tickets (Gemini)</Text>
           <Text style={st.text}>
-            Avec une clé Google Cloud Vision, les tickets sont lus en ligne : noms en arabe compris, et lecture plus précise. Les 1 000 premières lectures de chaque mois sont gratuites. Sans clé ou sans internet, le téléphone lit le ticket lui-même.
+            Avec une clé Gemini, la photo du ticket est lue en ligne par Google : noms en arabe compris, photos penchées, tickets groupés par rayon. C'est gratuit et sans carte bancaire. Sans clé ou sans internet, le téléphone lit le ticket lui-même.
+          </Text>
+          <Text style={st.text}>
+            Pour avoir ta clé : ouvre aistudio.google.com avec ton compte Google, touche « Get API key » puis « Create API key », copie la clé et colle-la ici. Avec la formule gratuite, Google peut utiliser les photos envoyées pour améliorer ses services.
           </Text>
           <TextInput
-            accessibilityLabel="Clé Google Cloud Vision"
+            accessibilityLabel="Clé Gemini"
             value={visionKey}
             onChangeText={(v) => {
               setVisionKey(v);
@@ -187,7 +188,7 @@ export default function Settings() {
             style={st.keyInput}
           />
           <Button label={visionKey.trim() ? 'Vérifier et enregistrer' : 'Retirer la clé'} tone={visionSaved && !visionMsg ? 'light' : 'primary'} onPress={saveVision} disabled={busy} />
-          {visionMsg ? <Text style={st.text}>{visionMsg}</Text> : visionSaved ? <Text style={st.text}>Google Vision est activé.</Text> : null}
+          {visionMsg ? <Text style={st.text}>{visionMsg}</Text> : visionSaved ? <Text style={st.text}>La lecture Gemini est activée.</Text> : null}
         </Card>
 
         <Card style={st.card}>

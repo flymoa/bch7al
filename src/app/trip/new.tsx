@@ -12,7 +12,7 @@ import { STAMP_DUTY } from '@/receipt';
 import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
-import { getPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
+import { getPref, setPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
 import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 
@@ -51,7 +51,7 @@ export default function TripForm() {
   const [scanRows, setScanRows] = useState<string[]>([]);
   const [visionOn, setVisionOn] = useState(false);
   useEffect(() => {
-    getPref(db, 'visionKey').then((k) => setVisionOn(!!k));
+    getPref(db, 'geminiKey').then((k) => setVisionOn(!!k));
   }, [db]);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const formY = useRef(0);
@@ -183,9 +183,11 @@ export default function TripForm() {
     setError('');
     setScanning(true);
     try {
-      const key = await getPref(db, 'visionKey');
-      const res = await scanReceipt(source, key);
+      const key = await getPref(db, 'geminiKey');
+      const model = await getPref(db, 'geminiModel');
+      const res = await scanReceipt(source, key, model);
       if (!res) return;
+      if (res.model && res.model !== model) await setPref(db, 'geminiModel', res.model);
       setScanRows(res.rows);
       if (res.items.length === 0) {
         Alert.alert('Ticket illisible', "Aucun article n'a été reconnu. Reprends la photo bien à plat, avec de la lumière, ou saisis les articles à la main.");
@@ -217,12 +219,12 @@ export default function TripForm() {
       // Receipts count units: "2 x 2.50" is 2 articles; a weighed item is 1.
       const units = res.items.filter((i) => i.name !== STAMP_DUTY).reduce((n, i) => n + (i.unit === 'pièce' && Number.isInteger(i.qty) ? i.qty : 1), 0);
       const missing = res.expected !== null && res.expected > units;
-      const prefix = (res.warning ? res.warning + ' ' : '') + (res.engine === 'google' ? 'Lu avec Google Vision. ' : '');
+      const prefix = (res.warning ? res.warning + ' ' : '') + (res.engine === 'gemini' ? 'Lu avec Gemini. ' : '');
       setScanNote(prefix + (
         missing
           ? `Le ticket compte ${plural(res.expected!, 'article', 'articles')}, ${units} ${units > 1 ? 'ont été lus' : 'a été lu'}. Ajoute ceux qui manquent à la main, ou reprends la photo bien à plat et éclairée.`
           : unnamedCount > 0
-          ? `${plural(articles, 'article lu', 'articles lus')}. Certains noms n'ont pas pu être lus (arabe sans Google Vision) : touche « Modifier » sur chaque ligne « Nom à écrire ». Les prix et quantités sont déjà remplis.`
+          ? `${plural(articles, 'article lu', 'articles lus')}. Certains noms n'ont pas pu être lus : touche « Modifier » sur chaque ligne « Nom à écrire ». Les prix et quantités sont déjà remplis.`
           : res.total !== null && gap > 0.5
           ? `${plural(articles, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} MAD mais les articles font ${money(read)} MAD : vérifie s'il en manque.`
           : `${plural(articles, 'article lu', 'articles lus')}${articles < res.items.length ? ' + droit de timbre' : ''}. Vérifie les noms et les prix avant d'enregistrer.`
@@ -286,7 +288,7 @@ export default function TripForm() {
                 </View>
                 <View style={ui.flex}>
                   <Text style={st.scanTitle}>Scanner le ticket</Text>
-                  <Text style={t.meta}>{scanAvailable ? (visionOn ? 'Lecture Google Vision : français et arabe.' : 'Lecture sur le téléphone. Pour l\'arabe : Réglages.') : "Aperçu : Photo = ticket Marjane, Galerie = ticket en arabe."}</Text>
+                  <Text style={t.meta}>{scanAvailable ? (visionOn ? 'Lecture Gemini : français et arabe.' : 'Lecture sur le téléphone. Pour l\'arabe : Réglages.') : "Aperçu : Photo = ticket Marjane, Galerie = ticket en arabe."}</Text>
                 </View>
               </View>
               <View style={st.scanButtons}>

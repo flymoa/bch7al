@@ -67,6 +67,12 @@ function num(s: string): number {
  * name. We try a range of tilts and keep the one that lines the text up into the fewest,
  * tightest rows, then group lines along that tilt.
  */
+/** The app's spelling of a store named anywhere in this text, or null. */
+export function knownStore(text: string): string | null {
+  const head = text.toLowerCase();
+  return KNOWN_STORES.find((name) => head.includes(name.toLowerCase())) ?? null;
+}
+
 export function toRows(lines: OcrLine[]): string[] {
   const ls = lines.filter((l) => l.text.trim());
   if (ls.length === 0) return [];
@@ -336,7 +342,7 @@ function columnRow(row: string): ReceiptItem | null {
       .replace(/[^\p{L}\d\s]/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    // On-device reading drops Arabic names (nothing or stray letters); Google Vision keeps them.
+    // On-device reading drops Arabic names (nothing or stray letters); the online reader keeps them.
     // "Article" is a placeholder printed by some tills.
     const arabicName = /[\u0600-\u06FF]{2,}/.test(rest);
     const readable = (arabicName || /[a-zà-ÿ]{4,}/i.test(rest)) && !/^articles?$/i.test(rest);

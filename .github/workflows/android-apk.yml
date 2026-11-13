@@ -35,7 +35,7 @@ jobs:
           npx tsc --noEmit
           npx tsx scripts/test-db.ts
           npx tsx scripts/test-receipt.ts
-          npx tsx scripts/test-vision.ts
+          npx tsx scripts/test-gemini.ts
 
       - name: Generate the Android project
         run: npx expo prebuild --platform android --no-install

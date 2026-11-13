@@ -1,35 +1,39 @@
 // Android: take a photo of the receipt (or pick one) and read it.
-// With a Google Cloud Vision key: read online (French + Arabic, most accurate).
+// With a Gemini key (free, from Google AI Studio): read online (French + Arabic, most accurate).
 // Without one, or offline: read on the phone (French only).
 import { recognizeText } from '@infinitered/react-native-mlkit-text-recognition';
 import * as ImagePicker from 'expo-image-picker';
 import { parseReceipt, toRows, type OcrLine, type ReceiptResult } from './receipt';
-import { visionRead } from './vision';
+import { geminiRead } from './gemini';
 
 export const scanAvailable = true;
 
-export type ScanResult = ReceiptResult & { engine: 'google' | 'phone'; warning?: string };
+export type ScanResult = ReceiptResult & { engine: 'gemini' | 'phone'; warning?: string; model?: string };
 
-export async function scanReceipt(source: 'camera' | 'gallery', visionKey?: string | null): Promise<ScanResult | null> {
+export async function scanReceipt(source: 'camera' | 'gallery', geminiKey?: string | null, geminiModel?: string | null): Promise<ScanResult | null> {
   if (source === 'camera') {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) throw new Error("L'accès à l'appareil photo a été refusé. Tu peux l'autoriser dans les réglages du téléphone.");
   }
-  const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.85, allowsEditing: true, base64: !!visionKey };
+  const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.85, allowsEditing: true, base64: !!geminiKey };
   const picked = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (picked.canceled || !picked.assets?.length) return null;
   const asset = picked.assets[0];
 
   let warning: string | undefined;
-  if (visionKey && asset.base64) {
+  if (geminiKey && asset.base64) {
     try {
-      const lines = await visionRead(asset.base64, visionKey);
-      return { ...parseReceipt(toRows(lines)), engine: 'google' };
+      const res = await geminiRead(asset.base64, asset.mimeType || 'image/jpeg', geminiKey, geminiModel);
+      if (res.items.length > 0) return { ...res, engine: 'gemini' };
+      warning = "Gemini n'a trouvé aucun article. Ticket lu sur le téléphone.";
     } catch (e) {
       const msg = String((e as Error).message ?? e);
-      warning = /network|fetch|abort|timeout/i.test(msg)
+      const status = (e as { status?: number }).status;
+      warning = status === 429
+        ? "Limite gratuite de Gemini atteinte pour l'instant : ticket lu sur le téléphone (sans les noms en arabe). Réessaie dans une minute."
+        : !status || /network|fetch|abort|timeout/i.test(msg)
         ? 'Pas de connexion : ticket lu sur le téléphone (sans les noms en arabe).'
-        : `Google Vision a refusé la lecture (${msg}). Ticket lu sur le téléphone.`;
+        : `Gemini a refusé la lecture (${msg}). Ticket lu sur le téléphone.`;
     }
   }
 
