@@ -269,3 +269,65 @@ console.log('BIM and Arabic checks passed.');
   }
 }
 console.log('Marjane and stamp-duty checks passed.');
+
+let marjaneLines: OcrLine[] = [];
+// ---- Marjane photo with real geometry (photo slightly tilted: prices sit ~25 px above their names) ----
+{
+  const L = (text: string, top: number, left: number, width: number, height = 34): OcrLine => ({ text, top, left, width, height });
+  const lines: OcrLine[] = [
+    L('Marjane', 450, 215, 235, 45), L('MARJANE HOLDING', 615, 300, 510, 42), L('MARJANE MASSIRA', 660, 300, 510, 42),
+    L('ICE : 001531173000020', 710, 360, 390),
+    L('23/07/2017 16:07:46 8 17 7766', 800, 310, 490),
+    L('22.95', 832, 968, 88), L('(5)6111056009436 CADUM, SHAMP GH', 858, 120, 530),
+    L('21.75', 877, 968, 88), L('(5)5410076932535 H&S SH. 200ML ANTI-D', 900, 120, 618),
+    L('34.50', 922, 968, 88), L('(5)3610340015489 COLOR NATURALS 5 CHA', 945, 120, 618),
+    L('79.20', 970, 820, 172, 44), L('BEAUTE-SANTE', 995, 77, 390, 44),
+    L('2.95', 1012, 985, 70), L('(5)8001585008148 GAUFRETTE BALC', 1032, 120, 530),
+    L('(5)6221134000108 BISC FLUTE CHOC 22.5', 1078, 77, 615),
+    L('5.00', 1105, 985, 72), L('2 x 2.50', 1128, 280, 135),
+    L('7.95', 1155, 852, 140, 44), L('BISCUITERIE', 1172, 77, 360, 44),
+    L('87.37', 1248, 818, 172, 44), L('T', 1265, 80, 30, 44), L('O', 1265, 150, 36, 44), L('T', 1265, 222, 30, 44), L('A', 1265, 290, 36, 44), L('L', 1265, 352, 30, 44),
+    L('DONT DROITS DE TIMBRE : 0.22', 1305, 75, 465),
+    L('100.00', 1388, 950, 108), L('ESPECES', 1400, 115, 120),
+    L('0.22', 1433, 990, 68), L('DROITS DE TIMBRE', 1443, 100, 260),
+    L('12.63', 1480, 970, 88), L('RENDU', 1488, 118, 82),
+    L('6', 1528, 1040, 18), L("NOMBRE D'ARTICLES", 1530, 100, 275),
+    L('TVA POUR INFORMATION', 1572, 77, 320),
+    L('N.', 1620, 150, 30), L('Tx', 1620, 290, 30), L('HT', 1620, 520, 40), L('TAXE', 1620, 680, 80), L('TTC', 1620, 880, 70),
+    L('5', 1662, 150, 15), L('20.00', 1662, 245, 82), L('72.61', 1660, 497, 85), L('14.54', 1660, 670, 85), L('87.15', 1658, 882, 88),
+    L('total', 1705, 148, 75), L('72.61', 1705, 497, 85), L('14.54', 1705, 670, 85), L('87.15', 1703, 882, 88),
+    L('9072317077663', 1820, 440, 220),
+    L('PENSEZ A RECHARGER VOTRE CARTE INWI A CETTE CAISSE', 1960, 130, 860),
+  ];
+  marjaneLines = lines;
+  const res = parseReceipt(toRows(lines));
+  assert.equal(res.store, 'Marjane');
+  assert.equal(res.total, 87.37);
+  assert.deepEqual(res.items.map((i) => [i.name, i.qty, i.unitPrice]), [
+    ['Cadum, Shamp Gh', 1, 22.95],
+    ['H&s Sh. 200ML Anti-d', 1, 21.75],
+    ['Color Naturals 5 Cha', 1, 34.5],
+    ['Gaufrette Balc', 1, 2.95],
+    ['Bisc Flute Choc 22.5', 2, 2.5],
+    ['Droit de timbre', 1, 0.22],
+  ], toRows(lines).join('\n'));
+  console.log('Tilted Marjane photo read correctly.');
+}
+
+// ---- The same photo held at other angles must read the same ----
+{
+  const rotate = (ls: OcrLine[], deg: number): OcrLine[] => {
+    const r = (deg * Math.PI) / 180;
+    return ls.map((l) => {
+      const cx = l.left + (l.width ?? 0) / 2, cy = l.top + l.height / 2;
+      const nx = cx * Math.cos(r) - cy * Math.sin(r), ny = cx * Math.sin(r) + cy * Math.cos(r);
+      return { ...l, left: nx - (l.width ?? 0) / 2, top: ny - l.height / 2 + 400 };
+    });
+  };
+  for (const deg of [-5, -3, -1.5, 0, 1.5, 3, 5]) {
+    const res = parseReceipt(toRows(rotate(marjaneLines, deg)));
+    assert.equal(res.total, 87.37, `Marjane at ${deg}°`);
+    assert.deepEqual(res.items.map((i) => i.unitPrice), [22.95, 21.75, 34.5, 2.95, 2.5, 0.22], `Marjane at ${deg}°: ` + res.items.map((i) => i.name).join(', '));
+  }
+  console.log('Tilt from -5° to +5° reads correctly.');
+}

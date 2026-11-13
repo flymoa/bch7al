@@ -19,7 +19,7 @@ export async function scanReceipt(source: 'camera' | 'gallery'): Promise<Receipt
   for (const block of result?.blocks ?? []) {
     for (const line of block.lines ?? []) {
       const f = line.frame;
-      lines.push({ text: line.text ?? '', top: f?.top ?? 0, left: f?.left ?? 0, height: f ? Math.max(1, f.bottom - f.top) : 20 });
+      lines.push({ text: line.text ?? '', top: f?.top ?? 0, left: f?.left ?? 0, height: f ? Math.max(1, f.bottom - f.top) : 20, width: f ? Math.max(1, f.right - f.left) : undefined });
     }
   }
   if (lines.length === 0) return { store: null, date: null, items: [], total: null, expected: null, rows: [] };

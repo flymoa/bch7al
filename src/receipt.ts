@@ -1,7 +1,7 @@
 // Turns the text read from a receipt photo into items. Pure logic, tested in Node.
 import { DEFAULT_STORES } from './theme-constants';
 
-export type OcrLine = { text: string; top: number; left: number; height: number };
+export type OcrLine = { text: string; top: number; left: number; height: number; width?: number };
 export type ReceiptItem = {
   name: string;
   qty: number;
@@ -61,20 +61,50 @@ function num(s: string): number {
   return parseFloat(s.replace(/\s/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
 }
 
-/** Groups OCR lines that sit on the same row (name on the left, price on the right). */
+/**
+ * Groups OCR lines that sit on the same printed row (name on the left, price on the right).
+ * Photos are often slightly tilted, so a price can sit a full line higher or lower than its
+ * name. We try a range of tilts and keep the one that lines the text up into the fewest,
+ * tightest rows, then group lines along that tilt.
+ */
 export function toRows(lines: OcrLine[]): string[] {
-  const sorted = [...lines].filter((l) => l.text.trim()).sort((a, b) => a.top - b.top);
-  const rows: OcrLine[][] = [];
-  for (const l of sorted) {
-    const mid = l.top + l.height / 2;
-    const row = rows.find((r) => {
-      const ref = r[0];
-      return Math.abs(ref.top + ref.height / 2 - mid) < Math.max(ref.height, l.height) * 0.55;
-    });
-    if (row) row.push(l);
-    else rows.push([l]);
+  const ls = lines.filter((l) => l.text.trim());
+  if (ls.length === 0) return [];
+  const heights = ls.map((l) => l.height).sort((a, b) => a - b);
+  const h = heights[Math.floor(heights.length / 2)] || 20;
+  const cx = (l: OcrLine) => l.left + (l.width ?? 0) / 2;
+  const cy = (l: OcrLine) => l.top + l.height / 2;
+
+  const group = (slope: number) => {
+    const items = ls.map((l) => ({ l, y: cy(l) - slope * cx(l) })).sort((a, b) => a.y - b.y);
+    const rows: { y: number; members: typeof items }[] = [];
+    for (const it of items) {
+      const row = rows[rows.length - 1];
+      // join the current row while the line stays within half a line of the row's average height
+      if (row && Math.abs(it.y - row.y) < h * 0.5 && !row.members.some((m) => overlapsX(m.l, it.l))) {
+        row.members.push(it);
+        row.y = row.members.reduce((a, m) => a + m.y, 0) / row.members.length;
+      } else rows.push({ y: it.y, members: [it] });
+    }
+    const spread = rows.reduce((a, r) => a + r.members.reduce((b, m) => b + Math.abs(m.y - r.y), 0), 0);
+    return { rows, cost: rows.length + spread / (h * 4) };
+  };
+
+  let best = group(0);
+  for (let i = -30; i <= 30; i++) {
+    const slope = i * 0.004; // up to about ±7°
+    const g = group(slope);
+    if (g.cost < best.cost - 0.01) best = g;
   }
-  return rows.map((r) => r.sort((a, b) => a.left - b.left).map((l) => l.text.trim()).join('  '));
+  return best.rows.map((r) => r.members.map((m) => m.l).sort((a, b) => a.left - b.left).map((l) => l.text.trim()).join('  '));
+}
+
+/** Two pieces of text that overlap horizontally cannot be on the same printed row. */
+function overlapsX(a: OcrLine, b: OcrLine): boolean {
+  if (a.width === undefined || b.width === undefined) return false;
+  const left = Math.max(a.left, b.left);
+  const right = Math.min(a.left + a.width, b.left + b.width);
+  return right - left > Math.min(a.width, b.width) * 0.3;
 }
 
 function cleanItemName(raw: string): string {
