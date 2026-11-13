@@ -331,14 +331,17 @@ function columnRow(row: string): ReceiptItem | null {
     const qty = whole ? q : Math.round((lineTotal / unitPrice) * 1000) / 1000;
     const rest = row
       .replace(MONEY, ' ')
-      .replace(/\d+(?:[.,]\d+)?/g, ' ')
-      .replace(/[^a-zà-ÿ\s]/gi, ' ')
+      // the last number is the quantity column; other numbers belong to the name ("250 غ")
+      .replace(/\d+(?:[.,]\d{1,3})?\s*$/, ' ')
+      .replace(/[^\p{L}\d\s]/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    // Arabic names come out as nothing or as a few stray letters; "Article" is a placeholder too.
-    const readable = /[a-zà-ÿ]{4,}/i.test(rest) && !/^articles?$/i.test(rest);
+    // On-device reading drops Arabic names (nothing or stray letters); Google Vision keeps them.
+    // "Article" is a placeholder printed by some tills.
+    const arabicName = /[\u0600-\u06FF]{2,}/.test(rest);
+    const readable = (arabicName || /[a-zà-ÿ]{4,}/i.test(rest)) && !/^articles?$/i.test(rest);
     return {
-      name: readable ? softenCaps(rest.replace(/^./, (c) => c.toUpperCase())) : UNNAMED,
+      name: readable ? (arabicName ? rest : softenCaps(rest.replace(/^./, (c) => c.toUpperCase()))) : UNNAMED,
       qty,
       unitPrice: Math.round(unitPrice * 100) / 100,
       unit: whole ? 'pièce' : 'kg',

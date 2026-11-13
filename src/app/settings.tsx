@@ -9,6 +9,7 @@ import { ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
 import { Alert } from '@/alert';
 import { Button, Card, Header, Pill, Screen } from '@/components/ui';
 import { counts, exportCsv, getPref, importCsv, setPref as savePref } from '@/db';
+import { visionRead } from '@/vision';
 import { money, parseNumber, plural, todayIso } from '@/format';
 import { colors, fonts, sheet, useTheme } from '@/theme';
 
@@ -19,6 +20,42 @@ export default function Settings() {
   const [busy, setBusy] = useState(false);
   const [budget, setBudget] = useState('');
   const [budgetSaved, setBudgetSaved] = useState('');
+  const [visionKey, setVisionKey] = useState('');
+  const [visionSaved, setVisionSaved] = useState(false);
+  const [visionMsg, setVisionMsg] = useState('');
+
+  useEffect(() => {
+    getPref(db, 'visionKey').then((k) => {
+      setVisionKey(k ?? '');
+      setVisionSaved(!!k);
+    });
+  }, [db]);
+
+  // A tiny white image: a valid key answers with no text, a wrong key answers with an error.
+  const TEST_IMAGE = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  const saveVision = async () => {
+    const k = visionKey.trim();
+    if (!k) {
+      await savePref(db, 'visionKey', '');
+      setVisionSaved(false);
+      setVisionMsg('Clé retirée : les tickets sont lus sur le téléphone.');
+      return;
+    }
+    setBusy(true);
+    setVisionMsg('Vérification de la clé…');
+    try {
+      await visionRead(TEST_IMAGE, k);
+      await savePref(db, 'visionKey', k);
+      setVisionSaved(true);
+      setVisionMsg('Clé valide. Les tickets seront lus avec Google Vision (français et arabe).');
+    } catch (e) {
+      setVisionSaved(false);
+      setVisionMsg(`La clé ne marche pas : ${String((e as Error).message ?? e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     getPref(db, 'budget').then((v) => {
@@ -109,7 +146,7 @@ export default function Settings() {
           <Text style={st.text}>
             {plural(stats.trips, 'course', 'courses')}, {plural(stats.products, 'produit', 'produits')}, {plural(stats.items, 'prix noté', 'prix notés')}.
           </Text>
-          <Text style={st.text}>Tout est enregistré sur ce téléphone. Rien n'est envoyé sur Internet.</Text>
+          <Text style={st.text}>Tout est enregistré sur ce téléphone. Seules les photos de tickets partent sur Internet, et seulement si Google Vision est activé (plus bas).</Text>
         </Card>
 
         <Card style={st.card}>
@@ -128,6 +165,29 @@ export default function Settings() {
             <Text style={st.mad}>MAD</Text>
           </View>
           <Button label={budget.trim() === budgetSaved ? 'Budget enregistré' : 'Enregistrer le budget'} tone={budget.trim() === budgetSaved ? 'light' : 'primary'} onPress={saveBudget} disabled={busy} />
+        </Card>
+
+        <Card style={st.card}>
+          <Text style={st.title}>Lecture des tickets en arabe</Text>
+          <Text style={st.text}>
+            Avec une clé Google Cloud Vision, les tickets sont lus en ligne : noms en arabe compris, et lecture plus précise. Les 1 000 premières lectures de chaque mois sont gratuites. Sans clé ou sans internet, le téléphone lit le ticket lui-même.
+          </Text>
+          <TextInput
+            accessibilityLabel="Clé Google Cloud Vision"
+            value={visionKey}
+            onChangeText={(v) => {
+              setVisionKey(v);
+              setVisionMsg('');
+            }}
+            placeholder="Colle ta clé ici (AIza…)"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry={visionSaved && !visionMsg}
+            style={st.keyInput}
+          />
+          <Button label={visionKey.trim() ? 'Vérifier et enregistrer' : 'Retirer la clé'} tone={visionSaved && !visionMsg ? 'light' : 'primary'} onPress={saveVision} disabled={busy} />
+          {visionMsg ? <Text style={st.text}>{visionMsg}</Text> : visionSaved ? <Text style={st.text}>Google Vision est activé.</Text> : null}
         </Card>
 
         <Card style={st.card}>
@@ -168,6 +228,7 @@ const st = sheet(() => ({
   title: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
   text: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, lineHeight: 21 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  keyInput: { minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink, backgroundColor: colors.card },
   budgetRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.title, fontSize: 18, color: colors.ink, backgroundColor: colors.card },
   mad: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted },

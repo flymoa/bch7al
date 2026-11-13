@@ -1,6 +1,7 @@
 // Web preview: no camera, so "scanning" runs the real receipt reader on sample receipts
 // exactly as the phone reads them. Photo = Marjane, Galerie = an Arabic receipt.
-import { parseReceipt, type ReceiptResult } from './receipt';
+import { parseReceipt } from './receipt';
+import type { ScanResult } from './scan';
 
 export const scanAvailable = false;
 
@@ -27,7 +28,7 @@ const SOUFI = [
   'Total :  143.20  ( Dhs )', 'Cache :  143.20', 'Rendu :  0.00', 'Editeur : abd  Article : 9 - Articles',
 ];
 
-export async function scanReceipt(source: 'camera' | 'gallery'): Promise<ReceiptResult | null> {
+export async function scanReceipt(source: 'camera' | 'gallery', _visionKey?: string | null): Promise<ScanResult | null> {
   await new Promise((r) => setTimeout(r, 600));
-  return { ...parseReceipt(source === 'camera' ? MARJANE : SOUFI), date: null };
+  return { ...parseReceipt(source === 'camera' ? MARJANE : SOUFI), date: null, engine: 'phone' };
 }
