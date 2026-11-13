@@ -210,4 +210,9 @@ console.log('Misread checks passed.');
   const sum = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
   assert.equal(Math.round(sum * 100) / 100, 143.2);
 }
+// Stamp duty misread as "Tihbre" is still the stamp duty, not a product.
+{
+  const res = parseReceipt(['Carrefour Market', '(1)7622202376115  CHEWING GUM  3.95', 'DONT DOIT DE TIHBRE : 0.29']);
+  assert.deepEqual(res.items.map((i) => i.name), ['Chewing Gum', 'Droit de timbre']);
+}
 console.log('BIM and Arabic checks passed.');

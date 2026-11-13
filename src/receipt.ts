@@ -34,7 +34,7 @@ const DEPARTMENTS = /^(surgel[eé]s?|fromagerie|biscuiterie|fruits? et l[eé]gum
 const KNOWN_STORES = [...DEFAULT_STORES, 'Acima', 'Aswak Assalam', 'Label Vie', 'Carrefour Market', 'Kazyon', 'Atacadao', 'Soufi'].sort((a, b) => b.length - a.length);
 
 // Lines that are never products.
-const SKIP = /\b(total|sous[- ]?total|tva|t\.v\.a|ht|ttc|esp[eè]ces?|rendu|monnaie|carte|cb|visa|cash|ticket|caisse|caissier|merci|client|fid[eé]lit[eé]|points?|remise totale|net a payer|net à payer|a payer|à payer|montant|change|tel|t[eé]l[eé]phone|ice|patente|rc|if\b|cnss|adresse|capital|fiscal|editeur|cache|client divers|www|http|articles?|nombre|qt[eé] totale|solde|avoir|recu|reçu|facture|date|heure|n°|no\.|timbre|droits?|operation|vente|ventilation|taux|code promo|solde|offerts?|bienvenue|paiement)/i;
+const SKIP = /\b(total|sous[- ]?total|tva|t\.v\.a|ht|ttc|esp[eè]ces?|rendu|monnaie|carte|cb|visa|cash|ticket|caisse|caissier|merci|client|fid[eé]lit[eé]|points?|remise totale|net a payer|net à payer|a payer|à payer|montant|change|tel|t[eé]l[eé]phone|ice|patente|rc|if\b|cnss|adresse|capital|fiscal|editeur|cache|client divers|www|http|articles?|nombre|qt[eé] totale|solde|avoir|recu|reçu|facture|date|heure|n°|no\.|t[il1|][mnh]{1,2}bre|droits?|operation|vente|ventilation|taux|code promo|solde|offerts?|bienvenue|paiement)/i;
 
 const PRICE = /(-?\d{1,5}(?:[ .]\d{3})*[.,]\d{2})\s*(?:\(?\s*(?:dh|dhs|mad)\s*\)?|€)?\s*[a-z]?$/i;
 const MONEY = /(?<![\d.,])\d{1,5}[.,]\d{2}(?![\d])/g;
@@ -145,7 +145,7 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     }
 
     // Stamp duty is part of what was paid: keep it as its own line so the trip total matches.
-    const stamp = row.match(/^(?:dont\s*)?(?:droits?|doits?)\s*(?:de\s*)?timbre\s*:?\s*(\d+[.,]\d{2})/i);
+    const stamp = row.match(/^(?:dont\s*)?(?:dr?oits?)\s*(?:de\s*)?t[il1|][mnh]{1,2}bre\s*:?\s*(\d+[.,]\d{2})/i);
     if (stamp) {
       if (!items.some((i) => i.name === STAMP_DUTY) && num(stamp[1]) > 0) {
         items.push({ name: STAMP_DUTY, qty: 1, unitPrice: num(stamp[1]), unit: 'pièce' });

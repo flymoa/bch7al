@@ -96,7 +96,7 @@ export default function TripForm() {
   const basketKeys = new Set(items.map((it) => productKey(it.name)));
   const suggestions = products
     .filter((p) => !basketKeys.has(productKey(p.name)) && p.last_price !== null)
-    .filter((p) => (typedKey ? productKey(p.name).includes(typedKey) : true))
+    .filter((p) => typedKey.length >= 2 && productKey(p.name).includes(typedKey) && !/timbre/i.test(p.name))
     .slice(0, 6);
 
   /** Adds a line. Typed items merge with the same product; scanned ones stay separate so duplicates can be spotted. */
@@ -138,6 +138,16 @@ export default function TripForm() {
       const next = Math.round((it.qty + direction * stepFor(it.unit)) * 1000) / 1000;
       if (next <= 0) return cur.filter((_, i) => i !== index);
       return cur.map((x, i) => (i === index ? { ...x, qty: next } : x));
+    });
+  };
+
+  const moveLine = (index: number, direction: -1 | 1) => {
+    setItems((cur) => {
+      const to = index + direction;
+      if (to < 0 || to >= cur.length) return cur;
+      const copy = [...cur];
+      [copy[index], copy[to]] = [copy[to], copy[index]];
+      return copy;
     });
   };
 
@@ -348,7 +358,7 @@ export default function TripForm() {
             />
             {suggestions.length > 0 ? (
               <View style={st.suggest}>
-                <Text style={t.label}>{typedKey ? 'Déjà acheté, touche pour ajouter' : 'Tu achètes souvent, touche pour ajouter'}</Text>
+                <Text style={t.label}>Déjà acheté, touche pour ajouter</Text>
                 <View style={st.wrap}>
                   {suggestions.map((p) => (
                     <Pressable
@@ -499,9 +509,28 @@ export default function TripForm() {
                           </Pressable>
                         </View>
                         <View style={st.lineButtons}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Monter ${it.name}`}
+                            accessibilityState={{ disabled: i === 0 }}
+                            disabled={i === 0}
+                            onPress={() => moveLine(i, -1)}
+                            style={({ pressed }) => [st.iconBtn, i === 0 && ui.disabled, pressed && ui.pressed]}
+                          >
+                            <Ionicons name="arrow-up" size={20} color={colors.ink} />
+                          </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`Descendre ${it.name}`}
+                            accessibilityState={{ disabled: i === items.length - 1 }}
+                            disabled={i === items.length - 1}
+                            onPress={() => moveLine(i, 1)}
+                            style={({ pressed }) => [st.iconBtn, i === items.length - 1 && ui.disabled, pressed && ui.pressed]}
+                          >
+                            <Ionicons name="arrow-down" size={20} color={colors.ink} />
+                          </Pressable>
                           <Pressable accessibilityRole="button" accessibilityLabel={`Modifier ${it.name}`} onPress={() => editLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
                             <Ionicons name="create-outline" size={20} color={colors.blue} />
-                            <Text style={st.iconBtnText}>Modifier</Text>
                           </Pressable>
                           <Pressable accessibilityRole="button" accessibilityLabel={`Supprimer ${it.name}`} onPress={() => removeLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
                             <Ionicons name="trash-outline" size={20} color={colors.danger} />
