@@ -42,7 +42,7 @@ export default function ShoppingList() {
   const inList = new Set(plan.lines.map((l) => productKey(l.name)));
   const suggestions = products
     .filter((p) => !inList.has(productKey(p.name)) && !/timbre/i.test(p.name))
-    .filter((p) => (typed.length >= 2 ? productKey(p.name).includes(typed) : plan.lines.length === 0))
+    .filter((p) => typed.length >= 2 && productKey(p.name).includes(typed))
     .slice(0, 6);
   const done = plan.lines.filter((l) => l.done).length;
   const first = plan.stores[0];
