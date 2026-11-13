@@ -172,7 +172,7 @@ const st = sheet(() => ({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.soft, borderRadius: 18, paddingHorizontal: 12, minHeight: 36 },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText },
-  hero: { backgroundColor: colors.blue, borderRadius: 28, padding: 20, gap: 4, marginTop: 14 },
+  hero: { backgroundColor: colors.night, borderRadius: 28, padding: 20, gap: 4, marginTop: 14 },
   heroMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.white, lineHeight: 20 },
   heroStore: { fontFamily: fonts.title, fontSize: 34, color: colors.white },
   heroSecond: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.white, marginTop: 6 },

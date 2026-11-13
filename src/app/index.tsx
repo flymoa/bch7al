@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
 import { Button, ChangeChip, RoundButton, Empty, RowCard, Screen, SectionTitle, Tile, s as ui, t } from '@/components/ui';
 import { getPref, listCount, listProducts, listTrips, monthSummary, previousMonth, type MonthSummary, type ProductRow, type TripRow } from '@/db';
@@ -55,63 +55,69 @@ export default function Home() {
     <Screen bottomBar="home">
       <ScrollView contentContainerStyle={st.content}>
         <View style={st.brandRow}>
-          <Text style={st.brand} accessibilityLabel="bch7al">
-            bch<Text style={st.seven}>7</Text>al?
-          </Text>
-          <View style={st.arabic}>
-            <Text style={st.arabicText}>بشحال؟</Text>
+          <View style={st.grow}>
+            <Text style={st.brand} accessibilityLabel="bch7al">
+              bch<Text style={st.seven}>7</Text>al<Text style={st.seven}>?</Text>
+            </Text>
+            <Text style={st.hello}>{who ? `Salam, ${who}` : 'Salam !'}</Text>
           </View>
-          <View style={st.grow} />
           <RoundButton icon="settings-outline" label="Réglages" onPress={() => router.push('/settings')} />
         </View>
-        <Text style={st.hello}>{who ? `Salam ${who} !` : 'Salam !'} Ton carnet de courses</Text>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="bch7al ? Chercher le prix d'un produit" onPress={() => router.push('/ask')} style={({ pressed }) => [st.ask, pressed && ui.pressed]}>
-          <Ionicons name="search" size={22} color={colors.blue} />
-          <Text style={st.askText}>Bch7al… le lait ? l'huile ?</Text>
-        </Pressable>
-
-        <FadeIn><View style={st.hero}>
-          <Text style={st.heroMeta}>
-            {monthLabel(currentMonth())} · {plural(summary.trips, 'course', 'courses')}
-          </Text>
-          <View style={st.heroTotalRow}>
-            <CountUp style={st.heroTotal} value={summary.total} format={money} />
-            <Text style={st.heroUnit}>MAD</Text>
-          </View>
-          {budget ? (
-            <View style={st.budget}>
-              <View style={st.budgetTrack} accessible accessibilityLabel={`${Math.round((summary.total / budget) * 100)} % du budget utilisé`}>
-                <View style={[st.budgetFill, { width: `${Math.min(100, (summary.total / budget) * 100)}%`, backgroundColor: summary.total > budget ? '#FFC27A' : colors.accent }]} />
+        <FadeIn>
+          <View style={st.hero}>
+            <Text style={st.heroSeven} accessibilityElementsHidden importantForAccessibility="no">7</Text>
+            <Text style={st.arabicText}>بشحال؟</Text>
+            <Text style={st.heroTitle}>Bch7al…</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="bch7al ? Chercher le prix d'un produit" onPress={() => router.push('/ask')} style={({ pressed }) => [st.ask, pressed && ui.pressed]}>
+              <Ionicons name="search" size={22} color={colors.blue} />
+              <Text style={st.askText} numberOfLines={1}>le lait, l'huile, le thé</Text>
+              <View style={st.askGo}>
+                <Text style={st.askGoText}>?</Text>
               </View>
-              <Text style={st.heroMeta}>
-                {summary.total > budget
-                  ? `Budget dépassé de ${money(summary.total - budget)} MAD`
-                  : `Il te reste ${money(budget - summary.total)} MAD sur ${money(budget).replace(',00', '')}`}
-              </Text>
-            </View>
-          ) : (
-            <Text style={st.heroMeta}>{plural(summary.items, 'article noté', 'articles notés')} ce mois</Text>
-          )}
-          <Button label="Nouvelle course" icon="add" tone="light" onPress={() => router.push('/trip/new')} style={st.heroButton} />
-        </View></FadeIn>
+            </Pressable>
+            {products.length > 0 ? (
+              <View style={st.heroChips}>
+                {products.map((p) => (
+                  <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`Prix de ${p.name}`} onPress={() => router.push(`/product/${p.id}`)} style={({ pressed }) => [st.heroChip, pressed && ui.pressed]}>
+                    <Text style={st.heroChipText} numberOfLines={1}>{p.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </FadeIn>
 
-        <View style={st.quick}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Scanner un ticket" onPress={() => router.push('/trip/new?scan=camera')} style={({ pressed }) => [st.quickBtn, pressed && ui.pressed]}>
-            <View style={st.quickIcon}><Ionicons name="camera-outline" size={22} color={colors.softText} /></View>
-            <View style={st.grow}>
-              <Text style={st.quickTitle}>Scanner</Text>
-              <Text style={t.meta} numberOfLines={1}>un ticket</Text>
-            </View>
+        <View style={st.duo}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Ma liste de courses, ${plural(toBuy, 'article', 'articles')}`} onPress={() => router.push('/list')} style={({ pressed }) => [st.tile, st.tileSoft, pressed && ui.pressed]}>
+            <Ionicons name="list" size={24} color={colors.softText} />
+            <Text style={st.tileTitle}>Ma liste</Text>
+            <Text style={t.meta} numberOfLines={2}>{toBuy > 0 ? `${toBuy} à acheter` : 'à préparer'}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Ma liste de courses, ${plural(toBuy, 'article', 'articles')}`} onPress={() => router.push('/list')} style={({ pressed }) => [st.quickBtn, pressed && ui.pressed]}>
-            <View style={st.quickIcon}><Ionicons name="checkbox-outline" size={22} color={colors.softText} /></View>
-            <View style={st.grow}>
-              <Text style={st.quickTitle}>Ma liste</Text>
-              <Text style={t.meta} numberOfLines={1}>{toBuy > 0 ? `${toBuy} à acheter` : 'à préparer'}</Text>
-            </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Mon mois, ${money(summary.total)} MAD`} onPress={() => router.replace('/stats')} style={({ pressed }) => [st.tile, st.tileBlue, pressed && ui.pressed]}>
+            <Ionicons name="stats-chart" size={24} color={colors.white} />
+            <Text style={[st.tileTitle, st.onBlue]}>{monthLabel(currentMonth())}</Text>
+            <Text style={st.tileTotal} numberOfLines={1}>
+              <CountUp style={st.tileTotal} value={summary.total} format={money} /> <Text style={st.tileUnit}>MAD</Text>
+            </Text>
+            <Text style={st.tileMeta} numberOfLines={1}>{plural(summary.trips, 'course', 'courses')} · {plural(summary.items, 'article', 'articles')}</Text>
           </Pressable>
         </View>
+
+        {budget ? (
+          <View style={st.budget}>
+            <View style={st.budgetTrack} accessible accessibilityLabel={`${Math.round((summary.total / budget) * 100)} % du budget utilisé`}>
+              <View style={[st.budgetFill, { width: `${Math.min(100, (summary.total / budget) * 100)}%`, backgroundColor: summary.total > budget ? colors.ink : colors.blue }]} />
+            </View>
+            <Text style={t.meta}>
+              {summary.total > budget
+                ? `Budget dépassé de ${money(summary.total - budget)} MAD`
+                : `Il te reste ${money(budget - summary.total)} MAD sur ${money(budget).replace(',00', '')}`}
+            </Text>
+          </View>
+        ) : null}
+
+        <Button label="Nouvelle course" icon="add" onPress={() => router.push('/trip/new')} style={st.newTrip} />
 
         {recap ? (
           <Pressable accessibilityRole="button" onPress={() => router.push(`/recap?month=${recap}`)} style={({ pressed }) => [st.recap, pressed && ui.pressed]}>
@@ -183,29 +189,36 @@ export default function Home() {
 
 const st = sheet(() => ({
   content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brand: { fontFamily: fonts.titleBold, fontSize: 32, color: colors.ink },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  brand: { fontFamily: fonts.titleBold, fontSize: 28, color: colors.ink, letterSpacing: -0.5 },
   seven: { color: colors.blue },
-  arabic: { backgroundColor: colors.soft, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
-  arabicText: { fontSize: 15, fontWeight: '700', color: colors.softText },
-  hello: { fontFamily: fonts.body, fontSize: 14, color: colors.muted, marginTop: 2, marginBottom: 12 },
-  ask: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 26, borderWidth: 2, borderColor: colors.blue, paddingHorizontal: 16, minHeight: 54, marginBottom: 12 },
-  askText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.muted },
-  quick: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  quickBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card, borderRadius: 20, padding: 12, minHeight: 64, borderWidth: 1.5, borderColor: colors.line },
-  quickIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  quickTitle: { fontFamily: fonts.title, fontSize: 16, color: colors.ink },
+  hello: { fontFamily: fonts.body, fontSize: 14, color: colors.muted, marginTop: 2 },
+  hero: { backgroundColor: colors.night, borderRadius: 28, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 22, overflow: 'hidden' },
+  heroSeven: { position: 'absolute', right: 2, top: -34, fontFamily: fonts.titleBold, fontSize: 170, lineHeight: 190, color: colors.nightSoft },
+  arabicText: { fontFamily: fonts.title, fontSize: 20, color: colors.onNight, alignSelf: 'flex-start' },
+  heroTitle: { fontFamily: fonts.titleBold, fontSize: 42, lineHeight: 50, letterSpacing: -1, color: colors.white, marginBottom: 12 },
+  ask: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 28, paddingLeft: 18, paddingRight: 6, minHeight: 56 },
+  askText: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: '#46557F' },
+  askGo: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1F4BFF', alignItems: 'center', justifyContent: 'center' },
+  askGoText: { fontFamily: fonts.titleBold, fontSize: 22, color: '#FFFFFF' },
+  heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  heroChip: { minHeight: 44, maxWidth: '100%', paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: colors.nightBlue, justifyContent: 'center' },
+  heroChipText: { fontFamily: fonts.body, fontSize: 14, color: '#E6EDFF' },
+  duo: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  tile: { flex: 1, minHeight: 128, borderRadius: 24, padding: 16, gap: 4 },
+  tileSoft: { backgroundColor: colors.soft },
+  tileBlue: { backgroundColor: colors.blue },
+  tileTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, marginTop: 6 },
+  onBlue: { color: colors.white },
+  tileTotal: { fontFamily: fonts.titleBold, fontSize: 20, color: colors.white },
+  tileUnit: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.white },
+  tileMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.white },
   recap: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.soft, borderRadius: 20, paddingHorizontal: 16, minHeight: 54, marginTop: 10 },
   recapText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.softText },
-  hero: { backgroundColor: colors.blue, borderRadius: 28, padding: 20, gap: 4 },
-  heroMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.white },
-  heroTotalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  heroTotal: { fontFamily: fonts.title, fontSize: 46, color: colors.white },
-  heroUnit: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.white },
-  heroButton: { marginTop: 12, borderWidth: 0, minHeight: 52 },
+  newTrip: { marginTop: 12 },
   gapTop: { marginTop: 18 },
-  budget: { gap: 6, marginTop: 4 },
-  budgetTrack: { height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.28)', overflow: 'hidden', maxWidth: 260 },
+  budget: { gap: 6, marginTop: 12, backgroundColor: colors.card, borderRadius: 20, padding: 14 },
+  budgetTrack: { height: 10, borderRadius: 5, backgroundColor: colors.soft, overflow: 'hidden' },
   budgetFill: { height: 10, borderRadius: 5 },
   list: { gap: 8 },
   grow: { flex: 1, minWidth: 0 },

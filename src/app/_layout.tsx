@@ -1,5 +1,7 @@
-import { Fredoka_600SemiBold, Fredoka_700Bold } from '@expo-google-fonts/fredoka';
-import { Nunito_700Bold, Nunito_800ExtraBold } from '@expo-google-fonts/nunito';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import { ReadexPro_600SemiBold } from '@expo-google-fonts/readex-pro/600SemiBold';
+import { ReadexPro_700Bold } from '@expo-google-fonts/readex-pro/700Bold';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -17,7 +19,7 @@ import { applyScheme, colors, ThemeContext, type Scheme, type ThemePref } from '
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({ Fredoka_600SemiBold, Fredoka_700Bold, Nunito_700Bold, Nunito_800ExtraBold });
+  const [fontsLoaded, fontError] = useFonts({ ReadexPro_600SemiBold, ReadexPro_700Bold, Inter_500Medium, Inter_700Bold });
   const fontsReady = fontsLoaded || !!fontError; // if a font fails, the app still opens with the system font
   const [dbReady, setDbReady] = useState(false);
   const [introDone, setIntroDone] = useState(false);
@@ -53,7 +55,7 @@ export default function RootLayout() {
     [scheme, pref],
   );
 
-  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: '#1D4ED8' }} />;
+  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: '#0B1B4D' }} />;
 
   return (
     <ThemeContext.Provider value={theme}>

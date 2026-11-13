@@ -182,7 +182,7 @@ const st = sheet(() => ({
   flex: { flex: 1, minWidth: 0 },
   months: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 12 },
-  hero: { backgroundColor: colors.blue, borderRadius: 26, padding: 20, gap: 4 },
+  hero: { backgroundColor: colors.night, borderRadius: 26, padding: 20, gap: 4 },
   heroMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.white },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   heroTotal: { fontFamily: fonts.title, fontSize: 42, color: colors.white },

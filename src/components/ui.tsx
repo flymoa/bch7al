@@ -75,14 +75,14 @@ export function Chip({ label, tone = 'neutral', icon }: { label: string; tone?: 
   const bg = tone === 'down' ? colors.soft : tone === 'up' ? colors.upBg : colors.neutral;
   const fg = tone === 'down' ? colors.softText : tone === 'up' ? colors.upText : colors.muted;
   return (
-    <View style={[s.chip, { backgroundColor: bg }]}>
+    <View style={[s.chip, { backgroundColor: bg }, tone === 'up' && s.chipUp]}>
       {icon ? <Ionicons name={icon} size={12} color={fg} /> : null}
       <Text style={[s.chipText, { color: fg }]}>{label}</Text>
     </View>
   );
 }
 
-/** Blue with a down arrow when the price dropped, orange with an up arrow when it rose. */
+/** Soft blue with a down arrow when the price dropped, navy outline with an up arrow when it rose. */
 export function ChangeChip({ from, to }: { from: number | null; to: number | null }) {
   const change = pctChange(from, to);
   if (change === null) return null;
@@ -166,8 +166,8 @@ function PlusButton() {
   const press = usePressScale(0.86);
   return (
     <Animated.View style={[s.plusWrap, press.style]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Nouvelle course" onPress={() => router.push('/trip/new')} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={s.plus}>
-        <Ionicons name="add" size={32} color={colors.white} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Scanner un ticket" onPress={() => router.push('/trip/new?scan=camera')} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={s.plus}>
+        <Ionicons name="scan" size={28} color={colors.white} />
       </Pressable>
     </Animated.View>
   );
@@ -210,11 +210,13 @@ export const s = sheet(() => ({
   headerTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.title, fontSize: 20, color: colors.ink },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', ...shadow },
   roundSpace: { width: 44, height: 44 },
-  card: { backgroundColor: colors.card, borderRadius: 20, padding: 14, ...shadow },
+  card: { backgroundColor: colors.card, borderRadius: 24, padding: 14, ...shadow },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 10 },
   tile: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   tileText: { fontFamily: fonts.titleBold, color: colors.softText },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
+  chipUp: { borderWidth: 1.5, borderColor: colors.upText, paddingVertical: 0.5 },
+  upBox: { borderWidth: 2, borderColor: colors.upText },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 12 },
   pill: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   pillActive: { backgroundColor: colors.ink, borderColor: colors.ink },
@@ -232,11 +234,11 @@ export const s = sheet(() => ({
   emptyTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, textAlign: 'center' },
   emptyText: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, textAlign: 'center', lineHeight: 21 },
   txt: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  bar: { marginHorizontal: 16, marginBottom: 12, marginTop: 6, backgroundColor: colors.card, borderRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingVertical: 6, ...shadow, elevation: 6 },
+  bar: { backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 8, paddingBottom: 8 },
   tab: { minWidth: 62, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 1 },
   tabText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.muted },
-  plusWrap: { marginTop: -26 },
-  plus: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 5, borderColor: colors.bg },
+  plusWrap: { marginTop: -34 },
+  plus: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.bg, shadowColor: colors.blue, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
   rowPressed: { backgroundColor: colors.cardPressed },
 }));
 

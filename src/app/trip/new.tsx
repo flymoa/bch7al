@@ -469,10 +469,10 @@ export default function TripForm() {
               </Pressable>
             </View>
             {hint ? (
-              <View style={[st.hint, { backgroundColor: hint.kind === 'high' ? colors.upBg : colors.soft }]} accessibilityLiveRegion="polite">
+              <View style={[st.hint, { backgroundColor: hint.kind === 'high' ? colors.upBg : colors.soft }, hint.kind === 'high' && ui.upBox]} accessibilityLiveRegion="polite">
                 <Ionicons name={hint.kind === 'good' ? 'thumbs-up' : hint.kind === 'high' ? 'alert-circle' : 'checkmark-circle'} size={18} color={hint.kind === 'high' ? colors.upText : colors.softText} />
                 <Text style={[st.hintText, { color: hint.kind === 'high' ? colors.upText : colors.softText }]}>
-                  {hint.kind === 'good' ? 'Bon prix' : hint.kind === 'high' ? 'Plus cher' : 'Prix habituel'} : d'habitude {money(match?.avg_price ?? 0)} MAD{shownUnit === 'pièce' ? '' : ` / ${shownUnit}`}
+                  {hint.kind === 'good' ? 'Mzyan' : hint.kind === 'high' ? 'Ghali' : 'Prix habituel'} : d'habitude {money(match?.avg_price ?? 0)} MAD{shownUnit === 'pièce' ? '' : ` / ${shownUnit}`}
                 </Text>
               </View>
             ) : null}

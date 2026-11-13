@@ -88,11 +88,11 @@ export default function Ask() {
                   <Text style={st.mad}>MAD{per(picked.unit)}</Text>
                 </View>
                 {v ? (
-                  <View style={[st.verdict, { backgroundColor: v.kind === 'high' ? colors.upBg : colors.soft }]} accessibilityLiveRegion="polite">
+                  <View style={[st.verdict, { backgroundColor: v.kind === 'high' ? colors.upBg : colors.soft }, v.kind === 'high' && ui.upBox]} accessibilityLiveRegion="polite">
                     <Ionicons name={v.kind === 'good' ? 'thumbs-up' : v.kind === 'high' ? 'alert-circle' : 'checkmark-circle'} size={26} color={v.kind === 'high' ? colors.upText : colors.softText} />
                     <View style={ui.flex}>
                       <Text style={[st.verdictTitle, { color: v.kind === 'high' ? colors.upText : colors.softText }]}>
-                        {v.kind === 'good' ? 'Bon prix, prends-le !' : v.kind === 'high' ? 'Cher' : 'Prix habituel'}
+                        {v.kind === 'good' ? 'Mzyan, prends-le !' : v.kind === 'high' ? 'Ghali' : 'Prix habituel'}
                       </Text>
                       <Text style={[st.verdictText, { color: v.kind === 'high' ? colors.upText : colors.softText }]}>
                         {v.kind === 'normal'
@@ -187,7 +187,7 @@ const st = sheet(() => ({
   searchInput: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 17, color: colors.ink, paddingVertical: 10 },
   label: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.muted, marginTop: 18, marginBottom: 8, marginLeft: 4 },
   list: { gap: 8 },
-  hero: { backgroundColor: colors.blue, borderRadius: 28, padding: 20, gap: 2 },
+  hero: { backgroundColor: colors.night, borderRadius: 28, padding: 20, gap: 2 },
   heroName: { fontFamily: fonts.title, fontSize: 22, color: colors.white, marginBottom: 6 },
   heroMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.white },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },

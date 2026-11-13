@@ -157,7 +157,7 @@ export default function ProductDetail() {
               <Text style={[st.statLabel, { color: colors.softText }]}>Plus bas</Text>
               <Text style={st.statValue}>{money(low)}</Text>
             </View>
-            <View style={[st.stat, { backgroundColor: colors.upBg }]}>
+            <View style={[st.stat, { backgroundColor: colors.upBg }, ui.upBox]}>
               <Text style={[st.statLabel, { color: colors.upText }]}>Plus haut</Text>
               <Text style={st.statValue}>{money(high)}</Text>
             </View>

@@ -247,7 +247,7 @@ export default function Settings() {
         </Card>
 
         <View style={st.about}>
-          <Text style={st.aboutText}>bch7al? · version {Constants.expoConfig?.version ?? '1.0.0'}</Text>
+          <Text style={st.aboutText}>bch7al? · version {Constants.expoConfig?.version ?? '2.0.0'}</Text>
         </View>
       </ScrollView>
     </Screen>

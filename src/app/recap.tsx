@@ -14,7 +14,7 @@ function Fact({ icon, label, index, warm, children }: { icon: string; label: str
   return (
     <FadeIn index={index}>
       <Card style={st.fact}>
-        <View style={[st.factIcon, warm && { backgroundColor: colors.upBg }]}>
+        <View style={[st.factIcon, warm && { backgroundColor: colors.upBg }, warm && ui.upBox]}>
           <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={22} color={warm ? colors.upText : colors.softText} />
         </View>
         <View style={ui.flex}>
@@ -112,7 +112,7 @@ export default function Recap() {
 
 const st = sheet(() => ({
   content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 28, gap: 10 },
-  hero: { backgroundColor: colors.blue, borderRadius: 28, padding: 22, gap: 2 },
+  hero: { backgroundColor: colors.night, borderRadius: 28, padding: 22, gap: 2 },
   heroMonth: { fontFamily: fonts.title, fontSize: 20, color: colors.white },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   heroTotal: { fontFamily: fonts.title, fontSize: 50, color: colors.white },

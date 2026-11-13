@@ -5,47 +5,57 @@ export type Scheme = 'light' | 'dark';
 export type ThemePref = 'system' | 'light' | 'dark';
 
 const light = {
-  bg: '#F4F7FB',
+  bg: '#F4F7FF',
   card: '#FFFFFF',
-  cardPressed: '#F7F9FD',
-  blue: '#1D4ED8',
-  ink: '#14213D',
+  cardPressed: '#F0F4FF',
+  blue: '#1F4BFF',
+  ink: '#0B1B4D',
   onInk: '#FFFFFF', // text on an "ink" background (selected pill, toast)
-  muted: '#55607A',
-  soft: '#E3ECFD',
-  softText: '#1E3FAE',
-  accent: '#A9C5FF',
-  barSoft: '#C9D8FA',
-  neutral: '#EEF2F8',
-  line: '#E6EBF3',
-  border: '#CBD5E4',
-  upBg: '#FDEBD3',
-  upText: '#8A4300',
+  muted: '#46557F',
+  soft: '#E6EDFF',
+  softText: '#1F4BFF',
+  accent: '#A9BCFF',
+  barSoft: '#C9D6FF',
+  neutral: '#EEF2FB',
+  line: '#D5DFFA',
+  border: '#B9C8F2',
+  // "Ghali" (more expensive): no warm colour, a white box with a navy outline.
+  upBg: '#FFFFFF',
+  upText: '#0B1B4D',
   danger: '#B42318',
   white: '#FFFFFF', // text and icons on blue
-  shadow: '#14213D',
+  shadow: '#0B1B4D',
+  // The deep-navy "night" cards (hero blocks) and what sits on them.
+  night: '#0B1B4D',
+  nightSoft: '#16296B',
+  onNight: '#C3D0FF',
+  nightBlue: '#4D6FFF',
 };
 
 const dark: typeof light = {
-  bg: '#0B1220',
-  card: '#151E30',
-  cardPressed: '#1B263B',
-  blue: '#3366F0',
-  ink: '#E8EEF8',
-  onInk: '#0B1220',
-  muted: '#9AA6BC',
-  soft: '#1C2A4A',
-  softText: '#A9C5FF',
-  accent: '#A9C5FF',
-  barSoft: '#2A3B63',
-  neutral: '#1E2738',
-  line: '#243049',
-  border: '#33405A',
-  upBg: '#3A2A12',
-  upText: '#FFC27A',
+  bg: '#060D26',
+  card: '#101C45',
+  cardPressed: '#16255A',
+  blue: '#4266FF',
+  ink: '#EEF2FF',
+  onInk: '#060D26',
+  muted: '#A3B0D9',
+  soft: '#182A66',
+  softText: '#C3D0FF',
+  accent: '#A9BCFF',
+  barSoft: '#2A3F8C',
+  neutral: '#141F47',
+  line: '#22316B',
+  border: '#34468A',
+  upBg: '#060D26',
+  upText: '#FFFFFF',
   danger: '#FF7A6E',
   white: '#FFFFFF',
   shadow: '#000000',
+  night: '#16296B',
+  nightSoft: '#22388A',
+  onNight: '#C3D0FF',
+  nightBlue: '#7C97FF',
 };
 
 /** Current palette. Its values are swapped in place when the scheme changes. */
@@ -107,10 +117,10 @@ export function useTheme() {
 }
 
 export const fonts = {
-  title: 'Fredoka_600SemiBold',
-  titleBold: 'Fredoka_700Bold',
-  body: 'Nunito_700Bold',
-  bodyBold: 'Nunito_800ExtraBold',
+  title: 'ReadexPro_600SemiBold',
+  titleBold: 'ReadexPro_700Bold',
+  body: 'Inter_500Medium',
+  bodyBold: 'Inter_700Bold',
 };
 
 export const UNITS = ['pièce', 'kg', 'L', 'paquet'] as const;
