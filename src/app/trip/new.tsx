@@ -13,9 +13,10 @@ import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
 import { getPref, setPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
-import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, qty as fmtQty, qtyLabel, todayIso } from '@/format';
+import { addDays, cleanName, longDate, money, parseNumber, pct, plural, productKey, verdict, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 
+/** `last` is the usual price of the product (average of earlier purchases), or null when there is nothing to compare. */
 type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean; unnamed?: boolean };
 type NewLine = Omit<BasketItem, 'id'>;
 let nextLineId = 1;
@@ -27,7 +28,7 @@ const smallUnit = (unit: string) => (unit === 'L' ? 'mL' : 'g');
 export default function TripForm() {
   useTheme();
   const db = useSQLiteContext();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; scan?: string }>();
   const editId = params.id ? Number(params.id) : undefined;
 
   const [stores, setStores] = useState<string[]>(DEFAULT_STORES);
@@ -50,6 +51,7 @@ export default function TripForm() {
   const [scanNote, setScanNote] = useState('');
   const [scanRows, setScanRows] = useState<string[]>([]);
   const [visionOn, setVisionOn] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     getPref(db, 'geminiKey').then((k) => setVisionOn(!!k));
   }, [db]);
@@ -66,6 +68,7 @@ export default function TripForm() {
       ]);
       if (!alive) return;
       setProducts(known);
+      setLoaded(true);
       const keys = new Set(used.map(productKey));
       setStores([...used, ...DEFAULT_STORES.filter((d) => !keys.has(productKey(d)))]);
       if (existing) {
@@ -97,6 +100,9 @@ export default function TripForm() {
     return { qty: Math.round(q * 1000) / 1000, unitPrice: Math.round(unitPrice * 10000) / 10000, paid: q * unitPrice };
   })();
 
+  // While typing the price of a product already bought: is it a good price?
+  const hint = !editId && match && computed && price.trim() && match.name !== STAMP_DUTY ? verdict(computed.unitPrice, match.avg_price) : null;
+
   const basketKeys = new Set(items.map((it) => productKey(it.name)));
   const suggestions = products
     .filter((p) => !basketKeys.has(productKey(p.name)) && p.last_price !== null)
@@ -120,7 +126,7 @@ export default function TripForm() {
     const clean = cleanName(name);
     if (!productKey(clean)) return setError("Écris le nom de l'article.");
     if (!computed) return setError(measured ? 'Écris le poids et le prix, par exemple 750 g et 6,50.' : 'Écris le prix, par exemple 12,50, et une quantité plus grande que zéro.');
-    upsert({ name: match ? match.name : clean, unit: shownUnit, qty: computed.qty, unitPrice: computed.unitPrice, last: editId ? null : match?.last_price ?? null, known: !!match });
+    upsert({ name: match ? match.name : clean, unit: shownUnit, qty: computed.qty, unitPrice: computed.unitPrice, last: editId ? null : match?.avg_price ?? null, known: !!match });
     setName('');
     setPrice('');
     setQuantity('1');
@@ -131,7 +137,7 @@ export default function TripForm() {
   };
 
   const addSuggestion = (p: ProductRow) => {
-    upsert({ name: p.name, unit: p.unit, qty: 1, unitPrice: p.last_price ?? 0, last: editId ? null : p.last_price, known: true });
+    upsert({ name: p.name, unit: p.unit, qty: 1, unitPrice: p.last_price ?? 0, last: editId ? null : p.avg_price, known: true });
     setName('');
     setError('');
   };
@@ -206,7 +212,7 @@ export default function TripForm() {
           unit: existing ? existing.unit : it.unit,
           qty: it.qty,
           unitPrice: it.unitPrice,
-          last: editId ? null : existing?.last_price ?? null,
+          last: editId ? null : existing?.avg_price ?? null,
           known: !!existing,
           scanned: true,
           unnamed: it.unnamed,
@@ -237,6 +243,15 @@ export default function TripForm() {
   };
   const today = todayIso();
 
+  // Opened from the home screen's "Scanner" button: go straight to the camera.
+  const autoScan = useRef(false);
+  useEffect(() => {
+    if (!loaded || autoScan.current || editId || (params.scan !== 'camera' && params.scan !== 'gallery')) return;
+    autoScan.current = true;
+    scan(params.scan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
+
   const save = async () => {
     if (!cleanName(store)) return setError('Choisis le magasin.');
     if (items.length === 0) return setError('Ajoute au moins un article.');
@@ -247,7 +262,7 @@ export default function TripForm() {
     setSaving(true);
     try {
       await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice }) => ({ name: n, unit: u, qty: q, unitPrice })) });
-      showToast(editId ? 'Course modifiée' : `Course enregistrée · ${money(total)} MAD`);
+      showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${money(total)} MAD`);
       router.canGoBack() ? router.back() : router.replace('/trips');
     } catch (e) {
       setSaving(false);
@@ -453,6 +468,14 @@ export default function TripForm() {
                 <Ionicons name="add" size={28} color={colors.white} />
               </Pressable>
             </View>
+            {hint ? (
+              <View style={[st.hint, { backgroundColor: hint.kind === 'high' ? colors.upBg : colors.soft }]} accessibilityLiveRegion="polite">
+                <Ionicons name={hint.kind === 'good' ? 'thumbs-up' : hint.kind === 'high' ? 'alert-circle' : 'checkmark-circle'} size={18} color={hint.kind === 'high' ? colors.upText : colors.softText} />
+                <Text style={[st.hintText, { color: hint.kind === 'high' ? colors.upText : colors.softText }]}>
+                  {hint.kind === 'good' ? 'Bon prix' : hint.kind === 'high' ? 'Plus cher' : 'Prix habituel'} : d'habitude {money(match?.avg_price ?? 0)} MAD{shownUnit === 'pièce' ? '' : ` / ${shownUnit}`}
+                </Text>
+              </View>
+            ) : null}
             {measured && computed && price.trim() ? (
               <Text style={st.calc} accessibilityLiveRegion="polite">
                 {qtyLabel(computed.qty, shownUnit)} ·{' '}
@@ -479,7 +502,7 @@ export default function TripForm() {
           ) : (
             <View style={st.basket}>
               {items.map((it, i) => {
-                const diff = it.last === null ? null : Math.round((it.unitPrice - it.last) * 100) / 100;
+                const v = it.name === STAMP_DUTY ? null : verdict(it.unitPrice, it.last);
                 const dup = !it.unnamed && items.filter((x) => !x.unnamed && productKey(x.name) === productKey(it.name)).length > 1;
                 return (
                   <Pop key={it.id}>
@@ -497,12 +520,14 @@ export default function TripForm() {
                             {dup ? <Chip label="Doublon ?" tone="up" icon="copy-outline" /> : null}
                             {it.unnamed ? <Chip label="Nom à écrire" tone="up" icon="create-outline" /> : null}
                             {it.scanned && !it.unnamed ? <Chip label="Lu sur le ticket" icon="receipt-outline" /> : null}
-                            {diff === null ? (
-                              it.known || it.scanned ? null : <Chip label="Nouveau produit" />
-                            ) : diff === 0 ? (
-                              <Chip label="Même prix" />
+                            {v === null ? (
+                              it.known || it.scanned || it.name === STAMP_DUTY ? null : <Chip label="Nouveau produit" />
+                            ) : v.kind === 'normal' ? (
+                              <Chip label="Prix habituel" />
+                            ) : v.kind === 'good' ? (
+                              <Chip label={`Bon prix · −${pct(v.change)}`} tone="down" icon="thumbs-up" />
                             ) : (
-                              <Chip label={`${diff > 0 ? '+' : '−'}${money(Math.abs(diff))} vs dernière fois`} tone={diff > 0 ? 'up' : 'down'} />
+                              <Chip label={`Plus cher que d'habitude · +${pct(v.change)}`} tone="up" icon="arrow-up" />
                             )}
                           </View>
                         </View>
@@ -570,6 +595,8 @@ export default function TripForm() {
 }
 
 const st = sheet(() => ({
+  hint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 },
+  hintText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 13 },
   content: { paddingHorizontal: 16, paddingBottom: 20 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   dateBox: { flex: 1, minHeight: 52, backgroundColor: colors.card, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },

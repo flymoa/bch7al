@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn, GrowBar } from '@/components/motion';
-import { Card, Chip, Empty, Header, Pill, RowCard, Screen, Tile, t } from '@/components/ui';
+import { Button, Card, Chip, Empty, Header, Pill, RowCard, Screen, Tile, t } from '@/components/ui';
 import { listMonths, monthStats, type MonthStats } from '@/db';
 import { currentMonth, money, monthLabel, pct, pctChange, plural } from '@/format';
 import { useSQLiteContext } from '@/sqlite';
@@ -76,6 +76,8 @@ export default function Stats() {
               ) : null}
             </View>
           </FadeIn>
+
+          <Button label="Ton mois en résumé" icon="sparkles-outline" tone="light" onPress={() => router.push(`/recap?month=${month}`)} />
 
           <FadeIn index={1}>
             <Card style={st.block}>

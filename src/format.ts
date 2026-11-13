@@ -139,3 +139,14 @@ export function parseCsv(text: string): string[][] {
   if (row.some((x) => x !== '')) rows.push(row);
   return rows;
 }
+
+// ---- price verdict ----
+
+export type Verdict = { kind: 'good' | 'normal' | 'high'; change: number };
+
+/** Is this price good compared with what is usually paid? Within 3 % counts as the usual price. */
+export function verdict(price: number, usual: number | null): Verdict | null {
+  if (usual === null || !(usual > 0) || !(price >= 0)) return null;
+  const change = ((price - usual) / usual) * 100;
+  return { kind: change <= -3 ? 'good' : change >= 3 ? 'high' : 'normal', change };
+}

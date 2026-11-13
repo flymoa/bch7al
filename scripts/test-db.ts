@@ -3,7 +3,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import * as D from '../src/db';
-import { qtyLabel, money, parseNumber, productKey, parseCsv, toCsv, addDays, pctChange } from '../src/format';
+import { qtyLabel, money, parseNumber, productKey, parseCsv, toCsv, addDays, pctChange, verdict } from '../src/format';
 
 function adapter(): any {
   const raw = new DatabaseSync(':memory:');
@@ -164,6 +164,57 @@ async function main() {
   await D.setPref(sdb, 'budget', '2500');
   assert.equal(await D.getPref(sdb, 'budget'), '2500');
   assert.equal(await D.getPref(sdb, 'nope'), null);
+
+  // bch7al ? : latest price per store, cheapest first
+  await D.saveTrip(sdb, { store: 'Marjane', date: '2026-11-10', items: [
+    { name: 'Lait', unit: 'L', qty: 2, unitPrice: 7.2 }, { name: 'Sucre', unit: 'kg', qty: 1, unitPrice: 11 }] });
+  const milk = (await D.listProducts(sdb, "lait"))[0];
+  assert.equal(milk.avg_price!.toFixed(2), ((7 + 7.7 + 7.2) / 3).toFixed(2));
+  const where = await D.pricesByStore(sdb, milk.id);
+  assert.deepEqual(where.map((w) => [w.store, w.price, w.n, w.latest]), [['Marjane', 7.2, 1, true], ['BIM', 7.7, 2, false]]);
+  assert.deepEqual(verdict(6.5, 7), { kind: 'good', change: ((6.5 - 7) / 7) * 100 });
+  assert.equal(verdict(7.1, 7)!.kind, 'normal');
+  assert.equal(verdict(8, 7)!.kind, 'high');
+  assert.equal(verdict(8, null), null);
+
+  // shopping list
+  assert.equal(await D.addListItem(sdb, 'lait'), true);
+  assert.equal(await D.addListItem(sdb, ' LAIT '), false, 'same article is not added twice');
+  await D.addListItem(sdb, 'Sucre');
+  await D.addListItem(sdb, 'Tomates');
+  await D.addListItem(sdb, 'Savon noir');
+  assert.equal(await D.listCount(sdb), 4);
+  let plan = await D.listPlan(sdb);
+  assert.deepEqual(plan.lines.map((l) => [l.name, l.best?.store ?? null, l.best?.price ?? null]), [
+    ['Lait', 'Marjane', 7.2], ['Sucre', 'BIM', 10], ['Tomates', 'Souk', 6], ['Savon noir', null, null]]);
+  assert.equal(plan.known, 3);
+  // BIM and Marjane both have lait + sucre: Marjane 18.2, BIM 17.7 -> BIM first
+  assert.deepEqual(plan.stores.map((x) => [x.store, x.covered, Math.round(x.total * 100) / 100]), [['BIM', 2, 17.7], ['Marjane', 2, 18.2], ['Souk', 1, 6]]);
+  await D.setListDone(sdb, plan.lines[1].id, true);
+  plan = await D.listPlan(sdb);
+  assert.equal(plan.todo, 3);
+  assert.equal(plan.lines[plan.lines.length - 1].name, 'Sucre', 'ticked articles go last');
+  assert.deepEqual(plan.stores.map((x) => x.store).sort(), ['BIM', 'Marjane', 'Souk']);
+  assert.equal(plan.stores.find((x) => x.store === 'BIM')!.covered, 1, 'only what is left to buy is compared');
+  await D.clearListDone(sdb);
+  assert.equal((await D.listPlan(sdb)).lines.length, 3);
+  await D.removeListItem(sdb, plan.lines[0].id);
+  assert.equal(await D.listCount(sdb), 2);
+
+  // Ton mois
+  const recap = await D.monthRecap(sdb, '2026-11');
+  assert.equal(recap.trips, 3);
+  assert.equal(recap.mainStore!.store, 'BIM');
+  // Marjane: lait 7.2 vs BIM average 7.35 on 2 L (+0.30), sucre 11 vs 10 (-1) -> -0.70
+  // BIM: lait 7.7 vs Marjane 7.2 on 4 L (-2), sucre 10 vs 11 on 2 kg (+2) -> 0
+  assert.equal(recap.bestStore, null);
+  assert.equal(recap.rise!.name, 'Lait');
+  assert.equal(recap.drop!.name, 'Riz');
+  await D.saveTrip(sdb, { store: 'Souk', date: '2026-11-12', items: [{ name: 'Sucre', unit: 'kg', qty: 5, unitPrice: 9 }] });
+  const recap2 = await D.monthRecap(sdb, '2026-11');
+  assert.deepEqual(recap2.bestStore, { store: 'Souk', saved: 7.5 });
+  assert.equal(D.previousMonth('2026-01'), '2025-12');
+  assert.equal((await D.monthRecap(sdb, '2020-01')).mainStore, null);
 
   console.log('All database checks passed.');
 }

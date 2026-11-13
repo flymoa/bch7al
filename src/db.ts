@@ -7,13 +7,13 @@ export type Db = SQLiteDatabase;
 
 export type TripRow = { id: number; date: string; store: string; total: number; n: number };
 export type ItemRow = { id: number; product_id: number; name: string; unit: string; qty: number; unit_price: number };
-export type ProductRow = { id: number; name: string; unit: string; n: number; last_price: number | null; prev_price: number | null };
+export type ProductRow = { id: number; name: string; unit: string; n: number; last_price: number | null; prev_price: number | null; avg_price: number | null };
 export type HistoryRow = { date: string; store: string; unit_price: number; qty: number };
 export type MonthSummary = { trips: number; total: number; items: number };
 export type NewItem = { name: string; unit: string; qty: number; unitPrice: number };
 export type NewTrip = { id?: number; store: string; date: string; items: NewItem[] };
 
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 export async function migrate(db: Db): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -54,6 +54,15 @@ export async function migrate(db: Db): Promise<void> {
   if (version === 1) {
     await db.execAsync('CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);');
     version = 2;
+  }
+  if (version === 2) {
+    await db.execAsync(`CREATE TABLE IF NOT EXISTS list_items (
+      id INTEGER PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      key TEXT NOT NULL UNIQUE,
+      done INTEGER NOT NULL DEFAULT 0
+    );`);
+    version = 3;
   }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
@@ -97,6 +106,7 @@ export async function listStores(db: Db): Promise<string[]> {
 const PRODUCT_SELECT = `
   SELECT p.id, p.name, p.unit,
     (SELECT COUNT(*) FROM items i WHERE i.product_id = p.id) AS n,
+    (SELECT AVG(i.unit_price) FROM items i WHERE i.product_id = p.id) AS avg_price,
     (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
       WHERE i.product_id = p.id ORDER BY t.date DESC, i.id DESC LIMIT 1) AS last_price,
     (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
@@ -375,4 +385,165 @@ export async function monthStats(db: Db, month: string): Promise<MonthStats> {
   const inflation = moves.length && weight > 0 ? moves.reduce((a, m) => a + m.change * m.spend, 0) / weight : null;
   moves.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
   return { month, total: sum.total, trips: sum.trips, prevTotal: prev.total, byStore, topProducts, moves, inflation, compared: moves.length };
+}
+
+// ---------- "bch7al ?" : what do I usually pay, and where is it cheapest ----------
+
+export type StorePrice = { store: string; price: number; date: string; n: number; /** the most recent purchase of all */ latest: boolean };
+
+/** Latest price paid in each store for one product, cheapest first. */
+export async function pricesByStore(db: Db, productId: number): Promise<StorePrice[]> {
+  const rows = await db.getAllAsync<{ store: string; price: number; date: string }>(
+    `SELECT s.name AS store, i.unit_price AS price, t.date
+     FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id
+     WHERE i.product_id = ? ORDER BY t.date DESC, i.id DESC`,
+    [productId],
+  );
+  const byStore = new Map<string, StorePrice>();
+  for (const r of rows) {
+    const seen = byStore.get(r.store);
+    if (seen) seen.n++;
+    else byStore.set(r.store, { ...r, n: 1, latest: byStore.size === 0 });
+  }
+  return [...byStore.values()].sort((a, b) => a.price - b.price || (a.date < b.date ? 1 : -1));
+}
+
+// ---------- shopping list ----------
+
+export type ListRow = { id: number; name: string; done: number };
+export type ListLine = ListRow & { unit: string | null; best: { store: string; price: number } | null; prices: Record<string, number> };
+export type StorePlan = { store: string; total: number; covered: number; cheapest: number };
+export type ListPlan = { lines: ListLine[]; stores: StorePlan[]; todo: number; known: number };
+
+/** Adds an article to the list. Returns false when it is already there (it is then un-ticked). */
+export async function addListItem(db: Db, name: string): Promise<boolean> {
+  const clean = cleanName(name);
+  const key = productKey(clean);
+  if (!key) throw new Error('Nom vide');
+  const found = await db.getFirstAsync<{ id: number }>('SELECT id FROM list_items WHERE key = ?', [key]);
+  if (found) {
+    await db.runAsync('UPDATE list_items SET done = 0 WHERE id = ?', [found.id]);
+    return false;
+  }
+  // An article already bought keeps the spelling of its price history.
+  const product = await db.getFirstAsync<{ name: string }>('SELECT name FROM products WHERE key = ?', [key]);
+  await db.runAsync('INSERT INTO list_items (name, key) VALUES (?, ?)', [product?.name ?? clean, key]);
+  return true;
+}
+
+export async function setListDone(db: Db, id: number, done: boolean): Promise<void> {
+  await db.runAsync('UPDATE list_items SET done = ? WHERE id = ?', [done ? 1 : 0, id]);
+}
+
+export async function removeListItem(db: Db, id: number): Promise<void> {
+  await db.runAsync('DELETE FROM list_items WHERE id = ?', [id]);
+}
+
+export async function clearListDone(db: Db): Promise<void> {
+  await db.runAsync('DELETE FROM list_items WHERE done = 1', []);
+}
+
+export async function listCount(db: Db): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM list_items WHERE done = 0', []);
+  return row?.n ?? 0;
+}
+
+/**
+ * The list with, for each article, the latest price paid in each store, and the stores
+ * ranked for what is still to buy: the one that has the most of the list first, then the
+ * one that is cheapest for the most articles.
+ */
+export async function listPlan(db: Db): Promise<ListPlan> {
+  const rows = await db.getAllAsync<ListRow & { key: string }>('SELECT id, name, key, done FROM list_items ORDER BY done, id', []);
+  const prices = await db.getAllAsync<{ key: string; unit: string; store: string; price: number }>(
+    `SELECT p.key, p.unit, s.name AS store, i.unit_price AS price
+     FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id JOIN products p ON p.id = i.product_id
+     WHERE p.key IN (SELECT key FROM list_items) ORDER BY t.date DESC, i.id DESC`,
+    [],
+  );
+  const latest = new Map<string, { unit: string; prices: Record<string, number> }>();
+  for (const r of prices) {
+    let e = latest.get(r.key);
+    if (!e) latest.set(r.key, (e = { unit: r.unit, prices: {} }));
+    if (!(r.store in e.prices)) e.prices[r.store] = r.price; // rows come newest first
+  }
+  const lines: ListLine[] = rows.map(({ key, ...row }) => {
+    const e = latest.get(key);
+    const all = Object.entries(e?.prices ?? {}).sort((a, b) => a[1] - b[1]);
+    return { ...row, unit: e?.unit ?? null, prices: e?.prices ?? {}, best: all.length ? { store: all[0][0], price: all[0][1] } : null };
+  });
+  const todo = lines.filter((l) => !l.done);
+  const plan = new Map<string, StorePlan>();
+  for (const l of todo) {
+    for (const [store, price] of Object.entries(l.prices)) {
+      const sp = plan.get(store) ?? { store, total: 0, covered: 0, cheapest: 0 };
+      sp.total += price;
+      sp.covered++;
+      if (l.best && price <= l.best.price) sp.cheapest++;
+      plan.set(store, sp);
+    }
+  }
+  const stores = [...plan.values()].sort((a, b) => b.covered - a.covered || b.cheapest - a.cheapest || a.total - b.total);
+  return { lines, stores, todo: todo.length, known: todo.filter((l) => l.best).length };
+}
+
+// ---------- "Ton mois" ----------
+
+export type MonthRecap = {
+  month: string;
+  total: number;
+  trips: number;
+  prevTotal: number;
+  items: number;
+  /** Where most of the money went. */
+  mainStore: StoreSpend | null;
+  /** The store whose prices this month beat what the same products cost elsewhere. */
+  bestStore: { store: string; saved: number } | null;
+  rise: PriceMove | null;
+  drop: PriceMove | null;
+  inflation: number | null;
+};
+
+export async function monthRecap(db: Db, month: string): Promise<MonthRecap> {
+  const stats = await monthStats(db, month);
+  const sum = await monthSummary(db, month);
+  const bought = await db.getAllAsync<{ product_id: number; store: string; qty: number; unit_price: number }>(
+    `SELECT i.product_id, s.name AS store, i.qty, i.unit_price
+     FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id WHERE substr(t.date, 1, 7) = ?`,
+    [month],
+  );
+  const avgs = await db.getAllAsync<{ product_id: number; store: string; avg: number }>(
+    `SELECT i.product_id, s.name AS store, AVG(i.unit_price) AS avg
+     FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id GROUP BY i.product_id, s.id`,
+    [],
+  );
+  const elsewhere = new Map<number, { store: string; avg: number }[]>();
+  for (const a of avgs) elsewhere.set(a.product_id, [...(elsewhere.get(a.product_id) ?? []), a]);
+  const saved = new Map<string, number>();
+  for (const b of bought) {
+    const others = (elsewhere.get(b.product_id) ?? []).filter((o) => o.store !== b.store);
+    if (!others.length) continue;
+    const ref = others.reduce((x, o) => x + o.avg, 0) / others.length;
+    saved.set(b.store, (saved.get(b.store) ?? 0) + (ref - b.unit_price) * b.qty);
+  }
+  const best = [...saved.entries()].sort((a, b) => b[1] - a[1])[0];
+  const real = stats.moves.filter((m) => !/timbre/i.test(m.name));
+  const rise = [...real].sort((a, b) => b.change - a.change)[0];
+  const drop = [...real].sort((a, b) => a.change - b.change)[0];
+  return {
+    month,
+    total: stats.total,
+    trips: stats.trips,
+    prevTotal: stats.prevTotal,
+    items: sum.items,
+    mainStore: stats.byStore[0] ?? null,
+    bestStore: best && best[1] >= 0.5 ? { store: best[0], saved: Math.round(best[1] * 100) / 100 } : null,
+    rise: rise && rise.change > 0.05 ? rise : null,
+    drop: drop && drop.change < -0.05 ? drop : null,
+    inflation: stats.inflation,
+  };
+}
+
+export function previousMonth(month: string): string {
+  return prevMonth(month);
 }
