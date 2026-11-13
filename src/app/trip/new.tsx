@@ -11,7 +11,7 @@ import { scanAvailable, scanReceipt } from '@/scan';
 import { STAMP_DUTY } from '@/receipt';
 import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t } from '@/components/ui';
+import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t , VerdictBadge, VerdictStrip} from '@/components/ui';
 import { getPref, setPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
 import { addDays, cleanName, longDate, money, parseNumber, pct, plural, productKey, verdict, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
@@ -251,6 +251,8 @@ export default function TripForm() {
     scan(params.scan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
+
+  const basketVerdicts = items.map((it) => (it.name === STAMP_DUTY ? null : verdict(it.unitPrice, it.last)));
 
   const save = async () => {
     if (!cleanName(store)) return setError('Choisis le magasin.');
@@ -497,6 +499,12 @@ export default function TripForm() {
             <Text style={st.basketTitle}>Dans mon panier</Text>
             <Text style={t.label}>{plural(items.length, 'article', 'articles')}</Text>
           </View>
+          {basketVerdicts.some(Boolean) ? (
+            <View style={st.stripCard}>
+              <Text style={st.stripTitle}>Comparé à tes prix habituels</Text>
+              <VerdictStrip verdicts={basketVerdicts} onNight />
+            </View>
+          ) : null}
           {items.length === 0 ? (
             <Empty title="Ton panier est vide" text="Ajoute ton premier article juste au-dessus." />
           ) : (
@@ -522,12 +530,15 @@ export default function TripForm() {
                             {it.scanned && !it.unnamed ? <Chip label="Lu sur le ticket" icon="receipt-outline" /> : null}
                             {v === null ? (
                               it.known || it.scanned || it.name === STAMP_DUTY ? null : <Chip label="Nouveau produit" />
-                            ) : v.kind === 'normal' ? (
-                              <Chip label="Prix habituel" />
-                            ) : v.kind === 'good' ? (
-                              <Chip label={`Bon prix · −${pct(v.change)}`} tone="down" icon="thumbs-up" />
                             ) : (
-                              <Chip label={`Plus cher que d'habitude · +${pct(v.change)}`} tone="up" icon="arrow-up" />
+                              <View style={st.verdictRow}>
+                                <VerdictBadge v={v} />
+                                {v.kind === 'normal' ? null : (
+                                  <Text style={t.meta}>
+                                    {money(Math.abs(it.unitPrice - (it.last ?? 0)))} MAD {v.change < 0 ? 'de moins' : 'de plus'}
+                                  </Text>
+                                )}
+                              </View>
                             )}
                           </View>
                         </View>
@@ -598,6 +609,9 @@ const st = sheet(() => ({
   hint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 },
   hintText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 13 },
   content: { paddingHorizontal: 16, paddingBottom: 20 },
+  stripCard: { backgroundColor: colors.night, borderRadius: 24, padding: 16, gap: 10, marginBottom: 10 },
+  stripTitle: { fontFamily: fonts.title, fontSize: 15, color: colors.white },
+  verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   dateBox: { flex: 1, minHeight: 52, backgroundColor: colors.card, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
   dateText: { fontFamily: fonts.title, fontSize: 17, color: colors.ink },

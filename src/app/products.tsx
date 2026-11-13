@@ -28,8 +28,8 @@ export default function Products() {
   const nothingYet = rows !== null && rows.length === 0 && search.trim() === '';
 
   return (
-    <Screen bottomBar="products">
-      <Header title="Mes produits" back={false} />
+    <Screen>
+      <Header title="Mes produits" />
       {nothingYet ? (
         <View style={st.pad}>
           <Empty title="Aucun produit pour l'instant" text="Les produits apparaissent ici dès que tu enregistres une course." />

@@ -4,10 +4,10 @@ import { useCallback, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
-import { Button, ChangeChip, RoundButton, Empty, RowCard, Screen, SectionTitle, Tile, s as ui, t } from '@/components/ui';
-import { getPref, listCount, listProducts, listTrips, monthSummary, previousMonth, type MonthSummary, type ProductRow, type TripRow } from '@/db';
-import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
-import { colors, fonts, sheet, useTheme } from '@/theme';
+import { Button, ChangeChip, RoundButton, Empty, RowCard, Screen, SectionTitle, Tile, VerdictStrip, s as ui, t } from '@/components/ui';
+import { getPref, listCount, listProducts, listTrips, monthSummary, previousMonth, tripVerdicts, type MonthSummary, type ProductRow, type TripRow } from '@/db';
+import { currentMonth, longDate, money, monthLabel, plural, type Verdict } from '@/format';
+import { colors, fonts, shadow, sheet, useTheme } from '@/theme';
 
 export default function Home() {
   useTheme();
@@ -18,6 +18,7 @@ export default function Home() {
   const [budget, setBudget] = useState<number | null>(null);
   const [who, setWho] = useState('');
   const [toBuy, setToBuy] = useState(0);
+  const [lastVerdicts, setLastVerdicts] = useState<(Verdict | null)[]>([]);
   /** During the first week of a month, last month's summary is offered. */
   const [recap, setRecap] = useState<string | null>(null);
 
@@ -35,7 +36,9 @@ export default function Home() {
           listCount(db),
           monthSummary(db, last),
         ]);
+        const lv = lastTrips[0] ? Object.values(await tripVerdicts(db, lastTrips[0].id)) : [];
         if (alive) {
+          setLastVerdicts(lv);
           setWho(name ?? '');
           setToBuy(n);
           setRecap(new Date().getDate() <= 7 && before.trips > 0 ? last : null);
@@ -88,6 +91,25 @@ export default function Home() {
           </View>
         </FadeIn>
 
+        {trips[0] ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Dernière sortie : ${trips[0].store}, ${money(trips[0].total)} MAD`} onPress={() => router.push(`/trip/${trips[0].id}`)} style={({ pressed }) => [st.last, pressed && ui.pressed]}>
+            <View style={st.lastHead}>
+              <Text style={st.lastLabel}>DERNIÈRE SORTIE</Text>
+              <Text style={t.meta}>{longDate(trips[0].date)}</Text>
+            </View>
+            <View style={st.lastRow}>
+              <View style={st.grow}>
+                <Text style={st.lastStore} numberOfLines={1}>{trips[0].store}</Text>
+                <Text style={t.meta}>{plural(trips[0].n, 'article', 'articles')}</Text>
+              </View>
+              <Text style={st.lastTotal}>
+                {money(trips[0].total)} <Text style={st.lastUnit}>MAD</Text>
+              </Text>
+            </View>
+            <VerdictStrip verdicts={lastVerdicts} />
+          </Pressable>
+        ) : null}
+
         <View style={st.duo}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Ma liste de courses, ${plural(toBuy, 'article', 'articles')}`} onPress={() => router.push('/list')} style={({ pressed }) => [st.tile, st.tileSoft, pressed && ui.pressed]}>
             <Ionicons name="list" size={24} color={colors.softText} />
@@ -136,7 +158,7 @@ export default function Home() {
           </View>
         ) : (
           <>
-            <SectionTitle action="Tout voir" onAction={() => router.replace('/trips')}>
+            <SectionTitle action="Tout voir" onAction={() => router.push('/trips')}>
               Mes dernières courses
             </SectionTitle>
             <View style={st.list}>
@@ -158,7 +180,7 @@ export default function Home() {
               ))}
             </View>
 
-            <SectionTitle action="Tout voir" onAction={() => router.replace('/products')}>
+            <SectionTitle action="Tout voir" onAction={() => router.push('/products')}>
               Mes produits
             </SectionTitle>
             <View style={st.list}>
@@ -204,6 +226,13 @@ const st = sheet(() => ({
   heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   heroChip: { minHeight: 44, maxWidth: '100%', paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: colors.nightBlue, justifyContent: 'center' },
   heroChipText: { fontFamily: fonts.body, fontSize: 14, color: '#E6EDFF' },
+  last: { marginTop: 12, backgroundColor: colors.card, borderRadius: 24, padding: 18, gap: 12, ...shadow },
+  lastHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  lastLabel: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.5, color: colors.muted },
+  lastRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  lastStore: { fontFamily: fonts.title, fontSize: 22, color: colors.ink },
+  lastTotal: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.5, color: colors.ink },
+  lastUnit: { fontFamily: fonts.title, fontSize: 15, color: colors.muted },
   duo: { flexDirection: 'row', gap: 12, marginTop: 12 },
   tile: { flex: 1, minHeight: 128, borderRadius: 24, padding: 16, gap: 4 },
   tileSoft: { backgroundColor: colors.soft },

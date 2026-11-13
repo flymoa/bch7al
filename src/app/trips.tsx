@@ -37,8 +37,8 @@ export default function Trips() {
   const total = trips.reduce((sum, trip) => sum + trip.total, 0);
 
   return (
-    <Screen bottomBar="trips">
-      <Header title="Mes courses" back={false} />
+    <Screen>
+      <Header title="Mes courses" />
       {months.length === 0 ? (
         <View style={st.pad}>
           <Empty title="Aucune course pour l'instant" text="Touche le bouton + en bas pour noter ta première course." />

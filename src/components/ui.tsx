@@ -2,20 +2,24 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, shadow, sheet } from '@/theme';
-import { pct, pctChange } from '@/format';
+import { pct, pctChange, type Verdict } from '@/format';
 import { productIcon, storeIcon } from '@/icons';
 import { usePressScale } from './motion';
 import { Animated } from 'react-native';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-export function Screen({ children, bottomBar }: { children: ReactNode; bottomBar?: 'home' | 'trips' | 'products' | 'stats' }) {
+export type Tab = 'home' | 'ask' | 'list' | 'stats';
+
+/** `night`: the area under the status bar is navy, for screens that open on a navy block. */
+export function Screen({ children, bottomBar, night }: { children: ReactNode; bottomBar?: Tab; night?: boolean }) {
+  const insets = useSafeAreaInsets();
   return (
-    <SafeAreaView style={s.screen} edges={['top', 'left', 'right', 'bottom']}>
-      <View style={s.flex}>{children}</View>
-      {bottomBar ? <BottomBar active={bottomBar} /> : null}
+    <SafeAreaView style={[s.screen, night && { backgroundColor: colors.night }]} edges={['top', 'left', 'right']}>
+      <View style={[s.flex, night && { backgroundColor: colors.bg }]}>{children}</View>
+      {bottomBar ? <BottomBar active={bottomBar} bottom={insets.bottom} /> : <View style={{ height: insets.bottom, backgroundColor: colors.bg }} />}
     </SafeAreaView>
   );
 }
@@ -133,6 +137,57 @@ export function Button({ label, onPress, icon, tone = 'primary', disabled, style
   );
 }
 
+const VERDICT_LABEL = { good: 'Mzyan', normal: 'Normal', high: 'Ghali' } as const;
+
+/** Mzyan (solid blue, arrow down), Normal (soft), Ghali (navy outline, arrow up). */
+export function VerdictBadge({ v, onNight }: { v: Verdict; onNight?: boolean }) {
+  const good = v.kind === 'good';
+  const high = v.kind === 'high';
+  return (
+    <View
+      accessibilityLabel={VERDICT_LABEL[v.kind]}
+      style={[s.badge, good ? { backgroundColor: onNight ? colors.nightBlue : colors.blue } : high ? [s.badgeHigh, onNight && { borderColor: colors.white, backgroundColor: 'transparent' }] : { backgroundColor: onNight ? colors.nightSoft : colors.soft }]}
+    >
+      {good ? <Ionicons name="arrow-down" size={12} color={colors.white} /> : high ? <Ionicons name="arrow-up" size={12} color={onNight ? colors.white : colors.upText} /> : null}
+      <Text style={[s.badgeText, { color: good || onNight ? colors.white : high ? colors.upText : colors.ink }]}>{VERDICT_LABEL[v.kind]}</Text>
+    </View>
+  );
+}
+
+/** One segment per article: good first, then normal, then high. */
+export function VerdictStrip({ verdicts, onNight }: { verdicts: (Verdict | null)[]; onNight?: boolean }) {
+  const known = verdicts.filter((v): v is Verdict => v !== null);
+  if (known.length === 0) return null;
+  const order = { good: 0, normal: 1, high: 2 } as const;
+  const sorted = [...known].sort((a, b) => order[a.kind] - order[b.kind]);
+  const n = (k: Verdict['kind']) => known.filter((v) => v.kind === k).length;
+  return (
+    <View style={s.stripWrap}>
+      <View style={s.strip} accessible accessibilityLabel={`${n('good')} mzyan, ${n('normal')} normal, ${n('high')} ghali`}>
+        {sorted.map((v, i) => (
+          <View
+            key={i}
+            style={[
+              s.seg,
+              v.kind === 'good'
+                ? { backgroundColor: onNight ? colors.nightBlue : colors.blue }
+                : v.kind === 'normal'
+                  ? { backgroundColor: onNight ? '#2A3F8C' : colors.barSoft }
+                  : onNight
+                    ? { backgroundColor: colors.white }
+                    : s.segHigh,
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={[s.stripText, onNight && { color: colors.onNight }]}>
+        <Text style={[s.stripStrong, { color: onNight ? colors.white : colors.blue }]}>{n('good')} mzyan</Text> · {n('normal')} normal ·{' '}
+        <Text style={[s.stripStrong, { color: onNight ? colors.white : colors.ink }]}>{n('high')} ghali</Text>
+      </Text>
+    </View>
+  );
+}
+
 export function SectionTitle({ children, action, onAction }: { children: string; action?: string; onAction?: () => void }) {
   return (
     <View style={s.section}>
@@ -173,12 +228,12 @@ function PlusButton() {
   );
 }
 
-function BottomBar({ active }: { active: 'home' | 'trips' | 'products' | 'stats' }) {
-  const items: { key: typeof active; label: string; icon: IconName; href: '/' | '/trips' | '/products' | '/stats' }[] = [
+function BottomBar({ active, bottom }: { active: Tab; bottom: number }) {
+  const items: { key: Tab; label: string; icon: IconName; href: '/' | '/ask' | '/list' | '/stats' }[] = [
     { key: 'home', label: 'Accueil', icon: 'home-outline', href: '/' },
-    { key: 'trips', label: 'Courses', icon: 'list-outline', href: '/trips' },
-    { key: 'products', label: 'Produits', icon: 'cube-outline', href: '/products' },
-    { key: 'stats', label: 'Stats', icon: 'stats-chart-outline', href: '/stats' },
+    { key: 'ask', label: 'Prix', icon: 'pricetag-outline', href: '/ask' },
+    { key: 'list', label: 'Liste', icon: 'list-outline', href: '/list' },
+    { key: 'stats', label: 'Mois', icon: 'stats-chart-outline', href: '/stats' },
   ];
   const tab = (it: (typeof items)[number]) => (
     <Pressable
@@ -193,7 +248,7 @@ function BottomBar({ active }: { active: 'home' | 'trips' | 'products' | 'stats'
     </Pressable>
   );
   return (
-    <View style={s.bar}>
+    <View style={[s.bar, { paddingBottom: 8 + bottom }]}>
       {items.slice(0, 2).map(tab)}
       <PlusButton />
       {items.slice(2).map(tab)}
@@ -215,6 +270,15 @@ export const s = sheet(() => ({
   tile: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   tileText: { fontFamily: fonts.titleBold, color: colors.softText },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 28, paddingHorizontal: 10, borderRadius: 14, alignSelf: 'center' },
+  badgeHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg, paddingHorizontal: 8 },
+  badgeText: { fontFamily: fonts.bodyBold, fontSize: 12 },
+  stripWrap: { gap: 8 },
+  strip: { flexDirection: 'row', gap: 4 },
+  seg: { flex: 1, height: 10, borderRadius: 5 },
+  segHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg },
+  stripText: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
+  stripStrong: { fontFamily: fonts.bodyBold },
   chipUp: { borderWidth: 1.5, borderColor: colors.upText, paddingVertical: 0.5 },
   upBox: { borderWidth: 2, borderColor: colors.upText },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 12 },

@@ -1,7 +1,7 @@
 // All database access lives here. Only type imports from expo-sqlite, so the
 // logic can be exercised in Node with any object exposing the same methods.
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { cleanName, productKey, parseCsv, parseNumber, toCsv } from './format';
+import { cleanName, productKey, parseCsv, parseNumber, toCsv, verdict, type Verdict } from './format';
 
 export type Db = SQLiteDatabase;
 
@@ -450,6 +450,34 @@ export async function pricesByStore(db: Db, productId: number): Promise<StorePri
     else byStore.set(r.store, { ...r, n: 1, latest: byStore.size === 0 });
   }
   return [...byStore.values()].sort((a, b) => a.price - b.price || (a.date < b.date ? 1 : -1));
+}
+
+/**
+ * For each line of a trip: is its price mzyan / normal / ghali compared with what the
+ * same product cost in the other trips? Lines bought nowhere else get null.
+ */
+export async function tripVerdicts(db: Db, tripId: number): Promise<Record<number, Verdict | null>> {
+  const rows = await db.getAllAsync<{ id: number; unit_price: number; usual: number | null }>(
+    `SELECT i.id, i.unit_price,
+       (SELECT AVG(o.unit_price) FROM items o WHERE o.product_id = i.product_id AND o.trip_id <> i.trip_id) AS usual
+     FROM items i WHERE i.trip_id = ?`,
+    [tripId],
+  );
+  const out: Record<number, Verdict | null> = {};
+  for (const r of rows) out[r.id] = verdict(r.unit_price, r.usual);
+  return out;
+}
+
+/** Money spent in each week of a month: days 1–7, 8–14, 15–21, 22 to the end. */
+export async function weekSpend(db: Db, month: string): Promise<number[]> {
+  const rows = await db.getAllAsync<{ w: number; total: number }>(
+    `SELECT MIN(3, (CAST(substr(t.date, 9, 2) AS INTEGER) - 1) / 7) AS w, SUM(i.qty * i.unit_price) AS total
+     FROM items i JOIN trips t ON t.id = i.trip_id WHERE substr(t.date, 1, 7) = ? GROUP BY w`,
+    [month],
+  );
+  const weeks = [0, 0, 0, 0];
+  for (const r of rows) weeks[r.w] = r.total;
+  return weeks;
 }
 
 // ---------- shopping list ----------

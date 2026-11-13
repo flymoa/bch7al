@@ -1,12 +1,12 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Alert } from '@/alert';
-import { Button, Card, Empty, Header, Screen, Tile, s as ui, t } from '@/components/ui';
+import { Button, Empty, Header, Screen, VerdictBadge, VerdictStrip, s as ui, t } from '@/components/ui';
 import { showToast } from '@/components/toast';
-import { deleteTrip, getTrip, type ItemRow, type TripRow } from '@/db';
-import { longDate, money, plural, qtyLabel } from '@/format';
+import { deleteTrip, getTrip, tripVerdicts, type ItemRow, type TripRow } from '@/db';
+import { longDate, money, plural, qtyLabel, type Verdict } from '@/format';
 import { colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function TripDetail() {
@@ -15,11 +15,16 @@ export default function TripDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const tripId = Number(id);
   const [data, setData] = useState<{ trip: TripRow; items: ItemRow[] } | null | undefined>(undefined);
+  const [verdicts, setVerdicts] = useState<Record<number, Verdict | null>>({});
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      getTrip(db, tripId).then((res) => alive && setData(res));
+      Promise.all([getTrip(db, tripId), tripVerdicts(db, tripId)]).then(([res, v]) => {
+        if (!alive) return;
+        setVerdicts(v);
+        setData(res);
+      });
       return () => {
         alive = false;
       };
@@ -58,47 +63,62 @@ export default function TripDetail() {
   }
 
   const { trip, items } = data;
+  const known = items.map((it) => verdicts[it.id] ?? null);
   return (
     <Screen>
-      <Header title="Course" />
+      <Header title="Ticket" />
       <ScrollView contentContainerStyle={st.content}>
-        <View style={st.head}>
-          <Tile kind="store" text={trip.store} size={64} />
-          <View style={ui.flex}>
-            <Text style={st.store}>{trip.store}</Text>
-            <Text style={t.meta}>
-              {longDate(trip.date)} · {plural(trip.n, 'article', 'articles')}
-            </Text>
-          </View>
+        <View>
+          <Text style={st.h1}>{trip.store}</Text>
+          <Text style={t.meta}>{longDate(trip.date)}</Text>
         </View>
 
-        <Card style={st.items}>
-          {items.map((it, i) => (
-            <Pressable
-              key={it.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Voir ${it.name}`}
-              onPress={() => router.push(`/product/${it.product_id}`)}
-              style={({ pressed }) => [st.item, i > 0 && st.itemLine, pressed && ui.pressed]}
-            >
-              <View style={ui.flex}>
-                <Text style={t.name}>{it.name}</Text>
-                <Text style={t.meta}>
-                  {qtyLabel(it.qty, it.unit)} × {money(it.unit_price)} MAD / {it.unit}
-                </Text>
-              </View>
-              <Text style={t.price}>{money(it.qty * it.unit_price)}</Text>
-            </Pressable>
-          ))}
-          <View style={[st.item, st.totalLine]}>
-            <Text style={st.totalLabel}>Total</Text>
+        <View style={st.night}>
+          <View style={st.nightHead}>
+            <Text style={st.nightTitle}>{plural(trip.n, 'article', 'articles')}</Text>
+            {known.some(Boolean) ? <Text style={st.nightMeta}>comparés à tes prix habituels</Text> : null}
+          </View>
+          {known.some(Boolean) ? (
+            <VerdictStrip verdicts={known} onNight />
+          ) : (
+            <Text style={st.nightMeta}>Rachète ces produits ailleurs ou plus tard : je te dirai s'ils étaient mzyan ou ghali.</Text>
+          )}
+        </View>
+
+        <View style={st.items}>
+          {items.map((it) => {
+            const v = verdicts[it.id] ?? null;
+            return (
+              <Pressable
+                key={it.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Voir ${it.name}`}
+                onPress={() => router.push(`/ask?id=${it.product_id}`)}
+                style={({ pressed }) => [st.item, pressed && ui.pressed]}
+              >
+                <View style={ui.flex}>
+                  <Text style={t.name} numberOfLines={1}>{it.name}</Text>
+                  <Text style={t.meta} numberOfLines={1}>
+                    {qtyLabel(it.qty, it.unit)} × {money(it.unit_price)}
+                    {it.unit === 'pièce' ? '' : ` / ${it.unit}`}
+                  </Text>
+                </View>
+                {v ? <VerdictBadge v={v} /> : null}
+                <Text style={st.itemPrice}>{money(it.qty * it.unit_price)}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={st.totalRow}>
+          <View>
+            <Text style={t.meta}>Total</Text>
             <Text style={st.total}>
-              {money(trip.total)} <Text style={t.unit}>MAD</Text>
+              {money(trip.total)} <Text style={st.totalUnit}>MAD</Text>
             </Text>
           </View>
-        </Card>
-
-        <Button label="Modifier" icon="create-outline" onPress={() => router.push(`/trip/new?id=${trip.id}`)} />
+          <Button label="Modifier" icon="create-outline" style={st.edit} onPress={() => router.push(`/trip/new?id=${trip.id}`)} />
+        </View>
         <Button label="Supprimer" icon="trash-outline" tone="danger" onPress={confirmDelete} />
       </ScrollView>
     </Screen>
@@ -107,13 +127,17 @@ export default function TripDetail() {
 
 const st = sheet(() => ({
   pad: { padding: 16 },
-  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 12 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  store: { fontFamily: fonts.title, fontSize: 24, color: colors.ink },
-  items: { paddingVertical: 4 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 8 },
-  itemLine: { borderTopWidth: 1, borderTopColor: colors.line },
-  totalLine: { borderTopWidth: 2, borderTopColor: colors.ink, justifyContent: 'space-between' },
-  totalLabel: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
-  total: { fontFamily: fonts.title, fontSize: 24, color: colors.ink },
+  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 14 },
+  h1: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.5, color: colors.ink },
+  night: { backgroundColor: colors.night, borderRadius: 24, padding: 18, gap: 12 },
+  nightHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
+  nightTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.white },
+  nightMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.onNight },
+  items: { gap: 8 },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.card, borderRadius: 18 },
+  itemPrice: { width: 64, textAlign: 'right', fontFamily: fonts.title, fontSize: 16, color: colors.ink },
+  totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 },
+  total: { fontFamily: fonts.titleBold, fontSize: 26, color: colors.ink },
+  totalUnit: { fontFamily: fonts.title, fontSize: 14, color: colors.muted },
+  edit: { minWidth: 150 },
 }));
