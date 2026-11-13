@@ -216,3 +216,56 @@ console.log('Misread checks passed.');
   assert.deepEqual(res.items.map((i) => i.name), ['Chewing Gum', 'Droit de timbre']);
 }
 console.log('BIM and Arabic checks passed.');
+
+// ---- Real Marjane receipt (23/07/2017) ----
+{
+  const rows = [
+    'Marjane', 'MARJANE HOLDING', 'MARJANE MASSIRA', 'ICE : 001531173000020',
+    '23/07/2017 16:07:46 8 17 7766',
+    '(5)6111056009436 CADUM, SHAMP GH  22.95',
+    '(5)5410076932535 H&S SH. 200ML ANTI-D  21.75',
+    '(5)3610340015489 COLOR NATURALS 5 CHA  34.50',
+    'BEAUTE-SANTE  79.20',
+    '(5)8001585008148 GAUFRETTE BALC  2.95',
+    '(5)6221134000108 BISC FLUTE CHOC 22.5',
+    '2 x 2.50  5.00',
+    'BISCUITERIE  7.95',
+    'T O T A L  87.37',
+    'DONT DROITS DE TIMBRE : 0.22',
+    'ESPECES  100.00', 'DROITS DE TIMBRE  0.22', 'RENDU  12.63',
+    "NOMBRE D'ARTICLES  6", 'TVA POUR INFORMATION  -',
+    'N.  Tx  HT  TAXE  TTC', '5  20.00  72.61  14.54  87.15', 'total  72.61  14.54  87.15',
+    '9072317077663', 'Visitez notre site www.marjane.ma',
+  ];
+  const res = parseReceipt(rows);
+  assert.equal(res.store, 'Marjane');
+  assert.equal(res.date, '2017-07-23');
+  assert.equal(res.total, 87.37);
+  assert.equal(res.expected, 6);
+  assert.deepEqual(res.items.map((i) => [i.name, i.qty, i.unitPrice]), [
+    ['Cadum, Shamp Gh', 1, 22.95],
+    ['H&s Sh. 200ML Anti-d', 1, 21.75],
+    ['Color Naturals 5 Cha', 1, 34.5],
+    ['Gaufrette Balc', 1, 2.95],
+    ['Bisc Flute Choc 22.5', 2, 2.5],
+    ['Droit de timbre', 1, 0.22],
+  ]);
+  const paid = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  assert.equal(Math.round(paid * 100) / 100, 87.37);
+}
+
+// ---- BIM as the phone may read it: the stamp amount on its own line, star read as "x" ----
+{
+  const variants = [
+    ['BIM MAROC', 'GAUF CACO CENTRO142G  %20  *8.90', 'TOTAL  *8.90 DH', 'DROITS DE TIMBRE', '*0.08 DH', 'TOTAL TTC  *8.98 DH'],
+    ['BIM MAROC', 'GAUF CACO CENTRO142G  %20  *8.90', 'TOTAL  *8.90 DH', '*0.08 DH', 'DROITS DE TIMBRE', 'TOTAL TTC  *8.98 DH'],
+    ['BIM MAROC', 'GAUF CACO CENTRO142G  %20  *8.90', 'TOTAL  *8.90 DH', 'DROITS DE TIMBRE  x0.08 DH', 'TOTAL TTC  *8.98 DH'],
+    ['BIM MAROC', 'GAUF CACO CENTRO142G  %20  *8.90', 'TOTAL  *8.90 DH', 'DROITS DE TIMBRE  +0.08 DH', 'TOTAL TTC  +8.98 DH'],
+  ];
+  for (const v of variants) {
+    const res = parseReceipt(v);
+    assert.deepEqual(res.items.map((i) => [i.name, i.unitPrice]), [['Gauf Caco CENTRO142G', 8.9], ['Droit de timbre', 0.08]], v.join(' | '));
+    assert.equal(res.total, 8.98, v.join(' | '));
+  }
+}
+console.log('Marjane and stamp-duty checks passed.');

@@ -1,5 +1,5 @@
 // Web preview: no camera, so "scanning" runs the real receipt reader on sample receipts
-// exactly as the phone reads them. Photo = BIM (with stamp duty), Galerie = an Arabic receipt.
+// exactly as the phone reads them. Photo = Marjane, Galerie = an Arabic receipt.
 import { parseReceipt, type ReceiptResult } from './receipt';
 
 export const scanAvailable = false;
@@ -11,6 +11,15 @@ const BIM = [
   'Especes  *40.00', 'RENDU  *-6.02', '%20  28.25  *5.65  *33.90', 'NOMBRE ARTICLES : 3',
 ];
 
+const MARJANE = [
+  'Marjane', 'MARJANE HOLDING', 'MARJANE MASSIRA', '23/07/2017 16:07:46 8 17 7766',
+  '(5)6111056009436 CADUM, SHAMP GH  22.95', '(5)5410076932535 H&S SH. 200ML ANTI-D  21.75',
+  '(5)3610340015489 COLOR NATURALS 5 CHA  34.50', 'BEAUTE-SANTE  79.20',
+  '(5)8001585008148 GAUFRETTE BALC  2.95', '(5)6221134000108 BISC FLUTE CHOC 22.5', '2 x 2.50  5.00', 'BISCUITERIE  7.95',
+  'T O T A L  87.37', 'DONT DROITS DE TIMBRE : 0.22', 'ESPECES  100.00', 'DROITS DE TIMBRE  0.22', 'RENDU  12.63',
+  "NOMBRE D'ARTICLES  6", '5  20.00  72.61  14.54  87.15', 'total  72.61  14.54  87.15',
+];
+
 const SOUFI = [
   'soufi', 'ALIMENTATION', 'N° : 24057681', 'Le : 12-11-2026 [19:21]',
   '28.00  28.00  1', '7.00  7.00  180  1', '18.00  9.00  250  2', '10.80  240.00  0.04', '5.40  90.00  0.06',
@@ -20,5 +29,5 @@ const SOUFI = [
 
 export async function scanReceipt(source: 'camera' | 'gallery'): Promise<ReceiptResult | null> {
   await new Promise((r) => setTimeout(r, 600));
-  return { ...parseReceipt(source === 'camera' ? BIM : SOUFI), date: null };
+  return { ...parseReceipt(source === 'camera' ? MARJANE : SOUFI), date: null };
 }

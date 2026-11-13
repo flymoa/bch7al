@@ -37,11 +37,15 @@ const KNOWN_STORES = [...DEFAULT_STORES, 'Acima', 'Aswak Assalam', 'Label Vie', 
 const SKIP = /\b(total|sous[- ]?total|tva|t\.v\.a|ht|ttc|esp[eè]ces?|rendu|monnaie|carte|cb|visa|cash|ticket|caisse|caissier|merci|client|fid[eé]lit[eé]|points?|remise totale|net a payer|net à payer|a payer|à payer|montant|change|tel|t[eé]l[eé]phone|ice|patente|rc|if\b|cnss|adresse|capital|fiscal|editeur|cache|client divers|www|http|articles?|nombre|qt[eé] totale|solde|avoir|recu|reçu|facture|date|heure|n°|no\.|t[il1|][mnh]{1,2}bre|droits?|operation|vente|ventilation|taux|code promo|solde|offerts?|bienvenue|paiement)/i;
 
 const PRICE = /(-?\d{1,5}(?:[ .]\d{3})*[.,]\d{2})\s*(?:\(?\s*(?:dh|dhs|mad)\s*\)?|€)?\s*[a-z]?$/i;
+const STAMP = /^(?:dont\s*)?(?:dr?oits?)\s*(?:de\s*)?t[il1|][mnh]{1,2}bre/i;
 const MONEY = /(?<![\d.,])\d{1,5}[.,]\d{2}(?![\d])/g;
 
 /** Removes printing marks that are not part of names or prices: "*12.50", VAT codes "%20" / "Z20". */
 function tidy(row: string): string {
   return row
+    .replace(/\bT\s+O\s+T\s+A\s+L\b/gi, 'TOTAL')
+    // a star misread as "x" or "+" at the start of a column (columns are joined with two spaces)
+    .replace(/(^|\s{2,})[x+](?=-?\d+[.,]\d{2}\b)/gi, '$1')
     .replace(/\*\s*(?=-?\d)/g, '')
     .replace(/(^|\s)[%Z]\s?\d{1,2}\.?(?=\s|$)/g, ' ')
     .replace(/\s+/g, ' ')
@@ -91,7 +95,8 @@ function softenCaps(name: string): string {
     .join(' ');
 }
 
-export function parseReceipt(rows: string[]): ReceiptResult {
+export function parseReceipt(rawRows: string[]): ReceiptResult {
+  const rows = rawRows.map(tidy);
   let store: string | null = null;
   const head = rows.slice(0, 8).join(' ').toLowerCase();
   store = KNOWN_STORES.find((name) => head.includes(name.toLowerCase())) ?? null; // longest name first
@@ -122,13 +127,16 @@ export function parseReceipt(rows: string[]): ReceiptResult {
   const items: ReceiptItem[] = [];
   let pendingQty: { qty: number; unitPrice: number } | null = null;
   let expected: number | null = null;
+  let sawTotal = false;
+  // A product line without a price; its "2 x 2.50  5.00" comes on the next line (Marjane).
+  let pendingName: string | null = null;
   // Amount of the articles since the last group subtotal (e.g. "FROMAGERIE 45.20").
   let sinceGroup = 0;
   // Receipts that print an article code on each line (Carrefour) also print group subtotals.
   const codedReceipt = rows.filter((r) => CODE.test(r)).length >= 2;
 
-  for (const raw of rows) {
-    const row = tidy(raw);
+  for (let idx = 0; idx < rows.length; idx++) {
+    const row = rows[idx];
     if (!row) continue;
 
     const count = row.match(/nombre\s*(?:d'?\s*)?articles?\s*:?\s*(\d{1,3})|articles?\s*:\s*(\d{1,3})\s*-?\s*articles?/i);
@@ -141,17 +149,24 @@ export function parseReceipt(rows: string[]): ReceiptResult {
       const m = row.match(PRICE);
       // "TOTAL TTC" / "NET A PAYER" is what was paid; a plain "TOTAL" may come before the stamp duty.
       if (m && (total === null || /ttc|payer/i.test(row))) total = num(m[1]);
+      sawTotal = true;
       continue;
     }
 
     // Stamp duty is part of what was paid: keep it as its own line so the trip total matches.
-    const stamp = row.match(/^(?:dont\s*)?(?:dr?oits?)\s*(?:de\s*)?t[il1|][mnh]{1,2}bre\s*:?\s*(\d+[.,]\d{2})/i);
-    if (stamp) {
-      if (!items.some((i) => i.name === STAMP_DUTY) && num(stamp[1]) > 0) {
-        items.push({ name: STAMP_DUTY, qty: 1, unitPrice: num(stamp[1]), unit: 'pièce' });
+    if (STAMP.test(row)) {
+      let amount = row.match(/(\d+[.,]\d{2})\s*(?:dh|dhs|mad)?\s*$/i)?.[1] ?? null;
+      for (const j of [idx + 1, idx - 1]) {
+        if (amount) break;
+        amount = rows[j]?.match(/^\s*(\d+[.,]\d{2})\s*(?:dh|dhs|mad)?\s*$/i)?.[1] ?? null;
+      }
+      if (amount && num(amount) > 0 && !items.some((i) => i.name === STAMP_DUTY)) {
+        items.push({ name: STAMP_DUTY, qty: 1, unitPrice: num(amount), unit: 'pièce' });
       }
       continue;
     }
+    // A lone amount next to the stamp duty label belongs to it.
+    if (/^\d+[.,]\d{2}\s*(?:dh|dhs|mad)?$/i.test(row) && (STAMP.test(rows[idx - 1] ?? '') || STAMP.test(rows[idx + 1] ?? ''))) continue;
 
     // "0.628 kg x 51.95 MAD/kg" printed under a weighed article
     const weightLine = row.match(/^(\d+[.,]\d{1,3})\s*kg\s*[x×*@]\s*(\d+[.,]\d{2})\s*(?:mad|dh|dhs)?\s*(?:\/\s*kg)?$/i);
@@ -185,6 +200,17 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     if (/\d[.,]\d{4}/.test(row)) continue;
     if (/%/.test(row) && !/[a-zà-ÿ]{3,}/i.test(row)) continue;
 
+    // Marjane: "2 x 2.50  5.00" under a product line that had no price.
+    const qtyTotal = row.match(/^(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+[.,]\d{2})\s+(\d+[.,]\d{2})$/i);
+    if (qtyTotal && pendingName) {
+      const q = weight(qtyTotal[1]);
+      const u = num(qtyTotal[2]);
+      items.push({ name: pendingName, qty: q, unitPrice: u, unit: Number.isInteger(q) ? 'pièce' : 'kg' });
+      sinceGroup += num(qtyTotal[3]);
+      pendingName = null;
+      continue;
+    }
+
     // Right-to-left receipts start the row with numbers: "total  price  name  qty".
     if (/^\d/.test(row)) {
       const col = columnRow(row);
@@ -196,6 +222,11 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     }
 
     const pm = row.match(PRICE);
+    if (!pm && CODE.test(row) && !sawTotal) {
+      const n = softenCaps(cleanItemName(row));
+      if (/[a-zà-ÿ]{2,}/i.test(n)) pendingName = n;
+      continue;
+    }
     if (!pm) {
       const col = columnRow(row);
       if (col) {
@@ -246,7 +277,7 @@ export function parseReceipt(rows: string[]): ReceiptResult {
     sinceGroup += lineTotal;
   }
 
-  return { store, date, items, total, expected, rows };
+  return { store, date, items, total, expected, rows: rawRows };
 }
 
 /**

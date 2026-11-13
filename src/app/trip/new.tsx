@@ -209,10 +209,12 @@ export default function TripForm() {
       const gap = res.total !== null ? Math.abs(res.total - read) : 0;
       const articles = res.items.filter((i) => i.name !== STAMP_DUTY).length;
       const unnamedCount = res.items.filter((i) => i.unnamed).length;
-      const missing = res.expected !== null && res.expected > articles;
+      // Receipts count units: "2 x 2.50" is 2 articles; a weighed item is 1.
+      const units = res.items.filter((i) => i.name !== STAMP_DUTY).reduce((n, i) => n + (i.unit === 'pièce' && Number.isInteger(i.qty) ? i.qty : 1), 0);
+      const missing = res.expected !== null && res.expected > units;
       setScanNote(
         missing
-          ? `Le ticket compte ${plural(res.expected!, 'article', 'articles')}, ${articles} ${articles > 1 ? 'ont été lus' : 'a été lu'}. Ajoute ceux qui manquent à la main, ou reprends la photo bien à plat et éclairée.`
+          ? `Le ticket compte ${plural(res.expected!, 'article', 'articles')}, ${units} ${units > 1 ? 'ont été lus' : 'a été lu'}. Ajoute ceux qui manquent à la main, ou reprends la photo bien à plat et éclairée.`
           : unnamedCount > 0
           ? `${plural(articles, 'article lu', 'articles lus')}. Les noms en arabe ne peuvent pas être lus : touche « Modifier » sur chaque ligne « Nom à écrire » pour taper le nom. Les prix et quantités sont déjà remplis.`
           : res.total !== null && gap > 0.5
@@ -278,7 +280,7 @@ export default function TripForm() {
                 </View>
                 <View style={ui.flex}>
                   <Text style={st.scanTitle}>Scanner le ticket</Text>
-                  <Text style={t.meta}>{scanAvailable ? 'Les articles se remplissent tout seuls.' : "Aperçu : Photo = ticket BIM, Galerie = ticket en arabe."}</Text>
+                  <Text style={t.meta}>{scanAvailable ? 'Les articles se remplissent tout seuls.' : "Aperçu : Photo = ticket Marjane, Galerie = ticket en arabe."}</Text>
                 </View>
               </View>
               <View style={st.scanButtons}>
