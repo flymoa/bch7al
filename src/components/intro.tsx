@@ -1,7 +1,7 @@
 // Opening animation (v2, "bleu nuit"). The phone's launch screen is the same plain
 // navy, so the hand-over is seamless and no spinner shows.
-// Beats: the 7 lands (650 ms), the "?" springs in, the rest of the name appears
-// (320 ms), a short hold (250 ms), then the screen grows and fades away (420 ms).
+// The 7 lands (600 ms); while it is still landing the rest of the name slides in and
+// the "?" springs in, then a short hold (350 ms) and the screen grows and fades away (420 ms).
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { fonts } from '@/theme';
@@ -30,11 +30,14 @@ export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void })
           setPlayed(true);
           return;
         }
+        // The beats overlap, so nothing stands still between the 7 landing and the rest.
         Animated.sequence([
-          Animated.timing(land, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-          Animated.spring(mark, { toValue: 1, useNativeDriver: true, speed: 16, bounciness: 14 }),
-          Animated.timing(word, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-          Animated.delay(250),
+          Animated.parallel([
+            Animated.timing(land, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.sequence([Animated.delay(300), Animated.timing(word, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true })]),
+            Animated.sequence([Animated.delay(480), Animated.spring(mark, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 12 })]),
+          ]),
+          Animated.delay(350),
         ]).start(() => !cancelled && setPlayed(true));
       });
     return () => { cancelled = true; };
@@ -83,7 +86,7 @@ export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void })
             <View key={i} style={[st.seg, { backgroundColor: c }]} />
           ))}
         </Animated.View>
-        <Animated.Text style={[st.tag, { opacity: word }]}>Tes prix, ton carnet.</Animated.Text>
+        <Animated.Text style={[st.tag, { opacity: word }]}>3ref taman, chri mzyan.</Animated.Text>
       </Animated.View>
     </Animated.View>
   );

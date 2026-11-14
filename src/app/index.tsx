@@ -16,7 +16,6 @@ export default function Home() {
   const [trips, setTrips] = useState<TripRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [budget, setBudget] = useState<number | null>(null);
-  const [who, setWho] = useState('');
   const [toBuy, setToBuy] = useState(0);
   const [lastVerdicts, setLastVerdicts] = useState<(Verdict | null)[]>([]);
   /** During the first week of a month, last month's summary is offered. */
@@ -27,19 +26,17 @@ export default function Home() {
       let alive = true;
       (async () => {
         const last = previousMonth(currentMonth());
-        const [sum, lastTrips, top, b, name, n, before] = await Promise.all([
+        const [sum, lastTrips, top, b, n, before] = await Promise.all([
           monthSummary(db, currentMonth()),
           listTrips(db, undefined, 3),
           listProducts(db, '', 'frequent', 3),
           getPref(db, 'budget'),
-          getPref(db, 'name'),
           listCount(db),
           monthSummary(db, last),
         ]);
         const lv = lastTrips[0] ? Object.values(await tripVerdicts(db, lastTrips[0].id)) : [];
         if (alive) {
           setLastVerdicts(lv);
-          setWho(name ?? '');
           setToBuy(n);
           setRecap(new Date().getDate() <= 7 && before.trips > 0 ? last : null);
           setBudget(b && Number(b) > 0 ? Number(b) : null);
@@ -62,7 +59,7 @@ export default function Home() {
             <Text style={st.brand} accessibilityLabel="bch7al">
               bch<Text style={st.seven}>7</Text>al<Text style={st.seven}>?</Text>
             </Text>
-            <Text style={st.hello}>{who ? `Salam, ${who}` : 'Salam !'}</Text>
+            <Text style={st.hello}>3ref taman, chri mzyan.</Text>
           </View>
           <RoundButton icon="settings-outline" label="Réglages" onPress={() => router.push('/settings')} />
         </View>
