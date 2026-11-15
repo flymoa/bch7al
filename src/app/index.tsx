@@ -6,7 +6,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
 import { Button, ChangeChip, RoundButton, Empty, RowCard, Screen, SectionTitle, Tile, VerdictStrip, s as ui, t } from '@/components/ui';
 import { getPref, listCount, listProducts, listTrips, monthSummary, previousMonth, tripVerdicts, type MonthSummary, type ProductRow, type TripRow } from '@/db';
-import { currentMonth, longDate, money, monthLabel, plural, type Verdict } from '@/format';
+import { addDays, currentMonth, longDate, todayIso, money, monthLabel, plural, type Verdict } from '@/format';
 import { colors, fonts, shadow, sheet, useTheme } from '@/theme';
 
 export default function Home() {
@@ -17,6 +17,8 @@ export default function Home() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [budget, setBudget] = useState<number | null>(null);
   const [toBuy, setToBuy] = useState(0);
+  /** Data lives only on the phone: nudge for a backup after 30 days (or 3 trips with none). */
+  const [needBackup, setNeedBackup] = useState(false);
   const [lastVerdicts, setLastVerdicts] = useState<(Verdict | null)[]>([]);
   /** During the first week of a month, last month's summary is offered. */
   const [recap, setRecap] = useState<string | null>(null);
@@ -26,17 +28,20 @@ export default function Home() {
       let alive = true;
       (async () => {
         const last = previousMonth(currentMonth());
-        const [sum, lastTrips, top, b, n, before] = await Promise.all([
+        const [sum, lastTrips, top, b, n, before, saved, all] = await Promise.all([
           monthSummary(db, currentMonth()),
           listTrips(db, undefined, 3),
           listProducts(db, '', 'frequent', 3),
           getPref(db, 'budget'),
           listCount(db),
           monthSummary(db, last),
+          getPref(db, 'lastBackup'),
+          listTrips(db, undefined, 3),
         ]);
         const lv = lastTrips[0] ? Object.values(await tripVerdicts(db, lastTrips[0].id)) : [];
         if (alive) {
           setLastVerdicts(lv);
+          setNeedBackup(saved ? addDays(saved, 30) < todayIso() : all.length >= 3);
           setToBuy(n);
           setRecap(new Date().getDate() <= 7 && before.trips > 0 ? last : null);
           setBudget(b && Number(b) > 0 ? Number(b) : null);
@@ -137,6 +142,14 @@ export default function Home() {
         ) : null}
 
         <Button label="Nouvelle course" icon="add" onPress={() => router.push('/trip/new')} style={st.newTrip} />
+
+        {needBackup ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Sauvegarder mes courses" onPress={() => router.push('/settings')} style={({ pressed }) => [st.recap, pressed && ui.pressed]}>
+            <Ionicons name="cloud-upload-outline" size={22} color={colors.softText} />
+            <Text style={st.recapText}>Sauvegarde tes courses : elles ne sont que sur ce téléphone</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.softText} />
+          </Pressable>
+        ) : null}
 
         {recap ? (
           <Pressable accessibilityRole="button" onPress={() => router.push(`/recap?month=${recap}`)} style={({ pressed }) => [st.recap, pressed && ui.pressed]}>

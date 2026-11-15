@@ -20,17 +20,11 @@ export default function Settings() {
   const [busy, setBusy] = useState(false);
   const [budget, setBudget] = useState('');
   const [budgetSaved, setBudgetSaved] = useState('');
-  const [who, setWho] = useState('');
-  const [whoSaved, setWhoSaved] = useState('');
   const [visionKey, setVisionKey] = useState('');
   const [visionSaved, setVisionSaved] = useState(false);
   const [visionMsg, setVisionMsg] = useState('');
 
   useEffect(() => {
-    getPref(db, 'name').then((n) => {
-      setWho(n ?? '');
-      setWhoSaved(n ?? '');
-    });
     getPref(db, 'geminiKey').then((k) => {
       setVisionKey(k ?? '');
       setVisionSaved(!!k);
@@ -101,6 +95,7 @@ export default function Settings() {
       file.write('﻿' + csv);
       if (!(await Sharing.isAvailableAsync())) throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil.");
       await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', dialogTitle: 'Sauvegarder mes courses' });
+      await savePref(db, 'lastBackup', todayIso());
     } catch (e) {
       Alert.alert('La sauvegarde a échoué', String((e as Error).message ?? e));
     } finally {
@@ -151,31 +146,6 @@ export default function Settings() {
             {plural(stats.trips, 'course', 'courses')}, {plural(stats.products, 'produit', 'produits')}, {plural(stats.items, 'prix noté', 'prix notés')}.
           </Text>
           <Text style={st.text}>Tout est enregistré sur ce téléphone. Seules les photos de tickets partent sur Internet, et seulement si la lecture Gemini est activée (plus bas).</Text>
-        </Card>
-
-        <Card style={st.card}>
-          <Text style={st.title}>Ton prénom</Text>
-          <Text style={st.text}>Pour te dire salam sur l'accueil. Il reste sur ce téléphone.</Text>
-          <TextInput
-            accessibilityLabel="Ton prénom"
-            value={who}
-            onChangeText={setWho}
-            placeholder="Ex. Mohamed"
-            placeholderTextColor={colors.muted}
-            autoCapitalize="words"
-            maxLength={24}
-            style={st.keyInput}
-          />
-          <Button
-            label={who.trim() === whoSaved ? 'Prénom enregistré' : 'Enregistrer'}
-            tone={who.trim() === whoSaved ? 'light' : 'primary'}
-            disabled={busy}
-            onPress={async () => {
-              await savePref(db, 'name', who.trim());
-              setWho(who.trim());
-              setWhoSaved(who.trim());
-            }}
-          />
         </Card>
 
         <Card style={st.card}>

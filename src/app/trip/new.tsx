@@ -17,7 +17,7 @@ import { addDays, cleanName, longDate, money, parseNumber, pct, plural, productK
 import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 
 /** `last` is the usual price of the product (average of earlier purchases), or null when there is nothing to compare. */
-type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean; unnamed?: boolean };
+type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean; unnamed?: boolean; otherUnit?: boolean };
 type NewLine = Omit<BasketItem, 'id'>;
 let nextLineId = 1;
 
@@ -206,9 +206,18 @@ export default function TripForm() {
       }
       if (res.date && res.date <= todayIso()) setDate(res.date);
       for (const it of res.items) {
-        const existing = it.unnamed ? undefined : byKey.get(productKey(it.name));
+        let existing = it.unnamed ? undefined : byKey.get(productKey(it.name));
+        let name = existing ? existing.name : it.name;
+        // Same product but sold another way (kg vs piece): kept as its own product so the
+        // per-kilo and per-piece prices never mix in one history.
+        const otherUnit = !!existing && existing.unit !== it.unit;
+        if (otherUnit) {
+          name = `${existing!.name} (${it.unit === 'kg' ? 'kg' : it.unit})`;
+          existing = byKey.get(productKey(name));
+        }
         upsert({
-          name: existing ? existing.name : it.name,
+          name,
+          otherUnit,
           unit: existing ? existing.unit : it.unit,
           qty: it.qty,
           unitPrice: it.unitPrice,
@@ -528,6 +537,7 @@ export default function TripForm() {
                             {dup ? <Chip label="Doublon ?" tone="up" icon="copy-outline" /> : null}
                             {it.unnamed ? <Chip label="Nom à écrire" tone="up" icon="create-outline" /> : null}
                             {it.scanned && !it.unnamed ? <Chip label="Lu sur le ticket" icon="receipt-outline" /> : null}
+                            {it.otherUnit ? <Chip label={`Au ${it.unit}, noté à part`} icon="scale-outline" /> : null}
                             {v === null ? (
                               it.known || it.scanned || it.name === STAMP_DUTY ? null : <Chip label="Nouveau produit" />
                             ) : (

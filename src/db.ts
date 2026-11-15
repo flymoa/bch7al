@@ -22,38 +22,40 @@ export async function migrate(db: Db): Promise<void> {
   if (version === 0) {
     await db.execAsync(`
       PRAGMA journal_mode = 'wal';
-      CREATE TABLE stores (
+      CREATE TABLE IF NOT EXISTS stores (
         id INTEGER PRIMARY KEY NOT NULL,
         name TEXT NOT NULL,
         key TEXT NOT NULL UNIQUE
       );
-      CREATE TABLE products (
+      CREATE TABLE IF NOT EXISTS products (
         id INTEGER PRIMARY KEY NOT NULL,
         name TEXT NOT NULL,
         key TEXT NOT NULL UNIQUE,
         unit TEXT NOT NULL DEFAULT 'pièce'
       );
-      CREATE TABLE trips (
+      CREATE TABLE IF NOT EXISTS trips (
         id INTEGER PRIMARY KEY NOT NULL,
         store_id INTEGER NOT NULL REFERENCES stores(id),
         date TEXT NOT NULL
       );
-      CREATE TABLE items (
+      CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY NOT NULL,
         trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
         product_id INTEGER NOT NULL REFERENCES products(id),
         qty REAL NOT NULL,
         unit_price REAL NOT NULL
       );
-      CREATE INDEX items_trip ON items(trip_id);
-      CREATE INDEX items_product ON items(product_id);
-      CREATE INDEX trips_date ON trips(date);
+      CREATE INDEX IF NOT EXISTS items_trip ON items(trip_id);
+      CREATE INDEX IF NOT EXISTS items_product ON items(product_id);
+      CREATE INDEX IF NOT EXISTS trips_date ON trips(date);
     `);
     version = 1;
+    await db.execAsync(`PRAGMA user_version = 1`); // each step is saved, so a closed app resumes cleanly
   }
   if (version === 1) {
     await db.execAsync('CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);');
     version = 2;
+    await db.execAsync(`PRAGMA user_version = 2`); // each step is saved, so a closed app resumes cleanly
   }
   if (version === 2) {
     await db.execAsync(`CREATE TABLE IF NOT EXISTS list_items (
@@ -63,10 +65,12 @@ export async function migrate(db: Db): Promise<void> {
       done INTEGER NOT NULL DEFAULT 0
     );`);
     version = 3;
+    await db.execAsync(`PRAGMA user_version = 3`); // each step is saved, so a closed app resumes cleanly
   }
   if (version === 3) {
     await rekeyArabic(db);
     version = 4;
+    await db.execAsync(`PRAGMA user_version = 4`); // each step is saved, so a closed app resumes cleanly
   }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
@@ -150,7 +154,9 @@ export async function listStores(db: Db): Promise<string[]> {
 const PRODUCT_SELECT = `
   SELECT p.id, p.name, p.unit,
     (SELECT COUNT(*) FROM items i WHERE i.product_id = p.id) AS n,
-    (SELECT AVG(i.unit_price) FROM items i WHERE i.product_id = p.id) AS avg_price,
+    -- "usual price": the average of the last 3 purchases, so old prices don't drag it down
+    (SELECT AVG(x.unit_price) FROM (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
+      WHERE i.product_id = p.id ORDER BY t.date DESC, i.id DESC LIMIT 3) x) AS avg_price,
     (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
       WHERE i.product_id = p.id ORDER BY t.date DESC, i.id DESC LIMIT 1) AS last_price,
     (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
@@ -289,6 +295,9 @@ export async function deleteTrip(db: Db, id: number): Promise<void> {
 
 // ---------- backup ----------
 
+const LIST_MARK = '#liste';
+const BUDGET_MARK = '#budget';
+
 export const CSV_HEADER = ['date', 'magasin', 'produit', 'unite', 'quantite', 'prix_unitaire', 'total'];
 
 export async function exportCsv(db: Db): Promise<{ csv: string; rows: number }> {
@@ -302,6 +311,11 @@ export async function exportCsv(db: Db): Promise<{ csv: string; rows: number }> 
   for (const r of rows) {
     out.push([r.date, r.store, r.name, r.unit, r.qty, r.unit_price, Math.round(r.qty * r.unit_price * 100) / 100, r.trip_id]);
   }
+  // The shopping list and the budget ride along on marked lines at the end.
+  const list = await db.getAllAsync<{ name: string; done: number }>('SELECT name, done FROM list_items ORDER BY id', []);
+  for (const l of list) out.push([LIST_MARK, '', l.name, '', l.done ? 1 : 0, '', '', '']);
+  const budget = await getPref(db, 'budget');
+  if (budget) out.push([BUDGET_MARK, '', '', '', '', budget, '', '']);
   return { csv: toCsv(out), rows: rows.length };
 }
 
@@ -322,9 +336,21 @@ export async function importCsv(db: Db, text: string): Promise<{ trips: number; 
   const cTrip = head.indexOf('course');
 
   const trips = new Map<string, NewTrip>();
+  const list: { name: string; done: boolean }[] = [];
+  let budget: string | null = null;
   let items = 0;
   rows.slice(1).forEach((r, idx) => {
     const line = idx + 2;
+    const mark = (r[cDate] ?? '').trim();
+    if (mark === LIST_MARK) {
+      if (productKey(r[cName] ?? '')) list.push({ name: cleanName(r[cName]), done: (r[cQty] ?? '').trim() === '1' });
+      return;
+    }
+    if (mark === BUDGET_MARK) {
+      budget = (r[cPrice] ?? '').trim() || null;
+      return;
+    }
+    if (r.every((c) => !c.trim())) return;
     const date = (r[cDate] ?? '').trim();
     const store = cleanName(r[cStore] ?? '');
     const name = cleanName(r[cName] ?? '');
@@ -349,6 +375,13 @@ export async function importCsv(db: Db, text: string): Promise<{ trips: number; 
     await db.runAsync('DELETE FROM products', []);
     await db.runAsync('DELETE FROM stores', []);
     for (const trip of trips.values()) await writeTrip(db, trip);
+    if (list.length) {
+      await db.runAsync('DELETE FROM list_items', []);
+      for (const l of list) {
+        await db.runAsync('INSERT OR IGNORE INTO list_items (name, key, done) VALUES (?, ?, ?)', [l.name, productKey(l.name), l.done ? 1 : 0]);
+      }
+    }
+    if (budget) await setPref(db, 'budget', budget);
   });
   return { trips: trips.size, items };
 }
@@ -453,14 +486,15 @@ export async function pricesByStore(db: Db, productId: number): Promise<StorePri
 }
 
 /**
- * For each line of a trip: is its price mzyan / normal / ghali compared with what the
- * same product cost in the other trips? Lines bought nowhere else get null.
+ * For each line of a trip: is its price mzyan / normal / ghali compared with the last 3
+ * purchases of the same product before that day? Lines never bought before get null.
  */
 export async function tripVerdicts(db: Db, tripId: number): Promise<Record<number, Verdict | null>> {
   const rows = await db.getAllAsync<{ id: number; unit_price: number; usual: number | null }>(
     `SELECT i.id, i.unit_price,
-       (SELECT AVG(o.unit_price) FROM items o WHERE o.product_id = i.product_id AND o.trip_id <> i.trip_id) AS usual
-     FROM items i WHERE i.trip_id = ?`,
+       (SELECT AVG(x.unit_price) FROM (SELECT o.unit_price FROM items o JOIN trips ot ON ot.id = o.trip_id
+          WHERE o.product_id = i.product_id AND ot.date < t.date ORDER BY ot.date DESC, o.id DESC LIMIT 3) x) AS usual
+     FROM items i JOIN trips t ON t.id = i.trip_id WHERE i.trip_id = ?`,
     [tripId],
   );
   const out: Record<number, Verdict | null> = {};

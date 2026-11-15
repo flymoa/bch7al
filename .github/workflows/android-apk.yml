@@ -36,6 +36,7 @@ jobs:
           npx tsx scripts/test-db.ts
           npx tsx scripts/test-receipt.ts
           npx tsx scripts/test-gemini.ts
+          npx tsx scripts/test-fixes.ts
 
       - name: Generate the Android project
         run: npx expo prebuild --platform android --no-install
