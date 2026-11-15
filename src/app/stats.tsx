@@ -1,15 +1,18 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { CountUp, FadeIn, GrowBar } from '@/components/motion';
 import { Button, Card, Chip, Empty, Header, RowCard, Screen, Tile, s as ui, t } from '@/components/ui';
 import { listMonths, monthRecap, monthStats, weekSpend, type MonthRecap, type MonthStats } from '@/db';
 import { currentMonth, money, monthLabel, pct, pctChange, plural } from '@/format';
 import { useSQLiteContext } from '@/sqlite';
-import { colors, fonts, sheet, useTheme } from '@/theme';
+import { bubble, bubbleRight, colors, fonts, sheet, useTheme } from '@/theme';
 
-const SHARE = ['#FFFFFF', '#A9BCFF', '#4D6FFF', '#2A3F8C'];
+const RING = 132;
+const RR = 54;
+const CIRC = 2 * Math.PI * RR;
 
 export default function Stats() {
   useTheme();
@@ -61,99 +64,129 @@ export default function Stats() {
   const top = stats ? stats.byStore.slice(0, 3) : [];
   const rest = stats ? stats.byStore.slice(3).reduce((a, x) => a + x.total, 0) : 0;
   const shares = rest > 0 ? [...top, { store: 'Autres', total: rest, trips: 0 }] : top;
+  // Ring: one arc per store, with a small gap between arcs.
+  const ringColors = [colors.blue, colors.ink, '#9C9AFF', colors.barSoft];
+  const GAP = shares.length > 1 ? 5 : 0;
+  let at = 0;
+  const arcs = shares.map((x, k) => {
+    const full = stats && stats.total > 0 ? (x.total / stats.total) * CIRC : 0;
+    const arc = { store: x.store, total: x.total, color: ringColors[k], start: at + GAP / 2, len: Math.max(0, full - GAP) };
+    at += full;
+    return arc;
+  });
 
   return (
-    <Screen bottomBar="stats" night>
+    <Screen bottomBar="stats">
       {stats && recap ? (
         <ScrollView contentContainerStyle={st.scroll}>
-          <View style={st.night}>
-            <View style={st.top}>
-              <Text style={st.topLabel}>Ton mois</Text>
-              <View style={st.switch}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Mois précédent"
-                  accessibilityState={{ disabled: !older }}
-                  disabled={!older}
-                  onPress={() => older && setMonth(older)}
-                  style={[st.arrow, !older && st.off]}
-                >
-                  <Ionicons name="chevron-back" size={20} color={colors.white} />
-                </Pressable>
-                <Text style={st.monthName} numberOfLines={1}>{monthLabel(month)}</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Mois suivant"
-                  accessibilityState={{ disabled: !newer }}
-                  disabled={!newer}
-                  onPress={() => newer && setMonth(newer)}
-                  style={[st.arrow, !newer && st.off]}
-                >
-                  <Ionicons name="chevron-forward" size={20} color={colors.white} />
-                </Pressable>
-              </View>
+          <View style={st.top}>
+            <Text style={st.h1}>Ton mois</Text>
+            <View style={st.switch}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Mois précédent"
+                accessibilityState={{ disabled: !older }}
+                disabled={!older}
+                onPress={() => older && setMonth(older)}
+                style={[st.arrow, !older && st.off]}
+              >
+                <Icon name="chevron-back" size={20} color={colors.ink} />
+              </Pressable>
+              <Text style={st.monthName} numberOfLines={1}>{monthLabel(month).replace(/ \d{4}$/, month.slice(0, 4) === currentMonth().slice(0, 4) ? '' : ' ' + month.slice(0, 4))}</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Mois suivant"
+                accessibilityState={{ disabled: !newer }}
+                disabled={!newer}
+                onPress={() => newer && setMonth(newer)}
+                style={[st.arrow, !newer && st.off]}
+              >
+                <Icon name="chevron-forward" size={20} color={colors.ink} />
+              </Pressable>
             </View>
+          </View>
 
+          <View style={st.content}>
             <FadeIn>
-              <View style={st.totalRow}>
-                <CountUp style={st.total} value={stats.total} format={(v) => money(v).replace(/,00$/, '')} />
-                <Text style={st.totalUnit}>MAD</Text>
-              </View>
-              <Text style={st.meta}>
-                {plural(stats.trips, 'sortie', 'sorties')} · {plural(recap.items, 'article', 'articles')}
-                {vsPrev !== null ? ` · ${vsPrev >= 0 ? '+' : '−'}${pct(vsPrev)} vs le mois d'avant` : ''}
-              </Text>
+              <Card style={st.ringCard}>
+                <View accessible accessibilityLabel={`${money(stats.total)} DH dépensés`}>
+                  <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`}>
+                    <Circle cx={RING / 2} cy={RING / 2} r={RR} fill="none" stroke={colors.soft} strokeWidth={16} />
+                    {arcs.map((x) => (
+                      <Circle
+                        key={x.store}
+                        cx={RING / 2}
+                        cy={RING / 2}
+                        r={RR}
+                        fill="none"
+                        stroke={x.color}
+                        strokeWidth={16}
+                        strokeDasharray={`${x.len} ${CIRC}`}
+                        strokeDashoffset={-x.start}
+                        transform={`rotate(-90 ${RING / 2} ${RING / 2})`}
+                      />
+                    ))}
+                  </Svg>
+                  <View style={st.ringCenter} pointerEvents="none">
+                    <CountUp style={st.ringTotal} value={stats.total} format={(v) => money(v).replace(/,00$/, '')} />
+                    <Text style={st.ringUnit}>DH</Text>
+                  </View>
+                </View>
+                <View style={st.legendBox}>
+                  {arcs.map((x) => (
+                    <View key={x.store} style={st.legend}>
+                      <View style={[st.dot, { backgroundColor: x.color }]} />
+                      <Text style={st.legendName} numberOfLines={1}>{x.store}</Text>
+                      <Text style={st.legendValue}>{Math.round(x.total)}</Text>
+                    </View>
+                  ))}
+                  <Text style={st.ringMeta}>
+                    {plural(stats.trips, 'sortie', 'sorties')}
+                    {vsPrev !== null ? ` · ${vsPrev >= 0 ? '+' : '−'}${pct(vsPrev)} vs le mois d'avant` : ''}
+                  </Text>
+                </View>
+              </Card>
             </FadeIn>
 
-            <View style={st.weeks} accessible accessibilityLabel={weeks.map((w, k) => `Semaine ${k + 1} : ${money(w)} MAD`).join(', ')}>
-              {weeks.map((w, k) => (
-                <View key={k} style={st.week}>
-                  <Text style={st.weekValue}>{w > 0 ? Math.round(w) : '–'}</Text>
-                  <GrowBar index={k} height={12 + (w / maxWeek) * 84} color={w === maxWeek && w > 0 ? colors.white : colors.nightBlue} style={st.weekBar} />
-                  <Text style={st.weekLabel}>Sem. {k + 1}</Text>
+            <FadeIn index={1}>
+              <Card style={st.block}>
+                <View style={st.blockHead}>
+                  <Text style={st.title}>Par semaine</Text>
+                  {maxWeek > 1 ? <Text style={t.meta}>plus grosse : sem. {weeks.indexOf(maxWeek) + 1}</Text> : null}
                 </View>
-              ))}
-            </View>
-
-            {shares.length > 0 && stats.total > 0 ? (
-              <View style={st.where}>
-                <Text style={st.whereTitle}>Où c'est parti</Text>
-                <View style={st.shareBar} accessible accessibilityLabel={shares.map((x) => `${x.store} ${Math.round((x.total / stats.total) * 100)} %`).join(', ')}>
-                  {shares.map((x, k) => (
-                    <View key={x.store} style={[st.share, { flex: x.total, backgroundColor: SHARE[k] }]} />
+                <View style={st.weeks} accessible accessibilityLabel={weeks.map((w, k) => `Semaine ${k + 1} : ${money(w)} DH`).join(', ')}>
+                  {weeks.map((w, k) => (
+                    <View key={k} style={st.week}>
+                      <Text style={st.weekValue}>{w > 0 ? Math.round(w) : '–'}</Text>
+                      <GrowBar index={k} height={8 + (w / maxWeek) * 76} color={w === maxWeek && w > 0 ? colors.blue : colors.barSoft} style={st.weekBar} />
+                      <Text style={st.weekLabel}>Sem. {k + 1}</Text>
+                    </View>
                   ))}
                 </View>
-                {shares.map((x, k) => (
-                  <View key={x.store} style={st.legend}>
-                    <View style={[st.dot, { backgroundColor: SHARE[k] }]} />
-                    <Text style={st.legendName} numberOfLines={1}>{x.store}</Text>
-                    <Text style={st.legendValue}>{money(x.total).replace(/,00$/, '')} MAD</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
+              </Card>
+            </FadeIn>
 
             {recap.drop || recap.rise ? (
               <View style={st.tiles}>
                 {recap.drop ? (
                   <Pressable accessibilityRole="button" onPress={() => router.push(`/ask?id=${recap.drop!.id}`)} style={({ pressed }) => [st.tile, st.tileBlue, pressed && ui.pressed]}>
-                    <Text style={st.tileLabelOn}>La bonne surprise</Text>
+                    <Text style={st.tileLabelOn}>Bonne surprise</Text>
                     <Text style={st.tileNameOn} numberOfLines={2}>{recap.drop.name}</Text>
-                    <Text style={st.tileTextOn}>−{pct(recap.drop.change)} · {money(recap.drop.now)} MAD</Text>
+                    <Text style={st.tileTextOn}>−{pct(recap.drop.change)} · {money(recap.drop.now)} DH</Text>
                   </Pressable>
                 ) : null}
                 {recap.rise ? (
-                  <Pressable accessibilityRole="button" onPress={() => router.push(`/ask?id=${recap.rise!.id}`)} style={({ pressed }) => [st.tile, st.tileWhite, pressed && ui.pressed]}>
+                  <Pressable accessibilityRole="button" onPress={() => router.push(`/ask?id=${recap.rise!.id}`)} style={({ pressed }) => [st.tile, st.tileLine, pressed && ui.pressed]}>
                     <Text style={st.tileLabel}>Ce qui a monté</Text>
                     <Text style={st.tileName} numberOfLines={2}>{recap.rise.name}</Text>
-                    <Text style={st.tileText}>+{pct(recap.rise.change)} · {money(recap.rise.now)} MAD</Text>
+                    <Text style={st.tileText}>+{pct(recap.rise.change)} · {money(recap.rise.now)} DH</Text>
                   </Pressable>
                 ) : null}
               </View>
             ) : null}
           </View>
 
-          <View style={st.content}>
+          <View style={[st.content, st.more]}>
             <Button label="Ton mois en résumé" icon="sparkles-outline" tone="light" onPress={() => router.push(`/recap?month=${month}`)} />
 
             <Card style={st.block}>
@@ -178,7 +211,7 @@ export default function Stats() {
                       <View style={st.flex}>
                         <Text style={t.name} numberOfLines={1}>{m.name}</Text>
                         <Text style={t.meta}>
-                          {money(m.before)} → {money(m.now)} MAD / {m.unit}
+                          {money(m.before)} → {money(m.now)} DH / {m.unit}
                         </Text>
                       </View>
                       {Math.abs(m.change) < 0.05 ? (
@@ -224,45 +257,44 @@ const st = sheet(() => ({
   pad: { padding: 16 },
   flex: { flex: 1, minWidth: 0 },
   scroll: { paddingBottom: 24 },
-  night: { backgroundColor: colors.night, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 22, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, gap: 18 },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  topLabel: { fontFamily: fonts.title, fontSize: 17, color: colors.onNight },
-  switch: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  arrow: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.nightSoft, alignItems: 'center', justifyContent: 'center' },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16 },
+  h1: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.6, color: colors.ink },
+  switch: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  arrow: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   off: { opacity: 0.35 },
-  monthName: { minWidth: 96, maxWidth: 140, textAlign: 'center', fontFamily: fonts.bodyBold, fontSize: 14, color: colors.white },
-  totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  total: { fontFamily: fonts.titleBold, fontSize: 80, lineHeight: 92, letterSpacing: -3, color: colors.white },
-  totalUnit: { fontFamily: fonts.title, fontSize: 22, color: colors.onNight },
-  meta: { fontFamily: fonts.body, fontSize: 14, color: colors.onNight },
-  weeks: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, minHeight: 140 },
+  monthName: { minWidth: 84, maxWidth: 120, textAlign: 'center', fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
+  content: { paddingHorizontal: 20, paddingTop: 14, gap: 12 },
+  more: { paddingTop: 12 },
+  ringCard: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18 },
+  ringCenter: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  ringTotal: { fontFamily: fonts.titleBold, fontSize: 24, color: colors.ink },
+  ringUnit: { fontFamily: fonts.body, fontSize: 12, color: colors.muted },
+  legendBox: { flex: 1, gap: 9 },
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  legendName: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.ink },
+  legendValue: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
+  ringMeta: { fontFamily: fonts.body, fontSize: 12.5, lineHeight: 18, color: colors.muted },
+  blockHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  weeks: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, minHeight: 122 },
   week: { flex: 1, gap: 6 },
-  weekValue: { fontFamily: fonts.title, fontSize: 15, color: colors.white, textAlign: 'center' },
-  weekBar: { borderRadius: 14 },
-  weekLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.onNight, textAlign: 'center' },
-  where: { backgroundColor: colors.nightSoft, borderRadius: 24, padding: 16, gap: 10 },
-  whereTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.white },
-  shareBar: { flexDirection: 'row', gap: 4, height: 16 },
-  share: { borderRadius: 8 },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dot: { width: 12, height: 12, borderRadius: 6 },
-  legendName: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.white },
-  legendValue: { fontFamily: fonts.title, fontSize: 14, color: colors.white },
+  weekValue: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink, textAlign: 'center' },
+  weekBar: { borderRadius: 14, borderBottomLeftRadius: 5 },
+  weekLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.muted, textAlign: 'center' },
   tiles: { flexDirection: 'row', gap: 12 },
-  tile: { flex: 1, minHeight: 116, borderRadius: 24, padding: 16, gap: 4 },
-  tileBlue: { backgroundColor: '#1F4BFF' },
-  tileWhite: { backgroundColor: '#FFFFFF' },
-  tileLabelOn: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#FFFFFF' },
-  tileNameOn: { fontFamily: fonts.title, fontSize: 17, color: '#FFFFFF' },
+  tile: { flex: 1, minHeight: 112, padding: 16, gap: 4 },
+  tileBlue: { backgroundColor: colors.blue, ...bubble(24) },
+  tileLine: { backgroundColor: colors.card, ...bubbleRight(24), borderWidth: 2, borderColor: colors.upText },
+  tileLabelOn: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.onBlue },
+  tileNameOn: { fontFamily: fonts.title, fontSize: 17, color: '#FFFFFF', marginTop: 4 },
   tileTextOn: { fontFamily: fonts.body, fontSize: 13, color: '#FFFFFF' },
-  tileLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#46557F' },
-  tileName: { fontFamily: fonts.title, fontSize: 17, color: '#0B1B4D' },
-  tileText: { fontFamily: fonts.body, fontSize: 13, color: '#0B1B4D' },
-  content: { paddingHorizontal: 16, paddingTop: 16, gap: 12 },
+  tileLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.muted },
+  tileName: { fontFamily: fonts.title, fontSize: 17, color: colors.ink, marginTop: 4 },
+  tileText: { fontFamily: fonts.body, fontSize: 13, color: colors.ink },
   block: { gap: 10, padding: 16 },
-  title: { fontFamily: fonts.title, fontSize: 18, color: colors.ink },
+  title: { fontFamily: fonts.title, fontSize: 16, color: colors.ink },
   inflRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  infl: { fontFamily: fonts.titleBold, fontSize: 34, color: colors.ink },
+  infl: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.5, color: colors.ink },
   rank: { fontFamily: fonts.title, fontSize: 16, color: colors.muted, width: 16, textAlign: 'center' },
   links: { flexDirection: 'row', gap: 10 },
 }));

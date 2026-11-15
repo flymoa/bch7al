@@ -4,59 +4,68 @@ import { StyleSheet } from 'react-native';
 export type Scheme = 'light' | 'dark';
 export type ThemePref = 'system' | 'light' | 'dark';
 
+// v3 "Majorelle": the blue of Marrakech's Jardin Majorelle, on white.
 const light = {
-  bg: '#F4F7FF',
+  bg: '#F7F7FF', // paper
   card: '#FFFFFF',
-  cardPressed: '#F0F4FF',
-  blue: '#1F4BFF',
-  ink: '#0B1B4D',
+  cardPressed: '#F0F0FF',
+  blue: '#3D3BD9', // Majorelle
+  ink: '#12133D',
   onInk: '#FFFFFF', // text on an "ink" background (selected pill, toast)
-  muted: '#46557F',
-  soft: '#E6EDFF',
-  softText: '#1F4BFF',
-  accent: '#A9BCFF',
-  barSoft: '#C9D6FF',
-  neutral: '#EEF2FB',
-  line: '#D5DFFA',
-  border: '#B9C8F2',
-  // "Ghali" (more expensive): no warm colour, a white box with a navy outline.
+  muted: '#4A4C7A',
+  soft: '#E4E6FF', // sky
+  softText: '#3D3BD9',
+  accent: '#8F8CFF',
+  barSoft: '#C8CCFF',
+  neutral: '#EEEFFA',
+  line: '#DCDEF5',
+  border: '#C8CCFF',
+  // "Ghali" (more expensive): a white box with an ink outline, never a warm colour.
   upBg: '#FFFFFF',
-  upText: '#0B1B4D',
+  upText: '#12133D',
   danger: '#B42318',
   white: '#FFFFFF', // text and icons on blue
-  shadow: '#0B1B4D',
-  // The deep-navy "night" cards (hero blocks) and what sits on them.
-  night: '#0B1B4D',
-  nightSoft: '#16296B',
-  onNight: '#C3D0FF',
-  nightBlue: '#4D6FFF',
+  shadow: '#12133D',
+  // Dark "ink" blocks and what sits on them.
+  night: '#12133D',
+  nightSoft: '#24275E',
+  onNight: '#C9C8FF',
+  nightBlue: '#8F8CFF',
+  // Light text on Majorelle.
+  onBlue: '#D6D5FF',
 };
 
 const dark: typeof light = {
-  bg: '#060D26',
-  card: '#101C45',
-  cardPressed: '#16255A',
-  blue: '#4266FF',
-  ink: '#EEF2FF',
-  onInk: '#060D26',
-  muted: '#A3B0D9',
-  soft: '#182A66',
-  softText: '#C3D0FF',
-  accent: '#A9BCFF',
-  barSoft: '#2A3F8C',
-  neutral: '#141F47',
-  line: '#22316B',
-  border: '#34468A',
-  upBg: '#060D26',
+  bg: '#0C0D2B',
+  card: '#181A45',
+  cardPressed: '#20235A',
+  blue: '#4E4CF0',
+  ink: '#EDEDFF',
+  onInk: '#0C0D2B',
+  muted: '#A6A8D6',
+  soft: '#24275E',
+  softText: '#B4B2FF',
+  accent: '#8F8CFF',
+  barSoft: '#2E3070',
+  neutral: '#1C1E4D',
+  line: '#2A2D66',
+  border: '#3A3D80',
+  upBg: '#0C0D2B',
   upText: '#FFFFFF',
   danger: '#FF7A6E',
   white: '#FFFFFF',
   shadow: '#000000',
-  night: '#16296B',
-  nightSoft: '#22388A',
-  onNight: '#C3D0FF',
-  nightBlue: '#7C97FF',
+  night: '#181A45',
+  nightSoft: '#24275E',
+  onNight: '#C9C8FF',
+  nightBlue: '#8F8CFF',
+  onBlue: '#D6D5FF',
 };
+
+/** The bubble shape of the logo: round corners, the bottom-left one tighter. */
+export const bubble = (r = 24) => ({ borderTopLeftRadius: r, borderTopRightRadius: r, borderBottomRightRadius: r, borderBottomLeftRadius: Math.round(r / 3) });
+/** Mirror of `bubble`, for answers on the right. */
+export const bubbleRight = (r = 24) => ({ borderTopLeftRadius: r, borderTopRightRadius: r, borderBottomLeftRadius: r, borderBottomRightRadius: Math.round(r / 3) });
 
 /** Current palette. Its values are swapped in place when the scheme changes. */
 export const colors = { ...light };
@@ -78,8 +87,8 @@ export function currentScheme(): Scheme {
 function makeShadow() {
   return {
     shadowColor: colors.shadow,
-    shadowOpacity: current === 'dark' ? 0.35 : 0.07,
-    shadowRadius: 8,
+    shadowOpacity: current === 'dark' ? 0.35 : 0.06,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 2 },
     elevation: current === 'dark' ? 0 : 2,
   };
@@ -117,10 +126,11 @@ export function useTheme() {
 }
 
 export const fonts = {
-  title: 'ReadexPro_600SemiBold',
-  titleBold: 'ReadexPro_700Bold',
-  body: 'Inter_500Medium',
-  bodyBold: 'Inter_700Bold',
+  title: 'Rubik_600SemiBold',
+  titleBold: 'Rubik_700Bold',
+  body: 'Rubik_400Regular',
+  bodyMedium: 'Rubik_500Medium',
+  bodyBold: 'Rubik_600SemiBold',
 };
 
 export const UNITS = ['pièce', 'kg', 'L', 'paquet'] as const;

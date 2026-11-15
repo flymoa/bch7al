@@ -161,7 +161,7 @@ export default function Settings() {
               keyboardType="decimal-pad"
               style={st.input}
             />
-            <Text style={st.mad}>MAD</Text>
+            <Text style={st.mad}>DH</Text>
           </View>
           <Button label={budget.trim() === budgetSaved ? 'Budget enregistré' : 'Enregistrer le budget'} tone={budget.trim() === budgetSaved ? 'light' : 'primary'} onPress={saveBudget} disabled={busy} />
         </Card>
@@ -217,7 +217,7 @@ export default function Settings() {
         </Card>
 
         <View style={st.about}>
-          <Text style={st.aboutText}>bch7al? · version {Constants.expoConfig?.version ?? '2.0.0'}</Text>
+          <Text style={st.aboutText}>bch7al? · version {Constants.expoConfig?.version ?? '3.0.0'}</Text>
         </View>
       </ScrollView>
     </Screen>

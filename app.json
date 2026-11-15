@@ -2,13 +2,13 @@
   "expo": {
     "name": "bch7al?",
     "slug": "bch7al",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1D4ED8",
+        "backgroundColor": "#3D3BD9",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -31,9 +31,16 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0B1B4D",
+          "backgroundColor": "#3D3BD9",
           "image": "./assets/splash-blank.png",
           "imageWidth": 200
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "bch7al? utilise l'appareil photo pour lire tes tickets de caisse.",
+          "recordAudioAndroid": false
         }
       ],
       [

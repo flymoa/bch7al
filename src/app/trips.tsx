@@ -59,7 +59,7 @@ export default function Trips() {
                   {monthLabel(month)} · {plural(trips.length, 'course', 'courses')}
                 </Text>
                 <Text style={st.summaryTotal}>
-                  <CountUp value={total} format={money} /> <Text style={st.summaryUnit}>MAD</Text>
+                  <CountUp value={total} format={money} /> <Text style={st.summaryUnit}>DH</Text>
                 </Text>
               </View>
               {trips.length > 0 ? (
@@ -94,7 +94,7 @@ const st = sheet(() => ({
   pad: { padding: 16 },
   months: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 8 },
-  summary: { backgroundColor: colors.night, borderRadius: 24, padding: 18, flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  summary: { backgroundColor: colors.blue, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottomRightRadius: 24, borderBottomLeftRadius: 8, padding: 18, flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   summaryMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.white },
   summaryTotal: { fontFamily: fonts.title, fontSize: 32, color: colors.white },
   summaryUnit: { fontFamily: fonts.bodyBold, fontSize: 15 },

@@ -7,7 +7,7 @@ import { Button, Empty, Header, Screen, VerdictBadge, VerdictStrip, s as ui, t }
 import { showToast } from '@/components/toast';
 import { deleteTrip, getTrip, tripVerdicts, type ItemRow, type TripRow } from '@/db';
 import { longDate, money, plural, qtyLabel, type Verdict } from '@/format';
-import { colors, fonts, sheet, useTheme } from '@/theme';
+import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function TripDetail() {
   useTheme();
@@ -114,7 +114,7 @@ export default function TripDetail() {
           <View>
             <Text style={t.meta}>Total</Text>
             <Text style={st.total}>
-              {money(trip.total)} <Text style={st.totalUnit}>MAD</Text>
+              {money(trip.total)} <Text style={st.totalUnit}>DH</Text>
             </Text>
           </View>
           <Button label="Modifier" icon="create-outline" style={st.edit} onPress={() => router.push(`/trip/new?id=${trip.id}`)} />
@@ -127,9 +127,9 @@ export default function TripDetail() {
 
 const st = sheet(() => ({
   pad: { padding: 16 },
-  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 14 },
-  h1: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.5, color: colors.ink },
-  night: { backgroundColor: colors.night, borderRadius: 24, padding: 18, gap: 12 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 14 },
+  h1: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.6, color: colors.ink },
+  night: { backgroundColor: colors.night, ...bubble(26), padding: 18, gap: 12 },
   nightHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
   nightTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.white },
   nightMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.onNight },

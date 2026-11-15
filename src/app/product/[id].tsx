@@ -116,7 +116,7 @@ export default function ProductDetail() {
               </Text>
               <View style={st.priceRow}>
                 <Text style={st.price}>{money(last.unit_price)}</Text>
-                <Text style={st.priceUnit}>MAD / {product.unit}</Text>
+                <Text style={st.priceUnit}>DH / {product.unit}</Text>
               </View>
             </View>
           </View>

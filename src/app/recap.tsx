@@ -1,5 +1,5 @@
 // "Ton mois" : one month told in a few lines.
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -15,7 +15,7 @@ function Fact({ icon, label, index, warm, children }: { icon: string; label: str
     <FadeIn index={index}>
       <Card style={st.fact}>
         <View style={[st.factIcon, warm && { backgroundColor: colors.upBg }, warm && ui.upBox]}>
-          <Ionicons name={icon as keyof typeof Ionicons.glyphMap} size={22} color={warm ? colors.upText : colors.softText} />
+          <Icon name={icon} size={22} color={warm ? colors.upText : colors.softText} />
         </View>
         <View style={ui.flex}>
           <Text style={t.label}>{label}</Text>
@@ -51,7 +51,7 @@ export default function Recap() {
               <Text style={st.heroMonth}>{monthLabel(month)}</Text>
               <View style={st.heroRow}>
                 <CountUp style={st.heroTotal} value={r.total} format={money} />
-                <Text style={st.heroUnit}>MAD</Text>
+                <Text style={st.heroUnit}>DH</Text>
               </View>
               <Text style={st.heroMeta}>
                 {plural(r.trips, 'course', 'courses')} · {plural(r.items, 'article', 'articles')}
@@ -63,7 +63,7 @@ export default function Recap() {
           {r.mainStore ? (
             <Fact icon="storefront-outline" label="Ton magasin du mois" index={1}>
               <Text style={st.big}>{r.mainStore.store}</Text>
-              <Text style={t.meta}>{money(r.mainStore.total)} MAD en {plural(r.mainStore.trips, 'course', 'courses')}</Text>
+              <Text style={t.meta}>{money(r.mainStore.total)} DH en {plural(r.mainStore.trips, 'course', 'courses')}</Text>
             </Fact>
           ) : null}
 
@@ -71,7 +71,7 @@ export default function Recap() {
             {r.bestStore ? (
               <>
                 <Text style={st.big}>{r.bestStore.store}</Text>
-                <Text style={t.meta}>Environ {money(r.bestStore.saved)} MAD de moins que les mêmes produits ailleurs.</Text>
+                <Text style={t.meta}>Environ {money(r.bestStore.saved)} DH de moins que les mêmes produits ailleurs.</Text>
               </>
             ) : (
               <Text style={st.plain}>Pas encore assez de prix pour comparer : achète un même produit dans deux magasins.</Text>
@@ -82,7 +82,7 @@ export default function Recap() {
             {r.rise ? (
               <>
                 <Text style={st.big}>{r.rise.name}</Text>
-                <Text style={t.meta}>+{pct(r.rise.change)} · {money(r.rise.before)} → {money(r.rise.now)} MAD</Text>
+                <Text style={t.meta}>+{pct(r.rise.change)} · {money(r.rise.before)} → {money(r.rise.now)} DH</Text>
               </>
             ) : (
               <Text style={st.plain}>Aucun de tes produits n'a augmenté. Hamdoullah !</Text>
@@ -92,7 +92,7 @@ export default function Recap() {
           {r.drop ? (
             <Fact icon="trending-down" label="La bonne surprise" index={4}>
               <Text style={st.big}>{r.drop.name}</Text>
-              <Text style={t.meta}>−{pct(r.drop.change)} · {money(r.drop.before)} → {money(r.drop.now)} MAD</Text>
+              <Text style={t.meta}>−{pct(r.drop.change)} · {money(r.drop.before)} → {money(r.drop.now)} DH</Text>
             </Fact>
           ) : null}
 
@@ -112,7 +112,7 @@ export default function Recap() {
 
 const st = sheet(() => ({
   content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 28, gap: 10 },
-  hero: { backgroundColor: colors.night, borderRadius: 28, padding: 22, gap: 2 },
+  hero: { backgroundColor: colors.blue, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderBottomRightRadius: 28, borderBottomLeftRadius: 9, padding: 22, gap: 2 },
   heroMonth: { fontFamily: fonts.title, fontSize: 20, color: colors.white },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   heroTotal: { fontFamily: fonts.title, fontSize: 50, color: colors.white },

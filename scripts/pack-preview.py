@@ -10,8 +10,8 @@ def data_uri(m):
     if not os.path.exists(f): return m.group(0)
     ext = os.path.splitext(f)[1]
     return '"data:%s;base64,%s"' % (mime.get(ext, 'application/octet-stream'), base64.b64encode(open(f,'rb').read()).decode())
-# keep only fonts the app uses (Readex Pro 600/700, Inter 500/700, Ionicons) and small router images
-keep = re.compile(r'(ReadexPro_(600SemiBold|700Bold)|Inter_(500Medium|700Bold)\.|Ionicons|MaterialCommunityIcons|expo-router/assets)')
+# keep only fonts the app uses (Rubik 400/500/600/700, Ionicons) and small router images
+keep = re.compile(r'(Rubik_(400Regular|500Medium|600SemiBold|700Bold)\.|Ionicons|MaterialCommunityIcons|expo-router/assets)')
 def repl(m):
     return data_uri(m) if keep.search(m.group(1)) else '""'
 js = re.sub(r'"(/assets/[^"]+)"', repl, js)

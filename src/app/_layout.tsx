@@ -1,7 +1,7 @@
-import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
-import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import { ReadexPro_600SemiBold } from '@expo-google-fonts/readex-pro/600SemiBold';
-import { ReadexPro_700Bold } from '@expo-google-fonts/readex-pro/700Bold';
+import { Rubik_400Regular } from '@expo-google-fonts/rubik/400Regular';
+import { Rubik_500Medium } from '@expo-google-fonts/rubik/500Medium';
+import { Rubik_600SemiBold } from '@expo-google-fonts/rubik/600SemiBold';
+import { Rubik_700Bold } from '@expo-google-fonts/rubik/700Bold';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -19,7 +19,7 @@ import { applyScheme, colors, ThemeContext, type Scheme, type ThemePref } from '
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({ ReadexPro_600SemiBold, ReadexPro_700Bold, Inter_500Medium, Inter_700Bold });
+  const [fontsLoaded, fontError] = useFonts({ Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold });
   const fontsReady = fontsLoaded || !!fontError; // if a font fails, the app still opens with the system font
   const [dbReady, setDbReady] = useState(false);
   const [introDone, setIntroDone] = useState(false);
@@ -55,7 +55,7 @@ export default function RootLayout() {
     [scheme, pref],
   );
 
-  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: '#0B1B4D' }} />;
+  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: '#3D3BD9' }} />;
 
   return (
     <ThemeContext.Provider value={theme}>
@@ -67,6 +67,9 @@ export default function RootLayout() {
             <Stack.Screen name="trips" options={{ animation: 'none' }} />
             <Stack.Screen name="products" options={{ animation: 'none' }} />
             <Stack.Screen name="stats" options={{ animation: 'none' }} />
+            <Stack.Screen name="ask" options={{ animation: 'none' }} />
+            <Stack.Screen name="list" options={{ animation: 'none' }} />
+            <Stack.Screen name="camera" options={{ animation: 'fade' }} />
           </Stack>
           <ToastHost />
         </SQLiteProvider>

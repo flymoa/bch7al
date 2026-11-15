@@ -28,7 +28,9 @@ const SOUFI = [
   'Total :  143.20  ( Dhs )', 'Cache :  143.20', 'Rendu :  0.00', 'Editeur : abd  Article : 9 - Articles',
 ];
 
-export async function scanReceipt(source: 'camera' | 'gallery', _geminiKey?: string | null, _geminiModel?: string | null): Promise<ScanResult | null> {
+export function setPendingPhoto(_p: { uri: string; base64?: string | null; mimeType?: string | null }) {}
+
+export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', _geminiKey?: string | null, _geminiModel?: string | null): Promise<ScanResult | null> {
   await new Promise((r) => setTimeout(r, 600));
   return { ...parseReceipt(source === 'camera' ? MARJANE : SOUFI), date: null, engine: 'phone' };
 }

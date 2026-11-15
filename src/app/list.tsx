@@ -1,6 +1,6 @@
 // Shopping list: what to buy next time, what each article costs where, and the store
 // that suits the list best according to the prices already noted.
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -9,7 +9,7 @@ import { showToast } from '@/components/toast';
 import { Button, Card, Empty, Screen, s as ui, t } from '@/components/ui';
 import { addListItem, clearListDone, listPlan, listProducts, removeListItem, setListDone, type ListLine, type ListPlan, type ProductRow } from '@/db';
 import { money, plural, productKey } from '@/format';
-import { colors, fonts, sheet, useTheme } from '@/theme';
+import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
 
 export default function ShoppingList() {
   useTheme();
@@ -69,18 +69,18 @@ export default function ShoppingList() {
             <Pop>
               <View style={st.hero}>
                 <Text style={st.heroMeta}>
-                  {shown === first ? (first.covered === plan.todo ? 'Tout au même endroit, le moins cher c\'est' : 'Le magasin qui a le plus de ta liste') : 'Si tu vas chez'}
+                  {shown === first ? (first.covered === plan.todo ? 'Pour tout acheter au même endroit' : 'Le magasin qui a le plus de ta liste') : 'Si tu vas chez'}
                 </Text>
                 <View style={st.heroRow}>
                   <Text style={st.heroStore} numberOfLines={1}>{shown.store}</Text>
                   <Text style={st.heroTotal}>
-                    {money(shown.total)} <Text style={st.heroUnit}>MAD</Text>
+                    {money(shown.total)} <Text style={st.heroUnit}>DH</Text>
                   </Text>
                 </View>
                 <Text style={st.heroLine}>
                   {shown.covered === plan.todo
                     ? shown === first && dearest && dearest.total - first.total > 0.005
-                      ? `Tu gardes ${money(dearest.total - first.total)} MAD par rapport à ${dearest.store}.`
+                      ? `Tu gardes ${money(dearest.total - first.total)} DH par rapport à ${dearest.store}.`
                       : `Tu y as déjà acheté tous tes articles.`
                     : `Prix connus pour ${shown.covered} de tes ${plan.todo} articles.`}
                 </Text>
@@ -93,7 +93,7 @@ export default function ShoppingList() {
                           key={x.store}
                           accessibilityRole="button"
                           accessibilityState={{ selected: on }}
-                          accessibilityLabel={`${x.store}, ${money(x.total)} MAD pour ${x.covered} articles sur ${plan.todo}`}
+                          accessibilityLabel={`${x.store}, ${money(x.total)} DH pour ${x.covered} articles sur ${plan.todo}`}
                           onPress={() => setSel(x.store)}
                           style={({ pressed }) => [st.storeBtn, on && st.storeBtnOn, pressed && ui.pressed]}
                         >
@@ -129,7 +129,7 @@ export default function ShoppingList() {
                 return (
                   <View key={l.id} style={[st.line, !!l.done && st.lineDone]}>
                     <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: !!l.done }} accessibilityLabel={l.name} onPress={() => toggle(l)} style={st.lineMain}>
-                      <View style={[st.box, !!l.done && st.boxOn]}>{l.done ? <Ionicons name="checkmark" size={18} color={colors.white} /> : null}</View>
+                      <View style={[st.box, !!l.done && st.boxOn]}>{l.done ? <Icon name="checkmark" size={18} color={colors.white} /> : null}</View>
                       <Text style={[st.lineName, !!l.done && st.struck]} numberOfLines={1}>{l.name}</Text>
                       {l.done ? (
                         <Text style={t.meta}>pris</Text>
@@ -151,7 +151,7 @@ export default function ShoppingList() {
                       }}
                       style={({ pressed }) => [st.remove, pressed && ui.pressed]}
                     >
-                      <Ionicons name="close" size={18} color={colors.muted} />
+                      <Icon name="close" size={18} color={colors.muted} />
                     </Pressable>
                   </View>
                 );
@@ -165,7 +165,7 @@ export default function ShoppingList() {
               value={name}
               onChangeText={setName}
               onSubmitEditing={() => add(name)}
-              placeholder="Zid chi haja… (ajouter)"
+              placeholder="Zid chi haja…"
               placeholderTextColor={colors.muted}
               style={st.input}
               autoCapitalize="sentences"
@@ -173,14 +173,14 @@ export default function ShoppingList() {
               blurOnSubmit={false}
             />
             <Pressable accessibilityRole="button" accessibilityLabel="Ajouter à la liste" onPress={() => add(name)} style={({ pressed }) => [st.add, pressed && ui.pressed]}>
-              <Ionicons name="add" size={24} color={colors.white} />
+              <Icon name="add" size={24} color={colors.white} />
             </Pressable>
           </View>
           {suggestions.length > 0 ? (
             <View style={st.wrap}>
               {suggestions.map((p) => (
                 <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`Ajouter ${p.name}`} onPress={() => add(p.name)} style={({ pressed }) => [st.chip, pressed && ui.pressed]}>
-                  <Ionicons name="add" size={14} color={colors.softText} />
+                  <Icon name="add" size={14} color={colors.softText} />
                   <Text style={st.chipText}>{p.name}</Text>
                 </Pressable>
               ))}
@@ -206,30 +206,30 @@ export default function ShoppingList() {
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 28 },
+  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28 },
   head: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  h1: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.5, color: colors.ink },
-  hero: { backgroundColor: colors.night, borderRadius: 28, padding: 18, gap: 4, marginTop: 14 },
-  heroMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.onNight },
+  h1: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.6, color: colors.ink },
+  hero: { backgroundColor: colors.blue, ...bubble(26), padding: 18, gap: 4, marginTop: 14 },
+  heroMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.onBlue },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
-  heroStore: { flexShrink: 1, fontFamily: fonts.titleBold, fontSize: 38, letterSpacing: -1, color: colors.white },
+  heroStore: { flexShrink: 1, fontFamily: fonts.titleBold, fontSize: 38, letterSpacing: -1, color: '#FFFFFF' },
   heroTotal: { fontFamily: fonts.titleBold, fontSize: 26, color: colors.white },
-  heroUnit: { fontFamily: fonts.title, fontSize: 14, color: colors.onNight },
+  heroUnit: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.onBlue },
   heroLine: { fontFamily: fonts.body, fontSize: 14, color: colors.white },
-  heroSmall: { fontFamily: fonts.body, fontSize: 12, color: colors.onNight, marginTop: 8 },
+  heroSmall: { fontFamily: fonts.body, fontSize: 12, color: colors.onBlue, marginTop: 8 },
   storeBtns: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  storeBtn: { flex: 1, minHeight: 52, borderRadius: 16, borderWidth: 1.5, borderColor: colors.nightBlue, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  storeBtnOn: { backgroundColor: colors.white, borderColor: colors.white },
-  storeBtnName: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#E6EDFF' },
-  storeBtnTotal: { fontFamily: fonts.body, fontSize: 13, color: '#E6EDFF' },
-  storeBtnTextOn: { color: '#0B1B4D' },
+  storeBtn: { flex: 1, minHeight: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  storeBtnOn: { backgroundColor: '#FFFFFF' },
+  storeBtnName: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#FFFFFF' },
+  storeBtnTotal: { fontFamily: fonts.body, fontSize: 13, color: '#FFFFFF' },
+  storeBtnTextOn: { color: '#12133D' },
   note: { marginTop: 14 },
   gap: { marginTop: 14 },
   lines: { gap: 6, marginTop: 14 },
   line: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 16, paddingLeft: 14 },
   lineDone: { backgroundColor: colors.soft },
   lineMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
-  box: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  box: { width: 24, height: 24, borderRadius: 8, borderBottomLeftRadius: 3, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: colors.blue, borderColor: colors.blue },
   lineName: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
   struck: { textDecorationLine: 'line-through', color: colors.muted, fontFamily: fonts.body },
@@ -240,9 +240,9 @@ const st = sheet(() => ({
   linePrice: { width: 54, textAlign: 'right', fontFamily: fonts.title, fontSize: 15, color: colors.ink },
   muted: { color: colors.muted },
   remove: { width: 40, height: 52, alignItems: 'center', justifyContent: 'center' },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, borderRadius: 28, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.muted, paddingLeft: 16, paddingRight: 6, minHeight: 56 },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, borderRadius: 28, borderWidth: 1.5, borderColor: colors.barSoft, backgroundColor: colors.card, paddingLeft: 16, paddingRight: 6, minHeight: 56 },
   input: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: colors.ink, paddingVertical: 10 },
-  add: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
+  add: { width: 44, height: 44, ...bubble(16), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.soft, borderRadius: 18, paddingHorizontal: 12, minHeight: 36 },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText },

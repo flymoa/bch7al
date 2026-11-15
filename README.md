@@ -3,7 +3,7 @@
 Personal Android app to record every grocery trip and build your own price history. All data stays on the phone (SQLite), no account, no internet needed.
 
 ## Screens
-- **Accueil**: "Bch7al…" price search, shopping list and month tiles, last trips, most-bought products (v2 "bleu nuit" design)
+- **Accueil**: "Bch7al…" price search, shopping list and month tiles, last trips, most-bought products (v3 "Majorelle" design)
 - **Nouvelle course**: store, date (arrows to go back in time), items with unit (pièce / kg / L / paquet), price per unit and quantity. Products you already bought appear as one-tap suggestions; each line shows the change since last time. Tap a line to correct it.
 - **Mes courses**: trips by month; open one to see, edit or delete it
 - **Mes produits**: search all products; open one for price history, lowest/highest/average, and last price per store. Rename a product, or give it the name of another to merge the two.

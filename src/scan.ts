@@ -10,7 +10,18 @@ export const scanAvailable = true;
 
 export type ScanResult = ReceiptResult & { engine: 'gemini' | 'phone'; warning?: string; model?: string };
 
-export async function scanReceipt(source: 'camera' | 'gallery', geminiKey?: string | null, geminiModel?: string | null): Promise<ScanResult | null> {
+export type Photo = { uri: string; base64?: string | null; mimeType?: string | null };
+
+/** A photo taken by the app's own camera screen, waiting to be read by the trip screen. */
+let pending: Photo | null = null;
+export function setPendingPhoto(p: Photo) { pending = p; }
+export function takePendingPhoto(): Photo | null { const p = pending; pending = null; return p; }
+
+export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', geminiKey?: string | null, geminiModel?: string | null): Promise<ScanResult | null> {
+  if (source === 'photo') {
+    const photo = takePendingPhoto();
+    return photo ? readPhoto(photo, geminiKey, geminiModel) : null;
+  }
   if (source === 'camera') {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) throw new Error("L'accès à l'appareil photo a été refusé. Tu peux l'autoriser dans les réglages du téléphone.");
@@ -18,7 +29,11 @@ export async function scanReceipt(source: 'camera' | 'gallery', geminiKey?: stri
   const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.85, allowsEditing: true, base64: !!geminiKey };
   const picked = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (picked.canceled || !picked.assets?.length) return null;
-  const asset = picked.assets[0];
+  return readPhoto(picked.assets[0], geminiKey, geminiModel);
+}
+
+/** Reads one receipt photo: Gemini when a key is set, otherwise (or on failure) on the phone. */
+export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiModel?: string | null): Promise<ScanResult> {
 
   let warning: string | undefined;
   if (geminiKey && asset.base64) {

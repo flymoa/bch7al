@@ -1,13 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
-import { Button, ChangeChip, RoundButton, Empty, RowCard, Screen, SectionTitle, Tile, VerdictStrip, s as ui, t } from '@/components/ui';
-import { getPref, listCount, listProducts, listTrips, monthSummary, previousMonth, tripVerdicts, type MonthSummary, type ProductRow, type TripRow } from '@/db';
+import { Mark } from '@/components/brand';
+import { Empty, RoundButton, Screen, Tile, VerdictStrip, s as ui, t } from '@/components/ui';
+import { getPref, listCount, listPlan, listProducts, listTrips, monthSummary, previousMonth, tripVerdicts, type MonthSummary, type ProductRow, type TripRow } from '@/db';
 import { addDays, currentMonth, longDate, todayIso, money, monthLabel, plural, type Verdict } from '@/format';
-import { colors, fonts, shadow, sheet, useTheme } from '@/theme';
+import { bubble, bubbleRight, colors, currentScheme, fonts, shadow, sheet, useTheme } from '@/theme';
 
 export default function Home() {
   useTheme();
@@ -17,6 +18,7 @@ export default function Home() {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [budget, setBudget] = useState<number | null>(null);
   const [toBuy, setToBuy] = useState(0);
+  const [bestStore, setBestStore] = useState<string | null>(null);
   /** Data lives only on the phone: nudge for a backup after 30 days (or 3 trips with none). */
   const [needBackup, setNeedBackup] = useState(false);
   const [lastVerdicts, setLastVerdicts] = useState<(Verdict | null)[]>([]);
@@ -28,7 +30,7 @@ export default function Home() {
       let alive = true;
       (async () => {
         const last = previousMonth(currentMonth());
-        const [sum, lastTrips, top, b, n, before, saved, all] = await Promise.all([
+        const [sum, lastTrips, top, b, n, before, saved, all, plan] = await Promise.all([
           monthSummary(db, currentMonth()),
           listTrips(db, undefined, 3),
           listProducts(db, '', 'frequent', 3),
@@ -37,12 +39,14 @@ export default function Home() {
           monthSummary(db, last),
           getPref(db, 'lastBackup'),
           listTrips(db, undefined, 3),
+          listPlan(db),
         ]);
         const lv = lastTrips[0] ? Object.values(await tripVerdicts(db, lastTrips[0].id)) : [];
         if (alive) {
           setLastVerdicts(lv);
           setNeedBackup(saved ? addDays(saved, 30) < todayIso() : all.length >= 3);
           setToBuy(n);
+          setBestStore(plan.todo > 0 && plan.stores[0]?.covered === plan.todo ? plan.stores[0].store : null);
           setRecap(new Date().getDate() <= 7 && before.trips > 0 ? last : null);
           setBudget(b && Number(b) > 0 ? Number(b) : null);
           setSummary(sum);
@@ -59,33 +63,38 @@ export default function Home() {
   return (
     <Screen bottomBar="home">
       <ScrollView contentContainerStyle={st.content}>
-        <View style={st.brandRow}>
+        <View style={st.head}>
+          <Mark size={42} />
           <View style={st.grow}>
             <Text style={st.brand} accessibilityLabel="bch7al">
-              bch<Text style={st.seven}>7</Text>al<Text style={st.seven}>?</Text>
+              bch<Text style={st.seven}>7</Text>al?
             </Text>
-            <Text style={st.hello}>3ref taman, chri mzyan.</Text>
+            <Text style={st.slogan}>3ref taman, chri mzyan.</Text>
           </View>
           <RoundButton icon="settings-outline" label="Réglages" onPress={() => router.push('/settings')} />
         </View>
 
         <FadeIn>
-          <View style={st.hero}>
-            <Text style={st.heroSeven} accessibilityElementsHidden importantForAccessibility="no">7</Text>
-            <Text style={st.arabicText}>بشحال؟</Text>
-            <Text style={st.heroTitle}>Bch7al…</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="bch7al ? Chercher le prix d'un produit" onPress={() => router.push('/ask')} style={({ pressed }) => [st.ask, pressed && ui.pressed]}>
-              <Ionicons name="search" size={22} color={colors.blue} />
-              <Text style={st.askText} numberOfLines={1}>le lait, l'huile, le thé</Text>
-              <View style={st.askGo}>
-                <Text style={st.askGoText}>?</Text>
+          <View style={st.ask}>
+            <View style={st.askTop}>
+              <Text style={st.askTitle}>Bch7al…</Text>
+              <Text style={st.arabic}>بشحال؟</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="bch7al ? Chercher le prix d'un produit" onPress={() => router.push('/ask')} style={({ pressed }) => [st.search, pressed && ui.pressed]}>
+              <Icon name="search" size={22} color={colors.blue} />
+              <Text style={st.searchText} numberOfLines={1}>le lait, l'huile, le thé…</Text>
+              <View style={st.searchGo}>
+                <Text style={st.searchGoText}>?</Text>
               </View>
             </Pressable>
             {products.length > 0 ? (
-              <View style={st.heroChips}>
+              <View style={st.chips}>
                 {products.map((p) => (
-                  <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`Prix de ${p.name}`} onPress={() => router.push(`/product/${p.id}`)} style={({ pressed }) => [st.heroChip, pressed && ui.pressed]}>
-                    <Text style={st.heroChipText} numberOfLines={1}>{p.name}</Text>
+                  <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`Prix de ${p.name}`} onPress={() => router.push(`/ask?id=${p.id}`)} style={({ pressed }) => [st.chip, pressed && ui.pressed]}>
+                    <Text style={st.chipText} numberOfLines={1}>
+                      {p.name}
+                      {p.last_price !== null ? ` · ${money(p.last_price)}` : ''}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -94,39 +103,47 @@ export default function Home() {
         </FadeIn>
 
         {trips[0] ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Dernière sortie : ${trips[0].store}, ${money(trips[0].total)} MAD`} onPress={() => router.push(`/trip/${trips[0].id}`)} style={({ pressed }) => [st.last, pressed && ui.pressed]}>
-            <View style={st.lastHead}>
-              <Text style={st.lastLabel}>DERNIÈRE SORTIE</Text>
-              <Text style={t.meta}>{longDate(trips[0].date)}</Text>
-            </View>
-            <View style={st.lastRow}>
-              <View style={st.grow}>
-                <Text style={st.lastStore} numberOfLines={1}>{trips[0].store}</Text>
-                <Text style={t.meta}>{plural(trips[0].n, 'article', 'articles')}</Text>
+          <FadeIn index={1}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Dernière sortie : ${trips[0].store}, ${money(trips[0].total)} DH`} onPress={() => router.push(`/trip/${trips[0].id}`)} style={({ pressed }) => [st.last, pressed && ui.pressed]}>
+              <View style={st.lastHead}>
+                <Text style={st.label}>DERNIÈRE SORTIE</Text>
+                <Text style={t.meta}>{longDate(trips[0].date)}</Text>
               </View>
-              <Text style={st.lastTotal}>
-                {money(trips[0].total)} <Text style={st.lastUnit}>MAD</Text>
-              </Text>
-            </View>
-            <VerdictStrip verdicts={lastVerdicts} />
-          </Pressable>
+              <View style={st.lastRow}>
+                <Tile kind="store" text={trips[0].store} />
+                <View style={st.grow}>
+                  <Text style={st.lastStore} numberOfLines={1}>{trips[0].store}</Text>
+                  <Text style={t.meta}>{plural(trips[0].n, 'article', 'articles')}</Text>
+                </View>
+                <Text style={st.lastTotal}>
+                  {money(trips[0].total)}
+                  <Text style={st.lastUnit}> DH</Text>
+                </Text>
+              </View>
+              <VerdictStrip verdicts={lastVerdicts} />
+            </Pressable>
+          </FadeIn>
         ) : null}
 
-        <View style={st.duo}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Ma liste de courses, ${plural(toBuy, 'article', 'articles')}`} onPress={() => router.push('/list')} style={({ pressed }) => [st.tile, st.tileSoft, pressed && ui.pressed]}>
-            <Ionicons name="list" size={24} color={colors.softText} />
-            <Text style={st.tileTitle}>Ma liste</Text>
-            <Text style={t.meta} numberOfLines={2}>{toBuy > 0 ? `${toBuy} à acheter` : 'à préparer'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Mon mois, ${money(summary.total)} MAD`} onPress={() => router.replace('/stats')} style={({ pressed }) => [st.tile, st.tileBlue, pressed && ui.pressed]}>
-            <Ionicons name="stats-chart" size={24} color={colors.white} />
-            <Text style={[st.tileTitle, st.onBlue]}>{monthLabel(currentMonth())}</Text>
-            <Text style={st.tileTotal} numberOfLines={1}>
-              <CountUp style={st.tileTotal} value={summary.total} format={money} /> <Text style={st.tileUnit}>MAD</Text>
-            </Text>
-            <Text style={st.tileMeta} numberOfLines={1}>{plural(summary.trips, 'course', 'courses')} · {plural(summary.items, 'article', 'articles')}</Text>
-          </Pressable>
-        </View>
+        <FadeIn index={2}>
+          <View style={st.duo}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Ta liste, ${plural(toBuy, 'article', 'articles')}`} onPress={() => router.replace('/list')} style={({ pressed }) => [st.tile, st.tileSky, pressed && ui.pressed]}>
+              <Icon name="list" size={24} color={colors.softText} />
+              <Text style={st.tileTitle}>Ta liste</Text>
+              <Text style={t.meta} numberOfLines={2}>
+                {toBuy > 0 ? `${plural(toBuy, 'article', 'articles')}${bestStore ? ` · ${bestStore} le moins cher` : ''}` : 'à préparer'}
+              </Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Ton mois, ${money(summary.total)} DH`} onPress={() => router.replace('/stats')} style={({ pressed }) => [st.tile, st.tileInk, pressed && ui.pressed]}>
+              <Icon name="stats-chart" size={24} color={colors.nightBlue} />
+              <Text style={[st.tileTitle, st.onInk]}>{monthLabel(currentMonth()).replace(/ \d{4}$/, '')}</Text>
+              <Text style={st.tileTotal} numberOfLines={1}>
+                <CountUp style={st.tileTotal} value={summary.total} format={(v) => money(v).replace(/,00$/, '')} />
+                <Text style={st.tileUnit}> DH</Text>
+              </Text>
+            </Pressable>
+          </View>
+        </FadeIn>
 
         {budget ? (
           <View style={st.budget}>
@@ -135,27 +152,36 @@ export default function Home() {
             </View>
             <Text style={t.meta}>
               {summary.total > budget
-                ? `Budget dépassé de ${money(summary.total - budget)} MAD`
-                : `Il te reste ${money(budget - summary.total)} MAD sur ${money(budget).replace(',00', '')}`}
+                ? `Budget dépassé de ${money(summary.total - budget)} DH`
+                : `Il te reste ${money(budget - summary.total)} DH sur ${money(budget).replace(',00', '')}`}
             </Text>
           </View>
         ) : null}
 
-        <Button label="Nouvelle course" icon="add" onPress={() => router.push('/trip/new')} style={st.newTrip} />
+        <View style={st.actions}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/trip/new')} style={({ pressed }) => [st.action, st.grow, pressed && ui.pressed]}>
+            <Icon name="add" size={22} color={colors.blue} />
+            <Text style={st.actionText}>Nouvelle course</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/trips')} style={({ pressed }) => [st.action, pressed && ui.pressed]}>
+            <Icon name="receipt-outline" size={22} color={colors.blue} />
+            <Text style={st.actionText}>Courses</Text>
+          </Pressable>
+        </View>
 
         {needBackup ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Sauvegarder mes courses" onPress={() => router.push('/settings')} style={({ pressed }) => [st.recap, pressed && ui.pressed]}>
-            <Ionicons name="cloud-upload-outline" size={22} color={colors.softText} />
-            <Text style={st.recapText}>Sauvegarde tes courses : elles ne sont que sur ce téléphone</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.softText} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Sauvegarder mes courses" onPress={() => router.push('/settings')} style={({ pressed }) => [st.note, pressed && ui.pressed]}>
+            <Icon name="cloud-upload-outline" size={22} color={colors.softText} />
+            <Text style={st.noteText}>Sauvegarde tes courses : elles ne sont que sur ce téléphone</Text>
+            <Icon name="chevron-forward" size={20} color={colors.softText} />
           </Pressable>
         ) : null}
 
         {recap ? (
-          <Pressable accessibilityRole="button" onPress={() => router.push(`/recap?month=${recap}`)} style={({ pressed }) => [st.recap, pressed && ui.pressed]}>
-            <Ionicons name="sparkles-outline" size={22} color={colors.softText} />
-            <Text style={st.recapText}>Ton mois de {monthLabel(recap).toLowerCase()} est prêt</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.softText} />
+          <Pressable accessibilityRole="button" onPress={() => router.push(`/recap?month=${recap}`)} style={({ pressed }) => [st.note, pressed && ui.pressed]}>
+            <Icon name="sparkles-outline" size={22} color={colors.softText} />
+            <Text style={st.noteText}>Ton mois de {monthLabel(recap).toLowerCase()} est prêt</Text>
+            <Icon name="chevron-forward" size={20} color={colors.softText} />
           </Pressable>
         ) : null}
 
@@ -163,103 +189,55 @@ export default function Home() {
           <View style={st.gapTop}>
             <Empty
               title="Note ta première course"
-              text="Après chaque passage au magasin ou au souk, ajoute ce que tu as acheté et à quel prix. Ton historique se construit tout seul."
+              text="Scanne ton ticket avec le bouton du milieu, ou note tes achats à la main. Ton historique de prix se construit tout seul."
             />
           </View>
-        ) : (
-          <>
-            <SectionTitle action="Tout voir" onAction={() => router.push('/trips')}>
-              Mes dernières courses
-            </SectionTitle>
-            <View style={st.list}>
-              {trips.map((trip, i) => (
-                <FadeIn key={trip.id} index={i}>
-                <RowCard label={`${trip.store}, ${longDate(trip.date)}`} onPress={() => router.push(`/trip/${trip.id}`)}>
-                  <Tile kind="store" text={trip.store} />
-                  <View style={st.grow}>
-                    <Text style={t.name} numberOfLines={1}>{trip.store}</Text>
-                    <Text style={t.meta}>
-                      {longDate(trip.date)} · {plural(trip.n, 'article', 'articles')}
-                    </Text>
-                  </View>
-                  <Text style={t.price}>
-                    {money(trip.total)} <Text style={t.unit}>MAD</Text>
-                  </Text>
-                </RowCard>
-                </FadeIn>
-              ))}
-            </View>
-
-            <SectionTitle action="Tout voir" onAction={() => router.push('/products')}>
-              Mes produits
-            </SectionTitle>
-            <View style={st.list}>
-              {products.map((p, i) => (
-                <FadeIn key={p.id} index={i + 3}>
-                <RowCard label={p.name} onPress={() => router.push(`/product/${p.id}`)}>
-                  <Tile text={p.name} />
-                  <View style={st.grow}>
-                    <Text style={t.name} numberOfLines={1}>{p.name}</Text>
-                    <Text style={t.meta}>Acheté {p.n} fois</Text>
-                  </View>
-                  <View style={st.right}>
-                    <Text style={t.price}>
-                      {money(p.last_price ?? 0)} <Text style={t.unit}>MAD</Text>
-                    </Text>
-                    <ChangeChip from={p.prev_price} to={p.last_price} />
-                  </View>
-                </RowCard>
-                </FadeIn>
-              ))}
-            </View>
-          </>
-        )}
+        ) : null}
       </ScrollView>
     </Screen>
   );
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24 },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  brand: { fontFamily: fonts.titleBold, fontSize: 28, color: colors.ink, letterSpacing: -0.5 },
+  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28, gap: 14 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  brand: { fontFamily: fonts.titleBold, fontSize: 23, letterSpacing: -0.5, color: colors.ink },
   seven: { color: colors.blue },
-  hello: { fontFamily: fonts.body, fontSize: 14, color: colors.muted, marginTop: 2 },
-  hero: { backgroundColor: colors.night, borderRadius: 28, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 22, overflow: 'hidden' },
-  heroSeven: { position: 'absolute', right: 2, top: -34, fontFamily: fonts.titleBold, fontSize: 170, lineHeight: 190, color: colors.nightSoft },
-  arabicText: { fontFamily: fonts.title, fontSize: 20, color: colors.onNight, alignSelf: 'flex-start' },
-  heroTitle: { fontFamily: fonts.titleBold, fontSize: 42, lineHeight: 50, letterSpacing: -1, color: colors.white, marginBottom: 12 },
-  ask: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderRadius: 28, paddingLeft: 18, paddingRight: 6, minHeight: 56 },
-  askText: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: '#46557F' },
-  askGo: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1F4BFF', alignItems: 'center', justifyContent: 'center' },
-  askGoText: { fontFamily: fonts.titleBold, fontSize: 22, color: '#FFFFFF' },
-  heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  heroChip: { minHeight: 44, maxWidth: '100%', paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: colors.nightBlue, justifyContent: 'center' },
-  heroChipText: { fontFamily: fonts.body, fontSize: 14, color: '#E6EDFF' },
-  last: { marginTop: 12, backgroundColor: colors.card, borderRadius: 24, padding: 18, gap: 12, ...shadow },
+  slogan: { fontFamily: fonts.body, fontSize: 13, color: colors.muted, marginTop: 1 },
+  ask: { backgroundColor: colors.blue, ...bubble(26), paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 },
+  askTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  askTitle: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.8, color: '#FFFFFF' },
+  arabic: { fontFamily: fonts.bodyMedium, fontSize: 18, color: colors.onBlue },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, minHeight: 54, borderRadius: 27, backgroundColor: currentScheme() === 'dark' ? colors.bg : '#FFFFFF', paddingLeft: 16, paddingRight: 6 },
+  searchText: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: colors.muted },
+  searchGo: { width: 42, height: 42, borderRadius: 21, backgroundColor: currentScheme() === 'dark' ? '#FFFFFF' : '#12133D', alignItems: 'center', justifyContent: 'center' },
+  searchGoText: { fontFamily: fonts.titleBold, fontSize: 20, color: currentScheme() === 'dark' ? '#3D3BD9' : '#FFFFFF' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  chip: { minHeight: 38, maxWidth: '100%', paddingHorizontal: 13, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center' },
+  chipText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: '#FFFFFF' },
+  last: { backgroundColor: colors.card, borderRadius: 24, padding: 18, gap: 12, ...shadow },
   lastHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  lastLabel: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.5, color: colors.muted },
-  lastRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
-  lastStore: { fontFamily: fonts.title, fontSize: 22, color: colors.ink },
-  lastTotal: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.5, color: colors.ink },
-  lastUnit: { fontFamily: fonts.title, fontSize: 15, color: colors.muted },
-  duo: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  tile: { flex: 1, minHeight: 128, borderRadius: 24, padding: 16, gap: 4 },
-  tileSoft: { backgroundColor: colors.soft },
-  tileBlue: { backgroundColor: colors.blue },
-  tileTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, marginTop: 6 },
-  onBlue: { color: colors.white },
-  tileTotal: { fontFamily: fonts.titleBold, fontSize: 20, color: colors.white },
-  tileUnit: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.white },
-  tileMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.white },
-  recap: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.soft, borderRadius: 20, paddingHorizontal: 16, minHeight: 54, marginTop: 10 },
-  recapText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.softText },
-  newTrip: { marginTop: 12 },
-  gapTop: { marginTop: 18 },
-  budget: { gap: 6, marginTop: 12, backgroundColor: colors.card, borderRadius: 20, padding: 14 },
+  label: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.6, color: colors.muted },
+  lastRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  lastStore: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
+  lastTotal: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.5, color: colors.ink },
+  lastUnit: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.muted },
+  duo: { flexDirection: 'row', gap: 12 },
+  tile: { flex: 1, minHeight: 122, padding: 18, gap: 4 },
+  tileSky: { backgroundColor: colors.soft, ...bubble(26) },
+  tileInk: { backgroundColor: colors.night, ...bubbleRight(26) },
+  tileTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.ink, marginTop: 8 },
+  onInk: { color: '#FFFFFF' },
+  tileTotal: { fontFamily: fonts.titleBold, fontSize: 20, color: '#FFFFFF' },
+  tileUnit: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.onNight },
+  budget: { gap: 6, backgroundColor: colors.card, borderRadius: 20, padding: 14 },
   budgetTrack: { height: 10, borderRadius: 5, backgroundColor: colors.soft, overflow: 'hidden' },
   budgetFill: { height: 10, borderRadius: 5 },
-  list: { gap: 8 },
+  actions: { flexDirection: 'row', gap: 10 },
+  action: { minHeight: 54, borderRadius: 27, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line },
+  actionText: { fontFamily: fonts.title, fontSize: 16, color: colors.blue },
+  note: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.soft, ...bubble(20), paddingHorizontal: 16, minHeight: 56 },
+  noteText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText },
+  gapTop: { marginTop: 4 },
   grow: { flex: 1, minWidth: 0 },
-  right: { alignItems: 'flex-end', gap: 3 },
 }));

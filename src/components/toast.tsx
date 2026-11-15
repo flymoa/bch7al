@@ -1,5 +1,5 @@
 // A short message that slides up from the bottom, e.g. after saving a trip.
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
 import { colors, fonts, sheet } from '@/theme';
@@ -37,7 +37,7 @@ export function ToastHost() {
       accessibilityLiveRegion="polite"
       style={[st.toast, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }] }]}
     >
-      <Ionicons name="checkmark-circle" size={22} color={colors.accent} />
+      <Icon name="checkmark-circle" size={22} color={colors.accent} />
       <Text style={st.text}>{msg}</Text>
     </Animated.View>
   );

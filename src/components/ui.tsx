@@ -1,15 +1,16 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, fonts, shadow, sheet } from '@/theme';
+import { bubble, colors, fonts, shadow, sheet } from '@/theme';
 import { pct, pctChange, type Verdict } from '@/format';
 import { productIcon, storeIcon } from '@/icons';
 import { usePressScale } from './motion';
 import { Animated } from 'react-native';
 
-type IconName = keyof typeof Ionicons.glyphMap;
+type IconName = string;
 
 export type Tab = 'home' | 'ask' | 'list' | 'stats';
 
@@ -43,7 +44,7 @@ export function RoundButton({ icon, label, onPress, tone = 'plain' }: { icon: Ic
   return (
     <Animated.View style={press.style}>
       <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={s.round}>
-        <Ionicons name={icon} size={22} color={tone === 'danger' ? colors.danger : colors.ink} />
+        <Icon name={icon} size={22} color={tone === 'danger' ? colors.danger : colors.ink} />
       </Pressable>
     </Animated.View>
   );
@@ -69,7 +70,7 @@ export function RowCard({ children, onPress, label }: { children: ReactNode; onP
 export function Tile({ text, size = 46, kind = 'product' }: { text: string; size?: number; kind?: 'product' | 'store' }) {
   const icon = kind === 'store' ? storeIcon(text) : productIcon(text);
   return (
-    <View style={[s.tile, { width: size, height: size, borderRadius: size / 3 }]}>
+    <View style={[s.tile, { width: size, height: size, borderRadius: size / 3 }, s.bubbleTile]}>
       <MaterialCommunityIcons name={icon as keyof typeof MaterialCommunityIcons.glyphMap} size={Math.round(size * 0.52)} color={colors.softText} />
     </View>
   );
@@ -80,7 +81,7 @@ export function Chip({ label, tone = 'neutral', icon }: { label: string; tone?: 
   const fg = tone === 'down' ? colors.softText : tone === 'up' ? colors.upText : colors.muted;
   return (
     <View style={[s.chip, { backgroundColor: bg }, tone === 'up' && s.chipUp]}>
-      {icon ? <Ionicons name={icon} size={12} color={fg} /> : null}
+      {icon ? <Icon name={icon} size={12} color={fg} /> : null}
       <Text style={[s.chipText, { color: fg }]}>{label}</Text>
     </View>
   );
@@ -130,7 +131,7 @@ export function Button({ label, onPress, icon, tone = 'primary', disabled, style
         onPressOut={press.onPressOut}
         style={[s.button, { backgroundColor: bg }, (tone === 'light' || tone === 'danger') && s.buttonOutline, disabled && s.disabled, style]}
       >
-        {icon ? <Ionicons name={icon} size={22} color={fg} /> : null}
+        {icon ? <Icon name={icon} size={22} color={fg} /> : null}
         <Text style={[s.buttonText, { color: fg }]}>{label}</Text>
       </Pressable>
     </Animated.View>
@@ -148,7 +149,7 @@ export function VerdictBadge({ v, onNight }: { v: Verdict; onNight?: boolean }) 
       accessibilityLabel={VERDICT_LABEL[v.kind]}
       style={[s.badge, good ? { backgroundColor: onNight ? colors.nightBlue : colors.blue } : high ? [s.badgeHigh, onNight && { borderColor: colors.white, backgroundColor: 'transparent' }] : { backgroundColor: onNight ? colors.nightSoft : colors.soft }]}
     >
-      {good ? <Ionicons name="arrow-down" size={12} color={colors.white} /> : high ? <Ionicons name="arrow-up" size={12} color={onNight ? colors.white : colors.upText} /> : null}
+      {good ? <Icon name="arrow-down" size={12} color={colors.white} /> : high ? <Icon name="arrow-up" size={12} color={onNight ? colors.white : colors.upText} /> : null}
       <Text style={[s.badgeText, { color: good || onNight ? colors.white : high ? colors.upText : colors.ink }]}>{VERDICT_LABEL[v.kind]}</Text>
     </View>
   );
@@ -172,7 +173,7 @@ export function VerdictStrip({ verdicts, onNight }: { verdicts: (Verdict | null)
               v.kind === 'good'
                 ? { backgroundColor: onNight ? colors.nightBlue : colors.blue }
                 : v.kind === 'normal'
-                  ? { backgroundColor: onNight ? '#2A3F8C' : colors.barSoft }
+                  ? { backgroundColor: onNight ? '#2E3070' : colors.barSoft }
                   : onNight
                     ? { backgroundColor: colors.white }
                     : s.segHigh,
@@ -221,8 +222,8 @@ function PlusButton() {
   const press = usePressScale(0.86);
   return (
     <Animated.View style={[s.plusWrap, press.style]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Scanner un ticket" onPress={() => router.push('/trip/new?scan=camera')} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={s.plus}>
-        <Ionicons name="scan" size={28} color={colors.white} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Scanner un ticket" onPress={() => router.push(Platform.OS === 'web' ? '/trip/new?scan=camera' : '/camera')} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={s.plus}>
+        <Icon name="scan" size={28} color={colors.white} />
       </Pressable>
     </Animated.View>
   );
@@ -243,8 +244,10 @@ function BottomBar({ active, bottom }: { active: Tab; bottom: number }) {
       onPress={() => active !== it.key && router.replace(it.href)}
       style={s.tab}
     >
-      <Ionicons name={(active === it.key ? it.icon.replace('-outline', '') : it.icon) as IconName} size={24} color={active === it.key ? colors.blue : colors.muted} />
-      <Text style={[s.tabText, active === it.key && { color: colors.blue }]}>{it.label}</Text>
+      <View style={[s.tabPill, active === it.key && s.tabPillOn]}>
+        <Icon name={it.icon} size={24} color={active === it.key ? colors.blue : colors.muted} />
+      </View>
+      <Text style={[s.tabText, active === it.key && s.tabTextOn]}>{it.label}</Text>
     </Pressable>
   );
   return (
@@ -262,15 +265,16 @@ export const s = sheet(() => ({
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.45 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, gap: 10 },
-  headerTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.title, fontSize: 20, color: colors.ink },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.titleBold, fontSize: 20, color: colors.ink },
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', ...shadow },
   roundSpace: { width: 44, height: 44 },
-  card: { backgroundColor: colors.card, borderRadius: 24, padding: 14, ...shadow },
+  card: { backgroundColor: colors.card, borderRadius: 24, padding: 16, ...shadow },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 10 },
   tile: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  bubbleTile: { borderBottomLeftRadius: 6 },
   tileText: { fontFamily: fonts.titleBold, color: colors.softText },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 28, paddingHorizontal: 10, borderRadius: 14, alignSelf: 'center' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 11, borderRadius: 14, alignSelf: 'center' },
   badgeHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg, paddingHorizontal: 8 },
   badgeText: { fontFamily: fonts.bodyBold, fontSize: 12 },
   stripWrap: { gap: 8 },
@@ -287,22 +291,25 @@ export const s = sheet(() => ({
   pillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
   pillTextActive: { color: colors.onInk },
   button: { minHeight: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 20 },
-  buttonOutline: { borderWidth: 2, borderColor: colors.border },
-  buttonText: { fontFamily: fonts.title, fontSize: 18 },
+  buttonOutline: { borderWidth: 1.5, borderColor: colors.line },
+  buttonText: { fontFamily: fonts.title, fontSize: 17 },
   section: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 18, paddingBottom: 8 },
   sectionTitle: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
   sectionAction: { minHeight: 32, justifyContent: 'center' },
   sectionActionText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
   empty: { padding: 22, alignItems: 'center', gap: 6 },
-  emptyIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 22, borderBottomLeftRadius: 7, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   emptyTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, textAlign: 'center' },
   emptyText: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, textAlign: 'center', lineHeight: 21 },
   txt: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  bar: { backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 8, paddingBottom: 8 },
-  tab: { minWidth: 62, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 1 },
-  tabText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.muted },
-  plusWrap: { marginTop: -34 },
-  plus: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.bg, shadowColor: colors.blue, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+  bar: { backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 8, paddingTop: 10, shadowColor: colors.shadow, shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  tabPill: { width: 56, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  tabPillOn: { backgroundColor: colors.soft },
+  tabTextOn: { color: colors.blue, fontFamily: fonts.bodyBold },
+  tab: { minWidth: 62, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  tabText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.muted },
+  plusWrap: { marginTop: -36 },
+  plus: { width: 62, height: 62, ...bubble(22), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', shadowColor: colors.blue, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
   rowPressed: { backgroundColor: colors.cardPressed },
 }));
 

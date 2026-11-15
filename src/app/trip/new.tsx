@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -185,7 +185,7 @@ export default function TripForm() {
 
   const total = items.reduce((sum, it) => sum + it.qty * it.unitPrice, 0);
 
-  const scan = async (source: 'camera' | 'gallery') => {
+  const scan = async (source: 'camera' | 'gallery' | 'photo') => {
     setError('');
     setScanning(true);
     try {
@@ -241,7 +241,7 @@ export default function TripForm() {
           : unnamedCount > 0
           ? `${plural(articles, 'article lu', 'articles lus')}. Certains noms n'ont pas pu être lus : touche « Modifier » sur chaque ligne « Nom à écrire ». Les prix et quantités sont déjà remplis.`
           : res.total !== null && gap > 0.5
-          ? `${plural(articles, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} MAD mais les articles font ${money(read)} MAD : vérifie s'il en manque.`
+          ? `${plural(articles, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} DH mais les articles font ${money(read)} DH : vérifie s'il en manque.`
           : `${plural(articles, 'article lu', 'articles lus')}${articles < res.items.length ? ' + droit de timbre' : ''}. Vérifie les noms et les prix avant d'enregistrer.`
       ));
     } catch (e) {
@@ -255,7 +255,7 @@ export default function TripForm() {
   // Opened from the home screen's "Scanner" button: go straight to the camera.
   const autoScan = useRef(false);
   useEffect(() => {
-    if (!loaded || autoScan.current || editId || (params.scan !== 'camera' && params.scan !== 'gallery')) return;
+    if (!loaded || autoScan.current || editId || (params.scan !== 'camera' && params.scan !== 'gallery' && params.scan !== 'photo')) return;
     autoScan.current = true;
     scan(params.scan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -273,7 +273,7 @@ export default function TripForm() {
     setSaving(true);
     try {
       await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice }) => ({ name: n, unit: u, qty: q, unitPrice })) });
-      showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${money(total)} MAD`);
+      showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${money(total)} DH`);
       router.canGoBack() ? router.back() : router.replace('/trips');
     } catch (e) {
       setSaving(false);
@@ -288,7 +288,7 @@ export default function TripForm() {
         <ScrollView ref={scrollRef} contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
           <View style={st.dateRow}>
             <Pressable accessibilityRole="button" accessibilityLabel="Jour précédent" onPress={() => setDate(addDays(date, -1))} style={ui.round}>
-              <Ionicons name="chevron-back" size={22} color={colors.ink} />
+              <Icon name="chevron-back" size={22} color={colors.ink} />
             </Pressable>
             <View style={st.dateBox}>
               <Text style={st.dateText}>{date === today ? "Aujourd'hui" : longDate(date)}</Text>
@@ -302,7 +302,7 @@ export default function TripForm() {
               onPress={() => setDate(addDays(date, 1))}
               style={[ui.round, date >= today && ui.disabled]}
             >
-              <Ionicons name="chevron-forward" size={22} color={colors.ink} />
+              <Icon name="chevron-forward" size={22} color={colors.ink} />
             </Pressable>
           </View>
 
@@ -310,7 +310,7 @@ export default function TripForm() {
             <Card style={st.scanCard}>
               <View style={st.scanHead}>
                 <View style={st.scanIcon}>
-                  <Ionicons name="receipt-outline" size={24} color={colors.softText} />
+                  <Icon name="receipt-outline" size={24} color={colors.softText} />
                 </View>
                 <View style={ui.flex}>
                   <Text style={st.scanTitle}>Scanner le ticket</Text>
@@ -319,11 +319,11 @@ export default function TripForm() {
               </View>
               <View style={st.scanButtons}>
                 <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('camera')} style={({ pressed }) => [st.scanBtn, pressed && ui.pressed, scanning && ui.disabled]}>
-                  <Ionicons name="camera-outline" size={20} color={colors.white} />
+                  <Icon name="camera-outline" size={20} color={colors.white} />
                   <Text style={st.scanBtnText}>{scanning ? 'Lecture…' : 'Photo'}</Text>
                 </Pressable>
                 <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('gallery')} style={({ pressed }) => [st.scanBtn, st.scanBtnLight, pressed && ui.pressed, scanning && ui.disabled]}>
-                  <Ionicons name="images-outline" size={20} color={colors.blue} />
+                  <Icon name="images-outline" size={20} color={colors.blue} />
                   <Text style={[st.scanBtnText, { color: colors.blue }]}>Galerie</Text>
                 </Pressable>
               </View>
@@ -334,7 +334,7 @@ export default function TripForm() {
                   onPress={() => Alert.alert('Texte lu sur le ticket', scanRows.join('\n'))}
                   style={({ pressed }) => [st.rawBtn, pressed && ui.pressed]}
                 >
-                  <Ionicons name="document-text-outline" size={18} color={colors.blue} />
+                  <Icon name="document-text-outline" size={18} color={colors.blue} />
                   <Text style={st.rawBtnText}>Voir le texte lu</Text>
                 </Pressable>
               ) : null}
@@ -448,7 +448,7 @@ export default function TripForm() {
 
             <View style={st.numbers}>
               <View style={ui.flex}>
-                <Text style={st.label}>{measured && priceMode === 'total' ? 'Prix payé (MAD)' : `Prix pour 1 ${shownUnit}`}</Text>
+                <Text style={st.label}>{measured && priceMode === 'total' ? 'Prix payé (DH)' : `Prix pour 1 ${shownUnit}`}</Text>
                 <TextInput
                   accessibilityLabel={measured && priceMode === 'total' ? 'Prix payé en dirhams' : `Prix en dirhams pour 1 ${shownUnit}`}
                   value={price}
@@ -476,14 +476,14 @@ export default function TripForm() {
                 </View>
               )}
               <Pressable accessibilityRole="button" accessibilityLabel="Ajouter l'article au panier" onPress={addTyped} style={({ pressed }) => [st.add, pressed && ui.pressed]}>
-                <Ionicons name="add" size={28} color={colors.white} />
+                <Icon name="add" size={28} color={colors.white} />
               </Pressable>
             </View>
             {hint ? (
               <View style={[st.hint, { backgroundColor: hint.kind === 'high' ? colors.upBg : colors.soft }, hint.kind === 'high' && ui.upBox]} accessibilityLiveRegion="polite">
-                <Ionicons name={hint.kind === 'good' ? 'thumbs-up' : hint.kind === 'high' ? 'alert-circle' : 'checkmark-circle'} size={18} color={hint.kind === 'high' ? colors.upText : colors.softText} />
+                <Icon name={hint.kind === 'good' ? 'thumbs-up' : hint.kind === 'high' ? 'alert-circle' : 'checkmark-circle'} size={18} color={hint.kind === 'high' ? colors.upText : colors.softText} />
                 <Text style={[st.hintText, { color: hint.kind === 'high' ? colors.upText : colors.softText }]}>
-                  {hint.kind === 'good' ? 'Mzyan' : hint.kind === 'high' ? 'Ghali' : 'Prix habituel'} : d'habitude {money(match?.avg_price ?? 0)} MAD{shownUnit === 'pièce' ? '' : ` / ${shownUnit}`}
+                  {hint.kind === 'good' ? 'Mzyan' : hint.kind === 'high' ? 'Ghali' : 'Prix habituel'} : d'habitude {money(match?.avg_price ?? 0)} DH{shownUnit === 'pièce' ? '' : ` / ${shownUnit}`}
                 </Text>
               </View>
             ) : null}
@@ -491,8 +491,8 @@ export default function TripForm() {
               <Text style={st.calc} accessibilityLiveRegion="polite">
                 {qtyLabel(computed.qty, shownUnit)} ·{' '}
                 {priceMode === 'total'
-                  ? `soit ${money(computed.unitPrice)} MAD le ${shownUnit === 'kg' ? 'kilo' : 'litre'}`
-                  : `tu paies ${money(computed.paid)} MAD`}
+                  ? `soit ${money(computed.unitPrice)} DH le ${shownUnit === 'kg' ? 'kilo' : 'litre'}`
+                  : `tu paies ${money(computed.paid)} DH`}
               </Text>
             ) : null}
           </Card>
@@ -531,7 +531,7 @@ export default function TripForm() {
                         <View style={st.lineMain}>
                           <Text style={t.name}>{it.name}</Text>
                           <Text style={t.meta}>
-                            {qtyLabel(it.qty, it.unit)} × {money(it.unitPrice)} MAD{it.unit === 'pièce' ? '' : ` / ${it.unit}`}
+                            {qtyLabel(it.qty, it.unit)} × {money(it.unitPrice)} DH{it.unit === 'pièce' ? '' : ` / ${it.unit}`}
                           </Text>
                           <View style={st.chips}>
                             {dup ? <Chip label="Doublon ?" tone="up" icon="copy-outline" /> : null}
@@ -545,7 +545,7 @@ export default function TripForm() {
                                 <VerdictBadge v={v} />
                                 {v.kind === 'normal' ? null : (
                                   <Text style={t.meta}>
-                                    {money(Math.abs(it.unitPrice - (it.last ?? 0)))} MAD {v.change < 0 ? 'de moins' : 'de plus'}
+                                    {money(Math.abs(it.unitPrice - (it.last ?? 0)))} DH {v.change < 0 ? 'de moins' : 'de plus'}
                                   </Text>
                                 )}
                               </View>
@@ -557,11 +557,11 @@ export default function TripForm() {
                       <View style={st.lineActions}>
                         <View style={st.stepper}>
                           <Pressable accessibilityRole="button" accessibilityLabel={`Retirer ${fmtQty(stepFor(it.unit))} ${it.unit} de ${it.name}`} onPress={() => changeQty(i, -1)} style={st.step}>
-                            <Ionicons name="remove" size={20} color={colors.ink} />
+                            <Icon name="remove" size={20} color={colors.ink} />
                           </Pressable>
                           <Text style={st.stepValue}>{qtyLabel(it.qty, it.unit)}</Text>
                           <Pressable accessibilityRole="button" accessibilityLabel={`Ajouter ${fmtQty(stepFor(it.unit))} ${it.unit} à ${it.name}`} onPress={() => changeQty(i, 1)} style={st.step}>
-                            <Ionicons name="add" size={20} color={colors.ink} />
+                            <Icon name="add" size={20} color={colors.ink} />
                           </Pressable>
                         </View>
                         <View style={st.lineButtons}>
@@ -573,7 +573,7 @@ export default function TripForm() {
                             onPress={() => moveLine(i, -1)}
                             style={({ pressed }) => [st.iconBtn, i === 0 && ui.disabled, pressed && ui.pressed]}
                           >
-                            <Ionicons name="arrow-up" size={20} color={colors.ink} />
+                            <Icon name="arrow-up" size={20} color={colors.ink} />
                           </Pressable>
                           <Pressable
                             accessibilityRole="button"
@@ -583,13 +583,13 @@ export default function TripForm() {
                             onPress={() => moveLine(i, 1)}
                             style={({ pressed }) => [st.iconBtn, i === items.length - 1 && ui.disabled, pressed && ui.pressed]}
                           >
-                            <Ionicons name="arrow-down" size={20} color={colors.ink} />
+                            <Icon name="arrow-down" size={20} color={colors.ink} />
                           </Pressable>
                           <Pressable accessibilityRole="button" accessibilityLabel={`Modifier ${it.name}`} onPress={() => editLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
-                            <Ionicons name="create-outline" size={20} color={colors.blue} />
+                            <Icon name="create-outline" size={20} color={colors.blue} />
                           </Pressable>
                           <Pressable accessibilityRole="button" accessibilityLabel={`Supprimer ${it.name}`} onPress={() => removeLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
-                            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                            <Icon name="trash-outline" size={20} color={colors.danger} />
                           </Pressable>
                         </View>
                       </View>
@@ -605,7 +605,7 @@ export default function TripForm() {
           <View style={st.totalRow}>
             <Text style={st.totalLabel}>{cleanName(store) ? `Total chez ${cleanName(store)}` : 'Total'}</Text>
             <Text style={st.total}>
-              {money(total)} <Text style={t.unit}>MAD</Text>
+              {money(total)} <Text style={t.unit}>DH</Text>
             </Text>
           </View>
           <Button label={saving ? 'Enregistrement…' : editId ? 'Enregistrer les changements' : 'Enregistrer la course'} onPress={save} disabled={saving} />
@@ -619,7 +619,7 @@ const st = sheet(() => ({
   hint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 },
   hintText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 13 },
   content: { paddingHorizontal: 16, paddingBottom: 20 },
-  stripCard: { backgroundColor: colors.night, borderRadius: 24, padding: 16, gap: 10, marginBottom: 10 },
+  stripCard: { backgroundColor: colors.night, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottomRightRadius: 24, borderBottomLeftRadius: 8, padding: 16, gap: 10, marginBottom: 10 },
   stripTitle: { fontFamily: fonts.title, fontSize: 15, color: colors.white },
   verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },

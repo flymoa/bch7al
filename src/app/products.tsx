@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Icon } from '@/components/icon';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
@@ -37,7 +37,7 @@ export default function Products() {
       ) : (
         <>
           <View style={st.searchBox}>
-            <Ionicons name="search" size={20} color={colors.muted} />
+            <Icon name="search" size={20} color={colors.muted} />
             <TextInput
               accessibilityLabel="Chercher un produit"
               value={search}

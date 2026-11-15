@@ -1,24 +1,25 @@
-// Opening animation (v2, "bleu nuit"). The phone's launch screen is the same plain
-// navy, so the hand-over is seamless and no spinner shows.
-// The 7 lands (600 ms); while it is still landing the rest of the name slides in and
-// the "?" springs in, then a short hold (350 ms) and the screen grows and fades away (420 ms).
+// Opening animation (v3 "Majorelle"). The phone's launch screen is the same plain
+// Majorelle blue, so the hand-over is seamless and no spinner shows.
+// 1.5 s, no pause: the bubble pops, the 7 draws itself, the dot of the "?" drops in,
+// the name and slogan rise, then the bubble grows and opens onto the app.
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { BUBBLE, SEVEN, SEVEN_LENGTH } from '@/components/brand';
 import { fonts } from '@/theme';
 
-const NIGHT = '#0B1B4D';
-const BLUE = '#4D6FFF';
-const PALE = '#C3D0FF';
-const STRIP = [BLUE, BLUE, BLUE, '#2A3F8C', '#2A3F8C', '#2A3F8C', '#2A3F8C', '#2A3F8C', '#FFFFFF', '#FFFFFF'];
+const MAJORELLE = '#3D3BD9';
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void }) {
-  const land = useRef(new Animated.Value(0)).current;
-  const mark = useRef(new Animated.Value(0)).current;
+  const pop = useRef(new Animated.Value(0)).current;
+  const draw = useRef(new Animated.Value(0)).current;
+  const dot = useRef(new Animated.Value(0)).current;
   const word = useRef(new Animated.Value(0)).current;
   const out = useRef(new Animated.Value(0)).current;
   const [played, setPlayed] = useState(false);
 
-  // Part 1: the 7 lands, the "?" springs in, the name and the rest appear.
+  // Part 1 (about 1.1 s): every beat starts before the previous one ends.
   useEffect(() => {
     let cancelled = false;
     AccessibilityInfo.isReduceMotionEnabled()
@@ -26,79 +27,84 @@ export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void })
       .then((reduce) => {
         if (cancelled) return;
         if (reduce) {
-          land.setValue(1); mark.setValue(1); word.setValue(1);
+          pop.setValue(1); draw.setValue(1); dot.setValue(1); word.setValue(1);
           setPlayed(true);
           return;
         }
-        // The beats overlap, so nothing stands still between the 7 landing and the rest.
-        Animated.sequence([
-          Animated.parallel([
-            Animated.timing(land, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            Animated.sequence([Animated.delay(300), Animated.timing(word, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true })]),
-            Animated.sequence([Animated.delay(480), Animated.spring(mark, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 12 })]),
-          ]),
-          Animated.delay(350),
+        const after = (ms: number, a: Animated.CompositeAnimation) => Animated.sequence([Animated.delay(ms), a]);
+        Animated.parallel([
+          Animated.spring(pop, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 12 }),
+          after(200, Animated.timing(draw, { toValue: 1, duration: 450, easing: Easing.inOut(Easing.cubic), useNativeDriver: false })),
+          after(580, Animated.spring(dot, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 14 })),
+          after(660, Animated.timing(word, { toValue: 1, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: true })),
         ]).start(() => !cancelled && setPlayed(true));
       });
     return () => { cancelled = true; };
-  }, [land, mark, word]);
+  }, [pop, draw, dot, word]);
 
-  // Part 2: once the app is loaded too, the navy screen grows and fades away.
+  // Part 2 (0.4 s): once the app is loaded too, the bubble grows and opens onto it.
   useEffect(() => {
     if (!played || !ready) return;
     Animated.timing(out, { toValue: 1, duration: 420, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(onDone);
   }, [played, ready, out, onDone]);
 
-  const slide = (from: number) => ({ opacity: word, transform: [{ translateX: word.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }] });
-  const rise = { opacity: word, transform: [{ translateY: word.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] };
+  const dash = draw.interpolate({ inputRange: [0, 1], outputRange: [SEVEN_LENGTH, 0] });
 
   return (
     <Animated.View
       pointerEvents="none"
       accessibilityLabel="bch7al"
-      style={[StyleSheet.absoluteFill, st.screen, { opacity: out.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 1, 0] }) }]}
+      style={[StyleSheet.absoluteFill, st.screen, { opacity: out.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 1, 0] }) }]}
     >
-      <Animated.View style={{ alignItems: 'center', transform: [{ scale: out.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }] }}>
-        <View style={st.row}>
-          <Animated.Text style={[st.word, slide(-44)]}>bch</Animated.Text>
-          <Animated.Text
-            style={[st.word, st.blue, {
-              opacity: land.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1] }),
-              transform: [
-                { translateY: land.interpolate({ inputRange: [0, 1], outputRange: [-140, 0] }) },
-                { scale: land.interpolate({ inputRange: [0, 1], outputRange: [3, 1] }) },
-                { rotate: land.interpolate({ inputRange: [0, 1], outputRange: ['-14deg', '0deg'] }) },
-              ],
-            }]}
-          >
-            7
-          </Animated.Text>
-          <Animated.Text style={[st.word, slide(44)]}>al</Animated.Text>
-          <Animated.Text
-            style={[st.word, st.blue, { opacity: mark, transform: [{ translateY: mark.interpolate({ inputRange: [0, 1], outputRange: [-60, 0] }) }, { scale: mark }] }]}
-          >
-            ?
-          </Animated.Text>
-        </View>
-        <Animated.Text style={[st.arabic, rise]}>بشحال؟</Animated.Text>
-        <Animated.View style={[st.strip, { opacity: word, transform: [{ scaleX: word }] }]}>
-          {STRIP.map((c, i) => (
-            <View key={i} style={[st.seg, { backgroundColor: c }]} />
-          ))}
+      <Animated.View
+        style={{
+          // grows from the bubble's tail, bottom left
+          transformOrigin: '16% 97%',
+          transform: [
+            { scale: Animated.multiply(pop, out.interpolate({ inputRange: [0, 1], outputRange: [1, 9] })) },
+          ],
+        }}
+      >
+        <Svg width={150} height={150} viewBox="0 0 100 100">
+          <Path d={BUBBLE} fill="#FFFFFF" />
+          <AnimatedPath
+            d={SEVEN}
+            fill="none"
+            stroke={MAJORELLE}
+            strokeWidth={10}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={SEVEN_LENGTH}
+            strokeDashoffset={dash}
+            opacity={draw.interpolate({ inputRange: [0, 0.02, 1], outputRange: [0, 1, 1] })}
+          />
+        </Svg>
+        <Animated.View
+          style={[st.dotWrap, { opacity: dot, transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [-50, 0] }) }] }]}
+        >
+          <Svg width={150} height={150} viewBox="0 0 100 100">
+            <Circle cx={50} cy={73.5} r={6.2} fill={MAJORELLE} />
+          </Svg>
         </Animated.View>
-        <Animated.Text style={[st.tag, { opacity: word }]}>3ref taman, chri mzyan.</Animated.Text>
       </Animated.View>
+      <Animated.View
+        style={{
+          alignItems: 'center',
+          opacity: Animated.multiply(word, out.interpolate({ inputRange: [0, 0.4, 1], outputRange: [1, 0, 0] })),
+          transform: [{ translateY: word.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+        }}
+      >
+        <Text style={st.word}>bch7al?</Text>
+        <Text style={st.tag}>3ref taman, chri mzyan.</Text>
+      </Animated.View>
+      <View />
     </Animated.View>
   );
 }
 
 const st = StyleSheet.create({
-  screen: { backgroundColor: NIGHT, alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  row: { flexDirection: 'row', alignItems: 'baseline' },
-  word: { fontFamily: fonts.titleBold, fontSize: 64, lineHeight: 76, letterSpacing: -2, color: '#FFFFFF' },
-  blue: { color: BLUE },
-  arabic: { fontFamily: fonts.title, fontSize: 28, color: PALE, marginTop: 14 },
-  strip: { flexDirection: 'row', gap: 4, width: 220, marginTop: 22, transformOrigin: 'left center' },
-  seg: { flex: 1, height: 10, borderRadius: 5 },
-  tag: { fontFamily: fonts.body, fontSize: 16, color: PALE, marginTop: 22 },
+  screen: { backgroundColor: MAJORELLE, alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  dotWrap: { position: 'absolute', top: 0, left: 0 },
+  word: { fontFamily: fonts.titleBold, fontSize: 46, letterSpacing: -1.5, color: '#FFFFFF', marginTop: 22 },
+  tag: { fontFamily: fonts.body, fontSize: 17, color: '#D6D5FF', marginTop: 6 },
 });
