@@ -159,7 +159,7 @@ export default function Settings() {
               placeholder="Ex. 2000"
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
-              style={st.input}
+              style={[st.input, st.shrink]}
             />
             <Text style={st.mad}>DH</Text>
           </View>
@@ -188,7 +188,12 @@ export default function Settings() {
             secureTextEntry={visionSaved && !visionMsg}
             style={st.keyInput}
           />
-          <Button label={visionKey.trim() ? 'Vérifier et enregistrer' : 'Retirer la clé'} tone={visionSaved && !visionMsg ? 'light' : 'primary'} onPress={saveVision} disabled={busy} />
+          <Button
+            label={visionKey.trim() || !visionSaved ? 'Vérifier et enregistrer' : 'Retirer la clé'}
+            tone={visionSaved && !visionMsg ? 'light' : 'primary'}
+            onPress={saveVision}
+            disabled={busy || (!visionKey.trim() && !visionSaved)}
+          />
           {visionMsg ? <Text style={st.text}>{visionMsg}</Text> : visionSaved ? <Text style={st.text}>La lecture Gemini est activée.</Text> : null}
         </Card>
 
@@ -232,6 +237,7 @@ const st = sheet(() => ({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   keyInput: { minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink, backgroundColor: colors.card },
   budgetRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  shrink: { flex: 1, minWidth: 0 },
   input: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.title, fontSize: 18, color: colors.ink, backgroundColor: colors.card },
   mad: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted },
   about: { alignItems: 'center', paddingTop: 8 },

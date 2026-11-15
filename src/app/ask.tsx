@@ -25,6 +25,7 @@ export default function Ask() {
   const [where, setWhere] = useState<StorePrice[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [seen, setSeen] = useState('');
+  const [chartW, setChartW] = useState(270);
 
   const pick = async (p: ProductRow) => {
     const [w, h] = await Promise.all([pricesByStore(db, p.id), productHistory(db, p.id)]);
@@ -64,7 +65,7 @@ export default function Ask() {
   const others = where.slice(1);
   const maxOther = Math.max(...others.map((w) => w.price), 0.01);
   // Price line: one point per purchase, newest on the right.
-  const W = 270, H = 64;
+  const W = Math.max(120, chartW), H = 64;
   const pts = history.map((h, i) => [history.length > 1 ? (i / (history.length - 1)) * (W - 12) + 6 : W / 2, 8 + (1 - (h.unit_price - hLow) / hSpan) * (H - 16)] as const);
 
   const input = (
@@ -160,7 +161,7 @@ export default function Ask() {
                       <Text style={st.cardTitle}>Depuis le {shortDate(history[0].date)}</Text>
                       <Text style={t.meta}>{Math.abs(moved) < 0.005 ? 'stable' : `${moved > 0 ? '+' : '−'}${money(Math.abs(moved))} DH`}</Text>
                     </View>
-                    <View accessible accessibilityLabel={history.map((h) => `${shortDate(h.date)} ${money(h.unit_price)} DH`).join(', ')}>
+                    <View accessible accessibilityLabel={history.map((h) => `${shortDate(h.date)} ${money(h.unit_price)} DH`).join(', ')} onLayout={(e) => setChartW(Math.round(e.nativeEvent.layout.width))}>
                       <Svg width={W} height={H}>
                         <Polyline points={pts.map((q) => q.join(',')).join(' ')} fill="none" stroke={colors.blue} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
                         <Circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={11} fill={colors.blue} opacity={0.18} />

@@ -6,7 +6,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { CountUp, FadeIn, GrowBar } from '@/components/motion';
 import { Button, Card, Chip, Empty, Header, RowCard, Screen, Tile, s as ui, t } from '@/components/ui';
 import { listMonths, monthRecap, monthStats, weekSpend, type MonthRecap, type MonthStats } from '@/db';
-import { currentMonth, money, monthLabel, pct, pctChange, plural } from '@/format';
+import { currentMonth, money, monthLabel, pct, pctChange, plural, qtyLabel } from '@/format';
 import { useSQLiteContext } from '@/sqlite';
 import { bubble, bubbleRight, colors, fonts, sheet, useTheme } from '@/theme';
 
@@ -234,7 +234,7 @@ export default function Stats() {
                   <View style={st.flex}>
                     <Text style={t.name} numberOfLines={1}>{p.name}</Text>
                     <Text style={t.meta}>
-                      {String(Math.round(p.qty * 100) / 100).replace('.', ',')} {p.unit}
+                      {qtyLabel(p.qty, p.unit)}{p.unit === 'kg' || p.unit === 'L' ? '' : ` ${p.unit}${p.qty > 1 ? 's' : ''}`}
                     </Text>
                   </View>
                   <Text style={t.price}>{money(p.total)}</Text>

@@ -6,7 +6,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
 import { Mark } from '@/components/brand';
 import { Empty, RoundButton, Screen, Tile, VerdictStrip, s as ui, t } from '@/components/ui';
-import { getPref, listCount, listPlan, listProducts, listTrips, monthSummary, previousMonth, tripVerdicts, type MonthSummary, type ProductRow, type TripRow } from '@/db';
+import { getPref, listCount, listPlan, listTrips, monthSummary, previousMonth, tripVerdicts, type MonthSummary, type TripRow } from '@/db';
 import { addDays, currentMonth, longDate, todayIso, money, monthLabel, plural, type Verdict } from '@/format';
 import { bubble, bubbleRight, colors, currentScheme, fonts, shadow, sheet, useTheme } from '@/theme';
 
@@ -15,7 +15,6 @@ export default function Home() {
   const db = useSQLiteContext();
   const [summary, setSummary] = useState<MonthSummary>({ trips: 0, total: 0, items: 0 });
   const [trips, setTrips] = useState<TripRow[]>([]);
-  const [products, setProducts] = useState<ProductRow[]>([]);
   const [budget, setBudget] = useState<number | null>(null);
   const [toBuy, setToBuy] = useState(0);
   const [bestStore, setBestStore] = useState<string | null>(null);
@@ -30,28 +29,25 @@ export default function Home() {
       let alive = true;
       (async () => {
         const last = previousMonth(currentMonth());
-        const [sum, lastTrips, top, b, n, before, saved, all, plan] = await Promise.all([
+        const [sum, lastTrips, b, n, before, saved, plan] = await Promise.all([
           monthSummary(db, currentMonth()),
           listTrips(db, undefined, 3),
-          listProducts(db, '', 'frequent', 3),
           getPref(db, 'budget'),
           listCount(db),
           monthSummary(db, last),
           getPref(db, 'lastBackup'),
-          listTrips(db, undefined, 3),
           listPlan(db),
         ]);
         const lv = lastTrips[0] ? Object.values(await tripVerdicts(db, lastTrips[0].id)) : [];
         if (alive) {
           setLastVerdicts(lv);
-          setNeedBackup(saved ? addDays(saved, 30) < todayIso() : all.length >= 3);
+          setNeedBackup(saved ? addDays(saved, 30) < todayIso() : lastTrips.length >= 3);
           setToBuy(n);
           setBestStore(plan.todo > 0 && plan.stores[0]?.covered === plan.todo ? plan.stores[0].store : null);
           setRecap(new Date().getDate() <= 7 && before.trips > 0 ? last : null);
           setBudget(b && Number(b) > 0 ? Number(b) : null);
           setSummary(sum);
           setTrips(lastTrips);
-          setProducts(top);
         }
       })();
       return () => {
@@ -87,18 +83,6 @@ export default function Home() {
                 <Text style={st.searchGoText}>?</Text>
               </View>
             </Pressable>
-            {products.length > 0 ? (
-              <View style={st.chips}>
-                {products.map((p) => (
-                  <Pressable key={p.id} accessibilityRole="button" accessibilityLabel={`Prix de ${p.name}`} onPress={() => router.push(`/ask?id=${p.id}`)} style={({ pressed }) => [st.chip, pressed && ui.pressed]}>
-                    <Text style={st.chipText} numberOfLines={1}>
-                      {p.name}
-                      {p.last_price !== null ? ` · ${money(p.last_price)}` : ''}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
           </View>
         </FadeIn>
 
@@ -159,13 +143,13 @@ export default function Home() {
         ) : null}
 
         <View style={st.actions}>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/trip/new')} style={({ pressed }) => [st.action, st.grow, pressed && ui.pressed]}>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/trip/new')} style={({ pressed }) => [st.action, st.actionMain, pressed && ui.pressed]}>
             <Icon name="add" size={22} color={colors.blue} />
-            <Text style={st.actionText}>Nouvelle course</Text>
+            <Text style={st.actionText} numberOfLines={1}>Nouvelle course</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => router.push('/trips')} style={({ pressed }) => [st.action, pressed && ui.pressed]}>
             <Icon name="receipt-outline" size={22} color={colors.blue} />
-            <Text style={st.actionText}>Courses</Text>
+            <Text style={st.actionText} numberOfLines={1}>Courses</Text>
           </Pressable>
         </View>
 
@@ -212,9 +196,6 @@ const st = sheet(() => ({
   searchText: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: colors.muted },
   searchGo: { width: 42, height: 42, borderRadius: 21, backgroundColor: currentScheme() === 'dark' ? '#FFFFFF' : '#12133D', alignItems: 'center', justifyContent: 'center' },
   searchGoText: { fontFamily: fonts.titleBold, fontSize: 20, color: currentScheme() === 'dark' ? '#3D3BD9' : '#FFFFFF' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  chip: { minHeight: 38, maxWidth: '100%', paddingHorizontal: 13, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center' },
-  chipText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: '#FFFFFF' },
   last: { backgroundColor: colors.card, borderRadius: 24, padding: 18, gap: 12, ...shadow },
   lastHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   label: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.6, color: colors.muted },
@@ -234,8 +215,9 @@ const st = sheet(() => ({
   budgetTrack: { height: 10, borderRadius: 5, backgroundColor: colors.soft, overflow: 'hidden' },
   budgetFill: { height: 10, borderRadius: 5 },
   actions: { flexDirection: 'row', gap: 10 },
-  action: { minHeight: 54, borderRadius: 27, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line },
-  actionText: { fontFamily: fonts.title, fontSize: 16, color: colors.blue },
+  actionMain: { flex: 1.4 },
+  action: { flex: 1, minHeight: 54, borderRadius: 27, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line },
+  actionText: { fontFamily: fonts.title, fontSize: 15, color: colors.blue },
   note: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.soft, ...bubble(20), paddingHorizontal: 16, minHeight: 56 },
   noteText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText },
   gapTop: { marginTop: 4 },
