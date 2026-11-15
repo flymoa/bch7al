@@ -243,8 +243,13 @@ export default function Stats() {
             </Card>
 
             <View style={st.links}>
-              <Button label="Mes courses" icon="receipt-outline" tone="light" style={st.flex} onPress={() => router.push('/trips')} />
-              <Button label="Mes produits" icon="cube-outline" tone="light" style={st.flex} onPress={() => router.push('/products')} />
+              {/* Each button sits in its own half so the two are always the same width. */}
+              <View style={st.flex}>
+                <Button label="Courses" icon="receipt-outline" tone="light" style={st.linkBtn} onPress={() => router.push('/trips')} />
+              </View>
+              <View style={st.flex}>
+                <Button label="Produits" icon="cube-outline" tone="light" style={st.linkBtn} onPress={() => router.push('/products')} />
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -297,4 +302,5 @@ const st = sheet(() => ({
   infl: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.5, color: colors.ink },
   rank: { fontFamily: fonts.title, fontSize: 16, color: colors.muted, width: 16, textAlign: 'center' },
   links: { flexDirection: 'row', gap: 10 },
+  linkBtn: { paddingHorizontal: 12 },
 }));
