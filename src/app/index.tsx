@@ -9,6 +9,7 @@ import { Empty, RoundButton, Screen, Tile, VerdictStrip, s as ui, t } from '@/co
 import { getPref, listCount, listPlan, listTrips, monthSummary, previousMonth, tripVerdicts, type MonthSummary, type TripRow } from '@/db';
 import { addDays, currentMonth, longDate, todayIso, money, monthLabel, plural, type Verdict } from '@/format';
 import { bubble, bubbleRight, colors, currentScheme, fonts, shadow, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
 export default function Home() {
   useTheme();
@@ -142,16 +143,18 @@ export default function Home() {
           </View>
         ) : null}
 
+        {trips.length > 0 ? (
         <View style={st.actions}>
           <Pressable accessibilityRole="button" onPress={() => router.push('/trip/new')} style={({ pressed }) => [st.action, st.actionMain, pressed && ui.pressed]}>
             <Icon name="add" size={22} color={colors.blue} />
             <Text style={st.actionText} numberOfLines={1}>Nouvelle course</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => router.push('/trips')} style={({ pressed }) => [st.action, pressed && ui.pressed]}>
-            <Icon name="receipt-outline" size={22} color={colors.blue} />
-            <Text style={st.actionText} numberOfLines={1}>Courses</Text>
+            <Icon name="receipt-outline" size={22} color={colors.ink} />
+            <Text style={[st.actionText, st.actionTextQuiet]} numberOfLines={1}>Courses</Text>
           </Pressable>
         </View>
+        ) : null}
 
         {needBackup ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Sauvegarder mes courses" onPress={() => router.push('/settings')} style={({ pressed }) => [st.note, pressed && ui.pressed]}>
@@ -174,6 +177,7 @@ export default function Home() {
             <Empty
               title="Note ta première course"
               text="Scanne ton ticket avec le bouton du milieu, ou note tes achats à la main. Ton historique de prix se construit tout seul."
+              action={{ label: 'Nouvelle course', icon: 'add', onPress: () => router.push('/trip/new') }}
             />
           </View>
         ) : null}
@@ -183,43 +187,44 @@ export default function Home() {
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28, gap: 14 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brand: { fontFamily: fonts.titleBold, fontSize: 23, letterSpacing: -0.5, color: colors.ink },
+  content: { paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.xxl, gap: space.md },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  brand: { fontFamily: fonts.titleBold, fontSize: type.title, letterSpacing: -0.5, color: colors.ink },
   seven: { color: colors.blue },
-  slogan: { fontFamily: fonts.body, fontSize: 13, color: colors.muted, marginTop: 1 },
-  ask: { backgroundColor: colors.blue, ...bubble(26), paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20 },
+  slogan: { fontFamily: fonts.body, fontSize: type.caption, color: colors.muted },
+  ask: { backgroundColor: colors.blue, ...bubble(radius.lg), padding: space.lg },
   askTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  askTitle: { fontFamily: fonts.titleBold, fontSize: 30, letterSpacing: -0.8, color: '#FFFFFF' },
-  arabic: { fontFamily: fonts.bodyMedium, fontSize: 18, color: colors.onBlue },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14, minHeight: 54, borderRadius: 27, backgroundColor: currentScheme() === 'dark' ? colors.bg : '#FFFFFF', paddingLeft: 16, paddingRight: 6 },
-  searchText: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: colors.muted },
-  searchGo: { width: 42, height: 42, borderRadius: 21, backgroundColor: currentScheme() === 'dark' ? '#FFFFFF' : '#12133D', alignItems: 'center', justifyContent: 'center' },
-  searchGoText: { fontFamily: fonts.titleBold, fontSize: 20, color: currentScheme() === 'dark' ? '#3D3BD9' : '#FFFFFF' },
-  last: { backgroundColor: colors.card, borderRadius: 24, padding: 18, gap: 12, ...shadow },
+  askTitle: { fontFamily: fonts.titleBold, fontSize: type.h1, letterSpacing: -0.8, color: colors.white },
+  arabic: { fontFamily: fonts.bodyMedium, fontSize: type.bodyLg, color: colors.onBlue },
+  search: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md, minHeight: 56, borderRadius: radius.pill, backgroundColor: currentScheme() === 'dark' ? colors.bg : colors.card, paddingLeft: space.lg, paddingRight: space.sm },
+  searchText: { flex: 1, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.muted },
+  searchGo: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: currentScheme() === 'dark' ? colors.white : colors.night, alignItems: 'center', justifyContent: 'center' },
+  searchGoText: { fontFamily: fonts.titleBold, fontSize: type.title, color: currentScheme() === 'dark' ? colors.blue : colors.white },
+  last: { backgroundColor: colors.card, borderRadius: radius.lg, padding: space.lg, gap: space.md, ...shadow },
   lastHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 0.6, color: colors.muted },
-  lastRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  lastStore: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
-  lastTotal: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.5, color: colors.ink },
-  lastUnit: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.muted },
-  duo: { flexDirection: 'row', gap: 12 },
-  tile: { flex: 1, minHeight: 122, padding: 18, gap: 4 },
-  tileSky: { backgroundColor: colors.soft, ...bubble(26) },
-  tileInk: { backgroundColor: colors.night, ...bubbleRight(26) },
-  tileTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.ink, marginTop: 8 },
-  onInk: { color: '#FFFFFF' },
-  tileTotal: { fontFamily: fonts.titleBold, fontSize: 20, color: '#FFFFFF' },
-  tileUnit: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.onNight },
-  budget: { gap: 6, backgroundColor: colors.card, borderRadius: 20, padding: 14 },
-  budgetTrack: { height: 10, borderRadius: 5, backgroundColor: colors.soft, overflow: 'hidden' },
-  budgetFill: { height: 10, borderRadius: 5 },
-  actions: { flexDirection: 'row', gap: 10 },
-  actionMain: { flex: 1.4 },
-  action: { flex: 1, minHeight: 54, borderRadius: 27, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line },
-  actionText: { fontFamily: fonts.title, fontSize: 15, color: colors.blue },
-  note: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.soft, ...bubble(20), paddingHorizontal: 16, minHeight: 56 },
-  noteText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText },
-  gapTop: { marginTop: 4 },
+  label: { fontFamily: fonts.bodyBold, fontSize: type.caption, letterSpacing: 0.6, color: colors.muted },
+  lastRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  lastStore: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
+  lastTotal: { fontFamily: fonts.titleBold, fontSize: type.price, letterSpacing: -0.5, color: colors.ink, ...tabular },
+  lastUnit: { fontFamily: fonts.bodyMedium, fontSize: type.caption, color: colors.muted, letterSpacing: 0 },
+  duo: { flexDirection: 'row', gap: space.md },
+  tile: { flex: 1, minHeight: 120, padding: space.lg, gap: space.xs },
+  tileSky: { backgroundColor: colors.soft, ...bubble(radius.lg) },
+  tileInk: { backgroundColor: colors.night, ...bubbleRight(radius.lg) },
+  tileTitle: { fontFamily: fonts.title, fontSize: type.body, color: colors.ink, marginTop: space.sm },
+  onInk: { color: colors.onNight },
+  tileTotal: { fontFamily: fonts.titleBold, fontSize: type.h1, color: colors.white, ...tabular },
+  tileUnit: { fontFamily: fonts.bodyMedium, fontSize: type.caption, color: colors.onNight },
+  budget: { gap: space.sm, backgroundColor: colors.card, borderRadius: radius.lg, padding: space.lg },
+  budgetTrack: { height: space.sm, borderRadius: space.xs, backgroundColor: colors.soft, overflow: 'hidden' },
+  budgetFill: { height: space.sm, borderRadius: space.xs },
+  actions: { flexDirection: 'row', gap: space.md },
+  actionMain: { flex: 1.4, backgroundColor: colors.soft, borderColor: colors.soft },
+  action: { flex: 1, minHeight: 56, borderRadius: radius.pill, paddingHorizontal: space.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line },
+  actionText: { fontFamily: fonts.title, fontSize: type.body, color: colors.blue },
+  actionTextQuiet: { color: colors.ink },
+  note: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.soft, ...bubble(radius.md), paddingHorizontal: space.lg, minHeight: 56 },
+  noteText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.softText },
+  gapTop: { marginTop: space.xs },
   grow: { flex: 1, minWidth: 0 },
 }));

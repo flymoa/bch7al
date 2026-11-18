@@ -9,7 +9,7 @@ export const SEVEN_LENGTH = 70;
 
 export function Mark({ size = 40, fill, stroke }: { size?: number; fill?: string; stroke?: string }) {
   const f = fill ?? colors.blue;
-  const s = stroke ?? '#FFFFFF';
+  const s = stroke ?? colors.white;
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Path d={BUBBLE} fill={f} />

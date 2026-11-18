@@ -3,6 +3,7 @@ import { Icon } from '@/components/icon';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text } from 'react-native';
 import { colors, fonts, sheet } from '@/theme';
+import { radius, space, type } from '@/tokens';
 
 type Listener = (msg: string) => void;
 const listeners = new Set<Listener>();
@@ -44,6 +45,6 @@ export function ToastHost() {
 }
 
 const st = sheet(() => ({
-  toast: { position: 'absolute', left: 24, right: 24, bottom: 100, backgroundColor: colors.ink, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 10, elevation: 10 },
-  text: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.onInk },
+  toast: { position: 'absolute', left: space.xl, right: space.xl, bottom: space.xxxl * 2, backgroundColor: colors.ink, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, elevation: 10 },
+  text: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.onInk },
 }));

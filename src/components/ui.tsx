@@ -8,6 +8,7 @@ import { bubble, colors, fonts, shadow, sheet } from '@/theme';
 import { pct, pctChange, type Verdict } from '@/format';
 import { productIcon, storeIcon } from '@/icons';
 import { usePressScale } from './motion';
+import { radius, space, tabular, type } from '@/tokens';
 import { Animated } from 'react-native';
 
 type IconName = string;
@@ -173,7 +174,7 @@ export function VerdictStrip({ verdicts, onNight }: { verdicts: (Verdict | null)
               v.kind === 'good'
                 ? { backgroundColor: onNight ? colors.nightBlue : colors.blue }
                 : v.kind === 'normal'
-                  ? { backgroundColor: onNight ? '#2E3070' : colors.barSoft }
+                  ? { backgroundColor: onNight ? colors.nightSoft : colors.barSoft }
                   : onNight
                     ? { backgroundColor: colors.white }
                     : s.segHigh,
@@ -202,7 +203,7 @@ export function SectionTitle({ children, action, onAction }: { children: string;
   );
 }
 
-export function Empty({ title, text }: { title: string; text: string }) {
+export function Empty({ title, text, action }: { title: string; text: string; action?: { label: string; icon?: IconName; onPress: () => void } }) {
   return (
     <Card style={s.empty}>
       <View style={s.emptyIcon}>
@@ -210,6 +211,7 @@ export function Empty({ title, text }: { title: string; text: string }) {
       </View>
       <Text style={s.emptyTitle}>{title}</Text>
       <Text style={s.emptyText}>{text}</Text>
+      {action ? <Button label={action.label} icon={action.icon} onPress={action.onPress} style={s.emptyAction} /> : null}
     </Card>
   );
 }
@@ -251,7 +253,7 @@ function BottomBar({ active, bottom }: { active: Tab; bottom: number }) {
     </Pressable>
   );
   return (
-    <View style={[s.bar, { paddingBottom: 8 + bottom }]}>
+    <View style={[s.bar, { paddingBottom: space.sm + bottom }]}>
       {items.slice(0, 2).map(tab)}
       <PlusButton />
       {items.slice(2).map(tab)}
@@ -264,60 +266,61 @@ export const s = sheet(() => ({
   screen: { flex: 1, backgroundColor: colors.bg },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.45 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, gap: 10 },
-  headerTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.titleBold, fontSize: 20, color: colors.ink },
-  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', ...shadow },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.md },
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink },
+  round: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', ...shadow },
   roundSpace: { width: 44, height: 44 },
-  card: { backgroundColor: colors.card, borderRadius: 24, padding: 16, ...shadow },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingLeft: 10 },
+  card: { backgroundColor: colors.card, borderRadius: radius.lg, padding: space.lg, ...shadow },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, paddingLeft: space.md },
   tile: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  bubbleTile: { borderBottomLeftRadius: 6 },
+  bubbleTile: { borderBottomLeftRadius: radius.sm },
   tileText: { fontFamily: fonts.titleBold, color: colors.softText },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 11, borderRadius: 14, alignSelf: 'center' },
-  badgeHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg, paddingHorizontal: 8 },
-  badgeText: { fontFamily: fonts.bodyBold, fontSize: 12 },
-  stripWrap: { gap: 8 },
-  strip: { flexDirection: 'row', gap: 4 },
-  seg: { flex: 1, height: 10, borderRadius: 5 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: 2, alignSelf: 'flex-start' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, height: 28, paddingHorizontal: space.md, borderRadius: radius.pill, alignSelf: 'center' },
+  badgeHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg, paddingHorizontal: space.sm },
+  badgeText: { fontFamily: fonts.bodyBold, fontSize: type.caption },
+  stripWrap: { gap: space.sm },
+  strip: { flexDirection: 'row', gap: space.xs },
+  seg: { flex: 1, height: space.sm, borderRadius: space.xs },
   segHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg },
-  stripText: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
+  stripText: { fontFamily: fonts.body, fontSize: type.body, color: colors.muted },
   stripStrong: { fontFamily: fonts.bodyBold },
   chipUp: { borderWidth: 1.5, borderColor: colors.upText, paddingVertical: 0.5 },
   upBox: { borderWidth: 2, borderColor: colors.upText },
-  chipText: { fontFamily: fonts.bodyBold, fontSize: 12 },
-  pill: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+  chipText: { fontFamily: fonts.bodyBold, fontSize: type.caption },
+  pill: { minHeight: 44, paddingHorizontal: space.lg, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   pillActive: { backgroundColor: colors.ink, borderColor: colors.ink },
-  pillText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
+  pillText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
   pillTextActive: { color: colors.onInk },
-  button: { minHeight: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 20 },
+  button: { minHeight: 56, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingHorizontal: space.xl },
   buttonOutline: { borderWidth: 1.5, borderColor: colors.line },
-  buttonText: { fontFamily: fonts.title, fontSize: 17 },
-  section: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 18, paddingBottom: 8 },
-  sectionTitle: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
-  sectionAction: { minHeight: 32, justifyContent: 'center' },
-  sectionActionText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
-  empty: { padding: 22, alignItems: 'center', gap: 6 },
-  emptyIcon: { width: 64, height: 64, borderRadius: 22, borderBottomLeftRadius: 7, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  emptyTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, textAlign: 'center' },
-  emptyText: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, textAlign: 'center', lineHeight: 21 },
-  txt: { fontFamily: fonts.body, fontSize: 15, color: colors.ink },
-  bar: { backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 8, paddingTop: 10, shadowColor: colors.shadow, shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
-  tabPill: { width: 56, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontFamily: fonts.title, fontSize: type.bodyLg },
+  section: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xs, paddingTop: space.xl, paddingBottom: space.sm },
+  sectionTitle: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
+  sectionAction: { minHeight: 44, justifyContent: 'center' },
+  sectionActionText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
+  empty: { padding: space.xl, alignItems: 'center', gap: space.sm },
+  emptyIcon: { width: 64, height: 64, ...bubble(radius.lg), backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', marginBottom: space.xs },
+  emptyTitle: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink, textAlign: 'center' },
+  emptyText: { fontFamily: fonts.body, fontSize: type.body, color: colors.muted, textAlign: 'center', lineHeight: 22 },
+  emptyAction: { marginTop: space.md, alignSelf: 'stretch' },
+  txt: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink },
+  bar: { backgroundColor: colors.card, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: space.sm, paddingTop: space.sm, shadowColor: colors.shadow, shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  tabPill: { width: 56, height: 32, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   tabPillOn: { backgroundColor: colors.soft },
   tabTextOn: { color: colors.blue, fontFamily: fonts.bodyBold },
-  tab: { minWidth: 62, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  tabText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.muted },
-  plusWrap: { marginTop: -36 },
-  plus: { width: 62, height: 62, ...bubble(22), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', shadowColor: colors.blue, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
+  tab: { minWidth: 62, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: space.xs },
+  tabText: { fontFamily: fonts.bodyMedium, fontSize: type.caption, color: colors.muted },
+  plusWrap: { marginTop: -space.xxl },
+  plus: { width: 62, height: 62, ...bubble(radius.lg), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', shadowColor: colors.blue, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
   rowPressed: { backgroundColor: colors.cardPressed },
 }));
 
 // Shared text styles used by the screens.
 export const t = sheet(() => ({
-  name: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.ink },
-  meta: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-  price: { fontFamily: fonts.title, fontSize: 18, color: colors.ink },
-  unit: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink },
-  label: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.muted },
+  name: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
+  meta: { fontFamily: fonts.body, fontSize: type.caption, color: colors.muted },
+  price: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, ...tabular },
+  unit: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.ink },
+  label: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted },
 }));
