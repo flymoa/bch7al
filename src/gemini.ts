@@ -5,7 +5,10 @@
 import { knownStore, STAMP_DUTY, UNNAMED, type ReceiptItem, type ReceiptResult } from './receipt';
 
 /** Tried in this order; the first one the key may use is remembered. */
-export const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+export const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview'];
+/** Seconds to wait before each new round over the models when they are all busy. */
+const RETRY_WAITS = [2, 5, 10];
+const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
 const URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 
 const PROMPT = `Tu lis la photo d'un ticket de caisse marocain (français et/ou arabe). Réponds uniquement avec un objet JSON :
@@ -151,15 +154,27 @@ async function call(body: object, apiKey: string, ms: number): Promise<any> {
  */
 async function ask(build: (model: string) => object, apiKey: string, preferred: string | null | undefined, ms: number): Promise<{ json: any; model: string }> {
   const models = [...new Set([preferred, ...GEMINI_MODELS].filter(Boolean) as string[])];
+  const open = new Set(models); // models not yet known to be closed to this key (404)
   let last: unknown;
-  for (const model of models) {
-    try {
-      return { json: await call(build(model), apiKey, ms), model };
-    } catch (e) {
-      last = e;
-      const status = e instanceof GeminiError ? e.status : 0;
-      if (status === 404 || status === 429 || status >= 500) continue;
-      throw e;
+  const deadline = Date.now() + 75000; // never keep the user waiting more than ~75 s in total
+  // Round 1 right away, then wait 2, 5, 10 s before trying the busy models again:
+  // Google's free models often answer "503 high demand" for a few seconds only.
+  for (const wait of [0, ...RETRY_WAITS]) {
+    if (!open.size) break;
+    if (wait) await sleep(wait);
+    for (const model of models) {
+      if (!open.has(model)) continue;
+      if (Date.now() > deadline) throw last ?? new Error('Gemini ne répond pas');
+      try {
+        return { json: await call(build(model), apiKey, ms), model };
+      } catch (e) {
+        last = e;
+        const status = e instanceof GeminiError ? e.status : 0;
+        const aborted = (e as Error)?.name === 'AbortError' || /abort|cancel/i.test(String((e as Error)?.message));
+        if (status === 404) { open.delete(model); continue; }
+        if (status === 429 || status >= 500 || aborted) continue;
+        throw e;
+      }
     }
   }
   throw last;
@@ -183,12 +198,12 @@ export async function geminiRead(base64: string, mime: string, apiKey: string, p
   });
   let out: { json: any; model: string };
   try {
-    out = await ask(strict, apiKey, preferred, 60000);
+    out = await ask(strict, apiKey, preferred, 30000);
   } catch (e) {
     // An option this model does not accept: ask again with the plain request (the prompt
     // alone already asks for JSON).
     if (!(e instanceof GeminiError) || e.status !== 400 || /api key|image/i.test(e.message)) throw e;
-    out = await ask((model) => ({ model, input }), apiKey, preferred, 60000);
+    out = await ask((model) => ({ model, input }), apiKey, preferred, 30000);
   }
   return { ...geminiToReceipt(geminiText(out.json)), model: out.model };
 }

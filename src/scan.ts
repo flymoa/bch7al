@@ -38,28 +38,25 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
 
   let warning: string | undefined;
   if (geminiKey) {
-    const t0 = Date.now();
-    let step = 'photo';
     try {
       // Full-size camera photos are 5-10 MB once encoded: on mobile data the upload hit the
       // 60 s timeout and the app fell back to the phone reader. 1600 px is plenty to read a ticket.
       const small = await shrink(asset.uri);
-      step = 'gemini';
       const res = await geminiRead(small, 'image/jpeg', geminiKey, geminiModel);
       if (res.items.length > 0) return { ...res, engine: 'gemini' };
       warning = "Gemini n'a trouvé aucun article. Ticket lu sur le téléphone.";
     } catch (e) {
       const msg = String((e as Error).message ?? e);
       const status = (e as { status?: number }).status;
-      warning = status === 429
+      warning = status === 429 || (status ?? 0) >= 500
+        ? "Gemini est saturé en ce moment (réessayé plusieurs fois) : ticket lu sur le téléphone (sans les noms en arabe). Réessaie plus tard."
+        : status === 429
         ? "Limite gratuite de Gemini atteinte pour l'instant : ticket lu sur le téléphone (sans les noms en arabe). Réessaie dans une minute."
         : /abort/i.test(msg) || (e as Error).name === 'AbortError'
         ? 'Gemini a mis trop de temps à répondre : ticket lu sur le téléphone (sans les noms en arabe). Réessaie.'
         : !status || /network|fetch|timeout/i.test(msg)
         ? 'Pas de connexion : ticket lu sur le téléphone (sans les noms en arabe).'
         : `Gemini a refusé la lecture (${msg}). Ticket lu sur le téléphone.`;
-      // Temporary diagnostic: the exact error, the step and the time, to find why scans fail.
-      warning += ` [${step} · ${status ?? '-'} · ${(e as Error).name ?? ''}: ${msg.slice(0, 160)} · ${Math.round((Date.now() - t0) / 1000)} s]`;
     }
   }
 
