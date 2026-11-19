@@ -3,7 +3,7 @@ import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
-import { Empty, Header, Pill, RowCard, Screen, Tile, t } from '@/components/ui';
+import { Empty, Header, ListGroup, ListRow, Pill, Screen, Tile } from '@/components/ui';
 import { listMonths, listTrips, type TripRow } from '@/db';
 import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
 import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
@@ -70,20 +70,24 @@ export default function Trips() {
                 </View>
               ) : null}
             </View>
-            {trips.map((trip, i) => (
-              <FadeIn key={trip.id} index={i}>
-              <RowCard label={`${trip.store}, ${longDate(trip.date)}`} onPress={() => router.push(`/trip/${trip.id}`)}>
-                <Tile kind="store" text={trip.store} />
-                <View style={st.grow}>
-                  <Text style={t.name} numberOfLines={1}>{trip.store}</Text>
-                  <Text style={t.meta}>
-                    {longDate(trip.date)} · {plural(trip.n, 'article', 'articles')}
-                  </Text>
-                </View>
-                <Text style={t.price}>{money(trip.total)}</Text>
-              </RowCard>
-              </FadeIn>
-            ))}
+            {trips.length > 0 ? (
+              <ListGroup>
+                {trips.map((trip, i) => (
+                  <FadeIn key={trip.id} index={i}>
+                    <ListRow
+                      label={`${trip.store}, ${longDate(trip.date)}`}
+                      onPress={() => router.push(`/trip/${trip.id}`)}
+                      first={i === 0}
+                      leading={<Tile kind="store" text={trip.store} />}
+                      title={trip.store}
+                      meta={`${longDate(trip.date)} · ${plural(trip.n, 'article', 'articles')}`}
+                      price={money(trip.total)}
+                      unit="DH"
+                    />
+                  </FadeIn>
+                ))}
+              </ListGroup>
+            ) : null}
           </ScrollView>
         </>
       )}

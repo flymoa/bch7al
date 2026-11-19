@@ -2,7 +2,7 @@ import { Icon } from '@/components/icon';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
 import type { ScrollViewInstance, TextInputInstance } from 'react-native';
 import { Pop } from '@/components/motion';
@@ -11,7 +11,7 @@ import { scanAvailable, scanReceipt } from '@/scan';
 import { STAMP_DUTY } from '@/receipt';
 import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t , VerdictBadge, VerdictStrip} from '@/components/ui';
+import { Button, Card, Chip, Empty, Header, IconButton, LEAD, ListGroup, Pill, Screen, s as ui, t, VerdictBadge, VerdictStrip } from '@/components/ui';
 import { getPref, setPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
 import { addDays, cleanName, longDate, money, parseNumber, pct, plural, productKey, verdict, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { bubble, colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
@@ -541,13 +541,20 @@ export default function TripForm() {
           {items.length === 0 ? (
             <Empty title="Ton panier est vide" text="Ajoute ton premier article juste au-dessus." />
           ) : (
-            <View style={st.basket}>
-              {items.map((it, i) => ({ it, i })).reverse().map(({ it, i }) => {
+            <ListGroup>
+              {items.map((it, i) => ({ it, i })).reverse().map(({ it, i }, k) => {
                 const v = it.name === STAMP_DUTY ? null : verdict(it.unitPrice, it.last);
                 const dup = !it.unnamed && items.filter((x) => !x.unnamed && productKey(x.name) === productKey(it.name)).length > 1;
+                const notes = [
+                  it.scanned && !it.unnamed ? 'lu sur le ticket' : null,
+                  it.otherUnit ? `au ${it.unit}, noté à part` : null,
+                  v === null && !(it.known || it.scanned || it.name === STAMP_DUTY) ? 'nouveau produit' : null,
+                  v && v.kind !== 'normal' ? `${money(Math.abs(it.unitPrice - (it.last ?? 0)))} DH ${v.change < 0 ? 'de moins' : 'de plus'}` : null,
+                ].filter(Boolean);
                 return (
                   <Pop key={it.id}>
-                    <Card style={[st.line, (dup || it.unnamed) && st.lineDup]}>
+                    <View style={[st.line, (dup || it.unnamed) && st.lineDup]}>
+                      {k > 0 ? <View style={st.divider} /> : null}
                       <View style={st.lineTop}>
                         <View style={st.lineIcon}>
                           <MaterialCommunityIcons name={productIcon(it.name) as keyof typeof MaterialCommunityIcons.glyphMap} size={22} color={colors.softText} />
@@ -556,27 +563,19 @@ export default function TripForm() {
                           <Text style={t.name}>{it.name}</Text>
                           <Text style={t.meta}>
                             {qtyLabel(it.qty, it.unit)} × {money(it.unitPrice)} DH{it.unit === 'pièce' ? '' : ` / ${it.unit}`}
+                            {notes.length ? ` · ${notes.join(' · ')}` : ''}
                           </Text>
-                          <View style={st.chips}>
-                            {dup ? <Chip label="Doublon ?" tone="up" icon="copy-outline" /> : null}
-                            {it.unnamed ? <Chip label="Nom à écrire" tone="up" icon="create-outline" /> : null}
-                            {it.scanned && !it.unnamed ? <Chip label="Lu sur le ticket" icon="receipt-outline" /> : null}
-                            {it.otherUnit ? <Chip label={`Au ${it.unit}, noté à part`} icon="scale-outline" /> : null}
-                            {v === null ? (
-                              it.known || it.scanned || it.name === STAMP_DUTY ? null : <Chip label="Nouveau produit" />
-                            ) : (
-                              <View style={st.verdictRow}>
-                                <VerdictBadge v={v} />
-                                {v.kind === 'normal' ? null : (
-                                  <Text style={t.meta}>
-                                    {money(Math.abs(it.unitPrice - (it.last ?? 0)))} DH {v.change < 0 ? 'de moins' : 'de plus'}
-                                  </Text>
-                                )}
-                              </View>
-                            )}
-                          </View>
+                          {dup || it.unnamed ? (
+                            <View style={st.chips}>
+                              {dup ? <Chip label="Doublon ?" tone="up" icon="copy-outline" /> : null}
+                              {it.unnamed ? <Chip label="Nom à écrire" tone="up" icon="create-outline" /> : null}
+                            </View>
+                          ) : null}
                         </View>
-                        <Text style={st.lineTotal}>{money(it.qty * it.unitPrice)}</Text>
+                        <View style={st.lineRight}>
+                          <Text style={st.lineTotal}>{money(it.qty * it.unitPrice)}</Text>
+                          {v ? <VerdictBadge v={v} /> : null}
+                        </View>
                       </View>
                       <View style={st.lineActions}>
                         <View style={st.stepper}>
@@ -589,19 +588,15 @@ export default function TripForm() {
                           </Pressable>
                         </View>
                         <View style={st.lineButtons}>
-                          <Pressable accessibilityRole="button" accessibilityLabel={`Modifier ${it.name}`} onPress={() => editLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
-                            <Icon name="create-outline" size={20} color={colors.blue} />
-                          </Pressable>
-                          <Pressable accessibilityRole="button" accessibilityLabel={`Supprimer ${it.name}`} onPress={() => removeLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
-                            <Icon name="trash-outline" size={20} color={colors.danger} />
-                          </Pressable>
+                          <IconButton icon="create-outline" label={`Modifier ${it.name}`} onPress={() => editLine(i)} />
+                          <IconButton icon="trash-outline" label={`Supprimer ${it.name}`} onPress={() => removeLine(i)} tone="danger" />
                         </View>
                       </View>
-                    </Card>
+                    </View>
                   </Pop>
                 );
               })}
-            </View>
+            </ListGroup>
           )}
         </ScrollView>
 
@@ -654,20 +649,20 @@ const st = sheet(() => ({
   error: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.danger, marginTop: space.md, paddingHorizontal: space.xs },
   basketHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: space.xs, paddingTop: space.xl, paddingBottom: space.sm },
   basketTitle: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
-  basket: { gap: space.sm },
-  lineIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  lineDup: { borderWidth: 2, borderColor: colors.upText },
+  lineIcon: { width: LEAD, height: LEAD, borderRadius: radius.sm, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  lineDup: { borderWidth: 2, borderColor: colors.upText, borderRadius: radius.lg },
+  divider: { position: 'absolute', top: 0, right: 0, left: space.lg + LEAD + space.md, height: StyleSheet.hairlineWidth, backgroundColor: colors.line },
+  lineRight: { alignItems: 'flex-end', gap: space.xs },
   lineTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
-  lineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: space.sm },
-  lineButtons: { flexDirection: 'row', gap: space.sm },
-  iconBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: colors.neutral, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
+  lineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm, marginLeft: LEAD + space.md },
+  lineButtons: { flexDirection: 'row' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
-  line: { paddingVertical: space.md, paddingHorizontal: space.md },
+  line: { paddingVertical: space.md, paddingHorizontal: space.lg },
   lineMain: { flex: 1, minWidth: 0, gap: space.xs, minHeight: 44, justifyContent: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   step: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.neutral, alignItems: 'center', justifyContent: 'center' },
   stepValue: { fontFamily: fonts.title, fontSize: type.body, color: colors.ink, minWidth: 32, textAlign: 'center', ...tabular },
-  lineTotal: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, minWidth: 64, textAlign: 'right', ...tabular },
+  lineTotal: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, minWidth: 64, textAlign: 'right', ...tabular },
   footer: { backgroundColor: colors.card, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: space.lg, paddingVertical: space.lg, gap: space.md, elevation: 12 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   totalLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.muted, flex: 1 },

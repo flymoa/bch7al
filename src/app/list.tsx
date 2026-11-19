@@ -3,10 +3,10 @@
 import { Icon } from '@/components/icon';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
-import { Button, Card, Empty, Screen, s as ui, t } from '@/components/ui';
+import { Button, Card, Empty, ListGroup, Screen, s as ui, t } from '@/components/ui';
 import { addListItem, clearListDone, listPlan, listProducts, removeListItem, setListDone, type ListLine, type ListPlan, type ProductRow } from '@/db';
 import { money, plural, productKey } from '@/format';
 import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
@@ -120,25 +120,22 @@ export default function ShoppingList() {
               <Empty title="Ta liste est vide" text="Écris ce qu'il te faut juste en dessous. Pour chaque article, tu verras où tu l'as payé le moins cher." />
             </View>
           ) : (
-            <View style={st.lines}>
-              {plan.lines.map((l) => {
+            <ListGroup style={st.lines}>
+              {plan.lines.map((l, i) => {
                 const here = shown ? l.prices[shown.store] : undefined;
                 const price = here ?? l.best?.price;
                 const at = here !== undefined && shown ? shown.store : l.best?.store;
                 return (
                   <View key={l.id} style={[st.line, !!l.done && st.lineDone]}>
-                    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: !!l.done }} accessibilityLabel={l.name} onPress={() => toggle(l)} style={st.lineMain}>
+                    {i > 0 ? <View style={st.divider} /> : null}
+                    <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: !!l.done }} accessibilityLabel={l.name} onPress={() => toggle(l)} style={({ pressed }) => [st.lineMain, pressed && st.linePressed]}>
                       <View style={[st.box, !!l.done && st.boxOn]}>{l.done ? <Icon name="checkmark" size={18} color={colors.white} /> : null}</View>
-                      <Text style={[st.lineName, !!l.done && st.struck]} numberOfLines={1}>{l.name}</Text>
-                      {l.done ? (
-                        <Text style={t.meta}>pris</Text>
-                      ) : at ? (
-                        <View style={[st.storeChip, l.best && at === l.best.store && st.storeChipBest]}>
-                          <Text style={[st.storeChipText, l.best && at === l.best.store && st.storeChipTextBest]} numberOfLines={1}>{at}</Text>
-                        </View>
-                      ) : (
-                        <Text style={t.meta}>pas de prix</Text>
-                      )}
+                      <View style={st.lineText}>
+                        <Text style={[st.lineName, !!l.done && st.struck]} numberOfLines={1}>{l.name}</Text>
+                        <Text style={[t.meta, !l.done && !!at && !!l.best && at === l.best.store && st.best]} numberOfLines={1}>
+                          {l.done ? 'pris' : at ? (l.best && at === l.best.store ? `${at} · le moins cher` : at) : 'pas de prix'}
+                        </Text>
+                      </View>
                       {price !== undefined ? <Text style={[st.linePrice, !!l.done && st.muted]}>{money(price)}</Text> : null}
                     </Pressable>
                     <Pressable
@@ -155,7 +152,7 @@ export default function ShoppingList() {
                   </View>
                 );
               })}
-            </View>
+            </ListGroup>
           )}
 
           <View style={st.addRow}>
@@ -223,21 +220,21 @@ const st = sheet(() => ({
   storeBtnTextOn: { color: colors.blue },
   note: { marginTop: space.lg },
   gap: { marginTop: space.lg },
-  lines: { gap: space.sm, marginTop: space.lg },
-  line: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.md, paddingLeft: space.md },
+  lines: { marginTop: space.lg },
+  line: { flexDirection: 'row', alignItems: 'center' },
+  divider: { position: 'absolute', top: 0, right: 0, left: space.lg + 24 + space.md, height: StyleSheet.hairlineWidth, backgroundColor: colors.line },
+  linePressed: { backgroundColor: colors.cardPressed },
+  lineText: { flex: 1, minWidth: 0 },
+  best: { color: colors.softText, fontFamily: fonts.bodyBold },
   lineDone: { backgroundColor: colors.soft },
-  lineMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 52 },
+  lineMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56, paddingLeft: space.lg, paddingVertical: space.sm },
   box: { width: 24, height: 24, borderRadius: radius.sm, borderBottomLeftRadius: space.xs, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: colors.blue, borderColor: colors.blue },
   lineName: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
   struck: { textDecorationLine: 'line-through', color: colors.muted, fontFamily: fonts.body },
-  storeChip: { minHeight: 24, maxWidth: 88, borderRadius: radius.sm, paddingHorizontal: space.sm, justifyContent: 'center', backgroundColor: colors.neutral },
-  storeChipBest: { backgroundColor: colors.soft },
-  storeChipText: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted },
-  storeChipTextBest: { color: colors.softText },
-  linePrice: { minWidth: 56, textAlign: 'right', fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, ...tabular },
+  linePrice: { minWidth: 56, textAlign: 'right', fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, ...tabular },
   muted: { color: colors.muted },
-  remove: { width: 44, height: 52, alignItems: 'center', justifyContent: 'center' },
+  remove: { width: 44, height: 56, alignItems: 'center', justifyContent: 'center' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.barSoft, backgroundColor: colors.card, paddingLeft: space.lg, paddingRight: space.sm, minHeight: 56 },
   input: { flex: 1, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink, paddingVertical: space.sm },
   add: { width: 44, height: 44, ...bubble(radius.md), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },

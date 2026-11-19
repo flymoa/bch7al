@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { CountUp, FadeIn, GrowBar } from '@/components/motion';
-import { Button, Card, Chip, Empty, Header, RowCard, Screen, Tile, s as ui, t } from '@/components/ui';
+import { Button, Card, Chip, Empty, Header, ListGroup, ListRow, Screen, Tile, s as ui, t } from '@/components/ui';
 import { listMonths, monthRecap, monthStats, weekSpend, type MonthRecap, type MonthStats } from '@/db';
 import { currentMonth, money, monthLabel, pct, pctChange, plural, qtyLabel } from '@/format';
 import { useSQLiteContext } from '@/sqlite';
@@ -219,41 +219,47 @@ export default function Stats() {
                       Variation moyenne de tes prix, comparée à ton achat précédent, sur {plural(stats.compared, 'produit', 'produits')}.
                     </Text>
                   </View>
-                  {stats.moves.slice(0, 4).map((m) => (
-                    <RowCard key={m.id} label={m.name} onPress={() => router.push(`/product/${m.id}`)}>
-                      <Tile text={m.name} size={38} />
-                      <View style={st.flex}>
-                        <Text style={t.name} numberOfLines={1}>{m.name}</Text>
-                        <Text style={t.meta}>
-                          {money(m.before)} → {money(m.now)} DH / {m.unit}
-                        </Text>
-                      </View>
-                      {Math.abs(m.change) < 0.05 ? (
+                  <ListGroup bleed>
+                  {stats.moves.slice(0, 4).map((m, i) => (
+                    <ListRow
+                      key={m.id}
+                      label={m.name}
+                      onPress={() => router.push(`/product/${m.id}`)}
+                      first={i === 0}
+                      leading={<Tile text={m.name} />}
+                      title={m.name}
+                      meta={`avant ${money(m.before)} DH / ${m.unit}`}
+                      price={money(m.now)}
+                      unit="DH"
+                      verdict={Math.abs(m.change) < 0.05 ? (
                         <Chip label="Même prix" />
                       ) : (
                         <Chip label={pct(m.change)} tone={m.change < 0 ? 'down' : 'up'} icon={m.change < 0 ? 'arrow-down' : 'arrow-up'} />
                       )}
-                    </RowCard>
+                    />
                   ))}
+                  </ListGroup>
                 </>
               )}
             </Card>
 
             <Card style={st.block}>
               <Text style={st.title}>Là où part ton argent</Text>
+              <ListGroup bleed>
               {stats.topProducts.map((p, k) => (
-                <RowCard key={p.id} label={p.name} onPress={() => router.push(`/product/${p.id}`)}>
-                  <Text style={st.rank}>{k + 1}</Text>
-                  <Tile text={p.name} size={38} />
-                  <View style={st.flex}>
-                    <Text style={t.name} numberOfLines={1}>{p.name}</Text>
-                    <Text style={t.meta}>
-                      {qtyLabel(p.qty, p.unit)}{p.unit === 'kg' || p.unit === 'L' ? '' : ` ${p.unit}${p.qty > 1 ? 's' : ''}`}
-                    </Text>
-                  </View>
-                  <Text style={t.price}>{money(p.total)}</Text>
-                </RowCard>
+                <ListRow
+                  key={p.id}
+                  label={p.name}
+                  onPress={() => router.push(`/product/${p.id}`)}
+                  first={k === 0}
+                  leading={<Tile text={p.name} />}
+                  title={`${k + 1}. ${p.name}`}
+                  meta={`${qtyLabel(p.qty, p.unit)}${p.unit === 'kg' || p.unit === 'L' ? '' : ` ${p.unit}${p.qty > 1 ? 's' : ''}`}`}
+                  price={money(p.total)}
+                  unit="DH"
+                />
               ))}
+              </ListGroup>
             </Card>
 
             <View style={st.links}>
@@ -315,7 +321,6 @@ const st = sheet(() => ({
   title: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
   inflRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   infl: { fontFamily: fonts.titleBold, fontSize: type.price, letterSpacing: -0.5, color: colors.ink, ...tabular },
-  rank: { fontFamily: fonts.title, fontSize: type.body, color: colors.muted, width: space.lg, textAlign: 'center', ...tabular },
   links: { flexDirection: 'row', gap: space.md },
   linkBtn: { paddingHorizontal: space.md },
 }));

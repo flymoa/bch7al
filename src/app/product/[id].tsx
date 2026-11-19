@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
 import { FadeIn, GrowBar } from '@/components/motion';
-import { Button, Card, ChangeChip, Chip, Empty, Header, Pill, RoundButton, Screen, SectionTitle, Tile, s as ui, t } from '@/components/ui';
+import { Button, Card, ChangeChip, Chip, Empty, Header, ListGroup, ListRow, Pill, RoundButton, Screen, SectionTitle, Tile, s as ui, t } from '@/components/ui';
 import { getProduct, productHistory, updateProduct, type HistoryRow, type ProductRow } from '@/db';
 import { money, productKey, shortDate } from '@/format';
 import { colors, fonts, UNITS, sheet, useTheme } from '@/theme';
@@ -170,32 +170,27 @@ export default function ProductDetail() {
         </Card></FadeIn>
 
         <SectionTitle>Dernier prix par magasin</SectionTitle>
-        <Card style={st.rows}>
+        <ListGroup>
           {stores.map((h, i) => (
-            <View key={h.store} style={[st.rowLine, i > 0 && st.rowBorder]}>
-              <Tile kind="store" text={h.store} size={34} />
-              <View style={ui.flex}>
-                <Text style={t.name} numberOfLines={1}>{h.store}</Text>
-                <Text style={t.meta}>{shortDate(h.date)}</Text>
-              </View>
-              {i === 0 && stores.length > 1 && stores[1].unit_price > h.unit_price ? <Chip label="Le moins cher" tone="down" /> : null}
-              <Text style={t.price}>{money(h.unit_price)}</Text>
-            </View>
+            <ListRow
+              key={h.store}
+              label={`${h.store}, ${money(h.unit_price)} dirhams`}
+              first={i === 0}
+              leading={<Tile kind="store" text={h.store} />}
+              title={h.store}
+              meta={shortDate(h.date)}
+              price={money(h.unit_price)}
+              verdict={i === 0 && stores.length > 1 && stores[1].unit_price > h.unit_price ? <Chip label="Le moins cher" tone="down" /> : null}
+            />
           ))}
-        </Card>
+        </ListGroup>
 
         <SectionTitle>Tous les achats</SectionTitle>
-        <Card style={st.rows}>
+        <ListGroup>
           {[...history].reverse().slice(0, 40).map((h, i) => (
-            <View key={i} style={[st.rowLine, i > 0 && st.rowBorder]}>
-              <View style={ui.flex}>
-                <Text style={t.name} numberOfLines={1}>{h.store}</Text>
-                <Text style={t.meta}>{shortDate(h.date)}</Text>
-              </View>
-              <Text style={t.price}>{money(h.unit_price)}</Text>
-            </View>
+            <ListRow key={i} first={i === 0} title={h.store} meta={shortDate(h.date)} price={money(h.unit_price)} />
           ))}
-        </Card>
+        </ListGroup>
       </ScrollView>
     </Screen>
   );
@@ -223,7 +218,4 @@ const st = sheet(() => ({
   stat: { flex: 1, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
   statLabel: { fontFamily: fonts.bodyBold, fontSize: type.caption },
   statValue: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, ...tabular },
-  rows: { paddingVertical: space.xs },
-  rowLine: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 52, paddingVertical: space.sm },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.line },
 }));

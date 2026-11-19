@@ -4,7 +4,7 @@ import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
 import { FlatList, Text, TextInput, View } from 'react-native';
 import { FadeIn } from '@/components/motion';
-import { ChangeChip, Empty, Header, RowCard, Screen, Tile, t } from '@/components/ui';
+import { ChangeChip, Empty, Header, ListRow, Screen, Tile } from '@/components/ui';
 import { listProducts, type ProductRow } from '@/db';
 import { money, plural } from '@/format';
 import { colors, fonts, shadow, sheet, useTheme } from '@/theme';
@@ -59,19 +59,18 @@ export default function Products() {
             ListEmptyComponent={rows ? <Empty title="Aucun résultat" text={`Aucun produit ne correspond à « ${search.trim()} ».`} /> : undefined}
             renderItem={({ item: p, index }) => (
               <FadeIn index={index}>
-              <RowCard label={p.name} onPress={() => router.push(`/product/${p.id}`)}>
-                <Tile text={p.name} />
-                <View style={st.grow}>
-                  <Text style={t.name} numberOfLines={1}>{p.name}</Text>
-                  <Text style={t.meta}>
-                    Acheté {p.n} fois · par {p.unit}
-                  </Text>
-                </View>
-                <View style={st.right}>
-                  <Text style={t.price}>{money(p.last_price ?? 0)} <Text style={t.unit}>DH</Text></Text>
-                  <ChangeChip from={p.prev_price} to={p.last_price} />
-                </View>
-              </RowCard>
+              <ListRow
+                label={p.name}
+                onPress={() => router.push(`/product/${p.id}`)}
+                first={index === 0}
+                last={index === (rows?.length ?? 0) - 1}
+                leading={<Tile text={p.name} />}
+                title={p.name}
+                meta={`Acheté ${p.n} fois · par ${p.unit}`}
+                price={money(p.last_price ?? 0)}
+                unit="DH"
+                verdict={<ChangeChip from={p.prev_price} to={p.last_price} />}
+              />
               </FadeIn>
             )}
           />
@@ -85,8 +84,8 @@ const st = sheet(() => ({
   pad: { padding: space.lg },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginTop: space.xs, paddingHorizontal: space.lg, minHeight: 48, borderRadius: radius.pill, backgroundColor: colors.card, ...shadow },
   search: { flex: 1, minHeight: 48, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink },
-  list: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl, gap: space.sm },
-  count: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted, paddingHorizontal: space.xs },
+  list: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl },
+  count: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted, paddingHorizontal: space.xs, paddingBottom: space.sm },
   grow: { flex: 1, minWidth: 0 },
   right: { alignItems: 'flex-end', gap: space.xs },
 }));

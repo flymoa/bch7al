@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { FadeIn, Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
-import { Empty, RowCard, Screen, Tile, s as ui, t } from '@/components/ui';
+import { Empty, ListGroup, ListRow, Screen, Tile, s as ui, t } from '@/components/ui';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 import { addListItem, getProduct, listProducts, pricesByStore, productHistory, type HistoryRow, type ProductRow, type StorePrice } from '@/db';
 import { money, parseNumber, pct, plural, shortDate, verdict } from '@/format';
@@ -234,20 +234,22 @@ export default function Ask() {
               <View style={st.hint}>
                 <Text style={st.hintText}>{query.trim() ? 'Touche un produit' : 'Demande-moi un prix. Tes produits habituels :'}</Text>
               </View>
-              <View style={st.list}>
+              <ListGroup>
                 {results.map((p, i) => (
                   <FadeIn key={p.id} index={i}>
-                    <RowCard label={p.name} onPress={() => pick(p)}>
-                      <Tile text={p.name} />
-                      <View style={ui.flex}>
-                        <Text style={t.name} numberOfLines={1}>{p.name}</Text>
-                        <Text style={t.meta}>Acheté {p.n} fois</Text>
-                      </View>
-                      <Text style={t.price}>{money(p.last_price ?? 0)} <Text style={t.unit}>DH</Text></Text>
-                    </RowCard>
+                    <ListRow
+                      label={p.name}
+                      onPress={() => pick(p)}
+                      first={i === 0}
+                      leading={<Tile text={p.name} />}
+                      title={p.name}
+                      meta={`Acheté ${p.n} fois`}
+                      price={money(p.last_price ?? 0)}
+                      unit="DH"
+                    />
                   </FadeIn>
                 ))}
-              </View>
+              </ListGroup>
             </>
           )}
         </ScrollView>
@@ -297,7 +299,6 @@ const st = sheet(() => ({
   actionMainText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
   hint: { alignSelf: 'flex-start', backgroundColor: colors.soft, ...bubble(radius.lg), paddingHorizontal: space.lg, paddingVertical: space.md, maxWidth: '90%' },
   hintText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.ink },
-  list: { gap: space.sm },
   inputBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginBottom: space.md, minHeight: 56, borderRadius: radius.pill, backgroundColor: colors.card, paddingLeft: space.lg, paddingRight: space.sm, ...shadow },
   inputLead: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.blue },
   input: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink, paddingVertical: space.sm },

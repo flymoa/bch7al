@@ -51,24 +51,77 @@ export function RoundButton({ icon, label, onPress, tone = 'plain' }: { icon: Ic
   );
 }
 
-export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  return <View style={[s.card, style]}>{children}</View>;
+/** `outlined`: the "ghali" box, white with an ink outline and no shadow. */
+export function Card({ children, style, outlined }: { children: ReactNode; style?: StyleProp<ViewStyle>; outlined?: boolean }) {
+  return <View style={[s.card, outlined && s.cardOutlined, style]}>{children}</View>;
 }
 
-/** Row card that can be pressed. */
+/** Old name kept for callers: a single pressable list row. Prefer ListGroup + ListRow. */
 export function RowCard({ children, onPress, label }: { children: ReactNode; onPress: () => void; label: string }) {
-  const press = usePressScale(0.975);
   return (
-    <Animated.View style={press.style}>
-      <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} onPressIn={press.onPressIn} onPressOut={press.onPressOut} style={({ pressed }) => [s.card, s.row, pressed && s.rowPressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [s.group, s.row, pressed && s.rowPressed]}>
+      {children}
+    </Pressable>
+  );
+}
+
+/** One flat container for N rows. No shadow per row: the rows share it.
+ * `bleed`: inside a padded Card, the rows run edge to edge so the card is the one container. */
+export function ListGroup({ children, style, bleed }: { children: ReactNode; style?: StyleProp<ViewStyle>; bleed?: boolean }) {
+  return <View style={[s.group, bleed && s.groupBleed, style]}>{children}</View>;
+}
+
+export const LEAD = 40;
+
+/**
+ * A quiet list row. Name + muted meta on the left, the price on the right as the hero,
+ * an optional verdict under it. `first` hides the hairline; `first`/`last` round the corners
+ * so rows also work on their own inside a FlatList.
+ */
+export function ListRow({ label, onPress, leading, title, meta, price, unit, verdict, right, first, last, children }: {
+  label?: string; onPress?: () => void; leading?: ReactNode; title?: ReactNode; meta?: ReactNode; price?: string; unit?: string;
+  verdict?: ReactNode; right?: ReactNode; first?: boolean; last?: boolean; children?: ReactNode;
+}) {
+  const body = (
+    <>
+      {first ? null : <View style={[s.divider, { left: leading ? space.lg + LEAD + space.md : space.lg }]} />}
+      {leading}
+      <View style={s.rowText}>
+        {typeof title === 'string' ? <Text style={t.name} numberOfLines={1}>{title}</Text> : title}
+        {meta == null ? null : typeof meta === 'string' ? <Text style={t.meta} numberOfLines={1}>{meta}</Text> : meta}
         {children}
-      </Pressable>
-    </Animated.View>
+      </View>
+      {right}
+      {price !== undefined || verdict ? (
+        <View style={s.rowRight}>
+          {price !== undefined ? (
+            <Text style={t.price} numberOfLines={1}>{price}{unit ? <Text style={t.unit}> {unit}</Text> : null}</Text>
+          ) : null}
+          {verdict}
+        </View>
+      ) : null}
+    </>
+  );
+  const edges = [s.flatRow, first && s.rowFirst, last && s.rowLast];
+  if (!onPress) return <View style={edges} accessible={!!label} accessibilityLabel={label}>{body}</View>;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [...edges, pressed && s.rowPressed]}>
+      {body}
+    </Pressable>
+  );
+}
+
+/** Small icon-only button with a 44dp hit area, for quiet row actions. */
+export function IconButton({ icon, label, onPress, tone = 'plain' }: { icon: IconName; label: string; onPress: () => void; tone?: 'plain' | 'danger' }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [s.iconBtn, pressed && s.rowPressed]}>
+      <Icon name={icon} size={20} color={tone === 'danger' ? colors.danger : colors.muted} />
+    </Pressable>
   );
 }
 
 /** Rounded square with an icon guessed from the name: a product icon, or a store icon with kind="store". */
-export function Tile({ text, size = 48, kind = 'product' }: { text: string; size?: number; kind?: 'product' | 'store' }) {
+export function Tile({ text, size = LEAD, kind = 'product' }: { text: string; size?: number; kind?: 'product' | 'store' }) {
   const icon = kind === 'store' ? storeIcon(text) : productIcon(text);
   return (
     <View style={[s.tile, { width: size, height: size, borderRadius: size / 3 }, s.bubbleTile]}>
@@ -271,11 +324,11 @@ export const s = sheet(() => ({
   round: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', ...shadow },
   roundSpace: { width: 44, height: 44 },
   card: { backgroundColor: colors.card, borderRadius: radius.lg, padding: space.lg, ...shadow },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md, paddingLeft: space.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56, paddingVertical: space.md, paddingHorizontal: space.lg },
   tile: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   bubbleTile: { borderBottomLeftRadius: radius.sm },
   tileText: { fontFamily: fonts.titleBold, color: colors.softText },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: 2, alignSelf: 'flex-start' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: radius.sm, paddingHorizontal: space.sm, paddingVertical: space.xs, borderWidth: 1.5, borderColor: 'transparent', alignSelf: 'flex-start' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, height: 28, paddingHorizontal: space.md, borderRadius: radius.pill, alignSelf: 'center' },
   badgeHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg, paddingHorizontal: space.sm },
   badgeText: { fontFamily: fonts.bodyBold, fontSize: type.caption },
@@ -285,7 +338,7 @@ export const s = sheet(() => ({
   segHigh: { borderWidth: 2, borderColor: colors.upText, backgroundColor: colors.upBg },
   stripText: { fontFamily: fonts.body, fontSize: type.body, color: colors.muted },
   stripStrong: { fontFamily: fonts.bodyBold },
-  chipUp: { borderWidth: 1.5, borderColor: colors.upText, paddingVertical: 0.5 },
+  chipUp: { borderColor: colors.upText },
   upBox: { borderWidth: 2, borderColor: colors.upText },
   chipText: { fontFamily: fonts.bodyBold, fontSize: type.caption },
   pill: { minHeight: 44, paddingHorizontal: space.lg, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
@@ -314,13 +367,23 @@ export const s = sheet(() => ({
   plusWrap: { marginTop: -space.xxl },
   plus: { width: 62, height: 62, ...bubble(radius.lg), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', shadowColor: colors.blue, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
   rowPressed: { backgroundColor: colors.cardPressed },
+  cardOutlined: { backgroundColor: colors.upBg, borderWidth: 2, borderColor: colors.upText, shadowOpacity: 0, elevation: 0 },
+  groupBleed: { marginHorizontal: -space.lg, borderRadius: 0, backgroundColor: 'transparent' },
+  group: { backgroundColor: colors.card, borderRadius: radius.lg, overflow: 'hidden' },
+  flatRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56, paddingHorizontal: space.lg, paddingVertical: space.md, backgroundColor: colors.card },
+  rowFirst: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
+  rowLast: { borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
+  divider: { position: 'absolute', top: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: colors.line },
+  rowText: { flex: 1, minWidth: 0, gap: space.xs / 2 },
+  rowRight: { alignItems: 'flex-end', gap: space.xs },
+  iconBtn: { width: 44, height: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
 }));
 
 // Shared text styles used by the screens.
 export const t = sheet(() => ({
   name: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
   meta: { fontFamily: fonts.body, fontSize: type.caption, color: colors.muted },
-  price: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, ...tabular },
-  unit: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.ink },
+  price: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, textAlign: 'right', ...tabular },
+  unit: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted },
   label: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted },
 }));

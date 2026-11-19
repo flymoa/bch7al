@@ -15,7 +15,7 @@ import { radius, space, tabular, type } from '@/tokens';
 function Fact({ label, index, warm, children }: { label: string; index: number; warm?: boolean; children: ReactNode }) {
   return (
     <FadeIn index={index}>
-      <Card style={[st.fact, warm && st.factUp]}>
+      <Card outlined={warm} style={st.fact}>
         <Text style={t.label}>{label}</Text>
         {children}
       </Card>
@@ -122,7 +122,6 @@ const st = sheet(() => ({
   heroUnit: { fontFamily: fonts.bodyBold, fontSize: type.bodyLg, color: colors.white },
   heroMeta: { fontFamily: fonts.body, fontSize: type.body, color: colors.white, lineHeight: type.body + space.sm },
   fact: { gap: space.xs },
-  factUp: { backgroundColor: colors.upBg, borderWidth: 2, borderColor: colors.upText },
   name: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
   num: { fontFamily: fonts.titleBold, fontSize: type.price, color: colors.ink, ...tabular },
   plain: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink, lineHeight: type.body + space.sm },

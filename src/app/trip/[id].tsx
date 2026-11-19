@@ -1,9 +1,9 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Alert } from '@/alert';
-import { Button, Empty, Header, Screen, VerdictBadge, VerdictStrip, s as ui, t } from '@/components/ui';
+import { Button, Empty, Header, ListGroup, ListRow, Screen, VerdictBadge, VerdictStrip, t } from '@/components/ui';
 import { showToast } from '@/components/toast';
 import { deleteTrip, getTrip, tripVerdicts, type ItemRow, type TripRow } from '@/db';
 import { longDate, money, plural, qtyLabel, type Verdict } from '@/format';
@@ -89,30 +89,23 @@ export default function TripDetail() {
           )}
         </View>
 
-        <View style={st.items}>
-          {items.map((it) => {
+        <ListGroup>
+          {items.map((it, i) => {
             const v = verdicts[it.id] ?? null;
             return (
-              <Pressable
+              <ListRow
                 key={it.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Voir ${it.name}`}
+                label={`Voir ${it.name}`}
                 onPress={() => router.push(`/ask?id=${it.product_id}`)}
-                style={({ pressed }) => [st.item, pressed && ui.pressed]}
-              >
-                <View style={ui.flex}>
-                  <Text style={t.name} numberOfLines={1}>{it.name}</Text>
-                  <Text style={t.meta} numberOfLines={1}>
-                    {qtyLabel(it.qty, it.unit)} × {money(it.unit_price)}
-                    {it.unit === 'pièce' ? '' : ` / ${it.unit}`}
-                  </Text>
-                </View>
-                {v ? <VerdictBadge v={v} /> : null}
-                <Text style={st.itemPrice}>{money(it.qty * it.unit_price)}</Text>
-              </Pressable>
+                first={i === 0}
+                title={it.name}
+                meta={`${qtyLabel(it.qty, it.unit)} × ${money(it.unit_price)}${it.unit === 'pièce' ? '' : ` / ${it.unit}`}`}
+                price={money(it.qty * it.unit_price)}
+                verdict={v ? <VerdictBadge v={v} /> : null}
+              />
             );
           })}
-        </View>
+        </ListGroup>
 
         <Button label="Modifier" icon="create-outline" onPress={() => router.push(`/trip/new?id=${trip.id}`)} />
         <Button label="Supprimer" icon="trash-outline" tone="danger" onPress={confirmDelete} />
@@ -129,9 +122,6 @@ const st = sheet(() => ({
   nightHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' },
   nightTitle: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.white },
   nightMeta: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onNight },
-  items: { gap: space.sm },
-  item: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64, paddingHorizontal: space.lg, paddingVertical: space.md, backgroundColor: colors.card, borderRadius: radius.md },
-  itemPrice: { minWidth: 64, textAlign: 'right', fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, ...tabular },
   total: { fontFamily: fonts.titleBold, fontSize: type.priceHero, color: colors.ink, marginTop: space.sm, ...tabular },
   totalUnit: { fontFamily: fonts.title, fontSize: type.body, color: colors.muted },
 }));
