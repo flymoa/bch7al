@@ -3,6 +3,7 @@
 // Without one, or offline: read on the phone (French only).
 import { recognizeText } from '@infinitered/react-native-mlkit-text-recognition';
 import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { parseReceipt, toRows, type OcrLine, type ReceiptResult } from './receipt';
 import { geminiRead } from './gemini';
 
@@ -26,7 +27,7 @@ export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', gemini
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) throw new Error("L'accès à l'appareil photo a été refusé. Tu peux l'autoriser dans les réglages du téléphone.");
   }
-  const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.85, allowsEditing: true, base64: !!geminiKey };
+  const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.85, allowsEditing: true };
   const picked = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (picked.canceled || !picked.assets?.length) return null;
   return readPhoto(picked.assets[0], geminiKey, geminiModel);
@@ -36,9 +37,12 @@ export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', gemini
 export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiModel?: string | null): Promise<ScanResult> {
 
   let warning: string | undefined;
-  if (geminiKey && asset.base64) {
+  if (geminiKey) {
     try {
-      const res = await geminiRead(asset.base64, asset.mimeType || 'image/jpeg', geminiKey, geminiModel);
+      // Full-size camera photos are 5-10 MB once encoded: on mobile data the upload hit the
+      // 60 s timeout and the app fell back to the phone reader. 1600 px is plenty to read a ticket.
+      const small = await shrink(asset.uri);
+      const res = await geminiRead(small, 'image/jpeg', geminiKey, geminiModel);
       if (res.items.length > 0) return { ...res, engine: 'gemini' };
       warning = "Gemini n'a trouvé aucun article. Ticket lu sur le téléphone.";
     } catch (e) {
@@ -46,7 +50,9 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
       const status = (e as { status?: number }).status;
       warning = status === 429
         ? "Limite gratuite de Gemini atteinte pour l'instant : ticket lu sur le téléphone (sans les noms en arabe). Réessaie dans une minute."
-        : !status || /network|fetch|abort|timeout/i.test(msg)
+        : /abort/i.test(msg) || (e as Error).name === 'AbortError'
+        ? 'Gemini a mis trop de temps à répondre : ticket lu sur le téléphone (sans les noms en arabe). Réessaie.'
+        : !status || /network|fetch|timeout/i.test(msg)
         ? 'Pas de connexion : ticket lu sur le téléphone (sans les noms en arabe).'
         : `Gemini a refusé la lecture (${msg}). Ticket lu sur le téléphone.`;
     }
@@ -62,4 +68,14 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
   }
   if (lines.length === 0) return { store: null, date: null, items: [], total: null, expected: null, rows: [], engine: 'phone', warning };
   return { ...parseReceipt(toRows(lines)), engine: 'phone', warning };
+}
+
+/** Long edge 1600 px, JPEG 0.7: about 250-400 KB instead of several MB. */
+async function shrink(uri: string): Promise<string> {
+  const ctx = ImageManipulator.manipulate(uri);
+  ctx.resize({ width: 1600 });
+  const img = await ctx.renderAsync();
+  const out = await img.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
+  if (!out.base64) throw new Error('Photo illisible');
+  return out.base64;
 }
