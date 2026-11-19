@@ -4,7 +4,7 @@ import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
-import type { ScrollViewInstance } from 'react-native';
+import type { ScrollViewInstance, TextInputInstance } from 'react-native';
 import { Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
 import { scanAvailable, scanReceipt } from '@/scan';
@@ -53,6 +53,9 @@ export default function TripForm() {
   const [scanRows, setScanRows] = useState<string[]>([]);
   const [visionOn, setVisionOn] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  /** Store + date picker, folded into one summary line once a store is known. */
+  const [setupOpen, setSetupOpen] = useState(false);
+  const nameRef = useRef<TextInputInstance>(null);
   useEffect(() => {
     getPref(db, 'geminiKey').then((k) => setVisionOn(!!k));
   }, [db]);
@@ -72,6 +75,13 @@ export default function TripForm() {
       setLoaded(true);
       const keys = new Set(used.map(productKey));
       setStores([...used, ...DEFAULT_STORES.filter((d) => !keys.has(productKey(d)))]);
+      if (!existing) {
+        const last = await getPref(db, 'lastStore');
+        if (!alive) return;
+        const def = last || used[0] || '';
+        if (def) setStore((cur) => cur || def);
+        else setSetupOpen(true);
+      }
       if (existing) {
         setStore(existing.trip.store);
         setDate(existing.trip.date);
@@ -135,12 +145,14 @@ export default function TripForm() {
     setPriceMode('unit');
     setUnit(UNITS[0]);
     setError('');
+    nameRef.current?.focus();
   };
 
   const addSuggestion = (p: ProductRow) => {
     upsert({ name: p.name, unit: p.unit, qty: 1, unitPrice: p.last_price ?? 0, last: editId ? null : p.avg_price, known: true });
     setName('');
     setError('');
+    nameRef.current?.focus();
   };
 
   const changeQty = (index: number, direction: 1 | -1) => {
@@ -160,6 +172,7 @@ export default function TripForm() {
   const editLine = (index: number) => {
     const it = items[index];
     scrollRef.current?.scrollTo({ y: Math.max(0, formY.current - space.md), animated: true });
+    nameRef.current?.focus();
     setName(it.unnamed ? '' : it.name);
     setUnit(it.unit);
     setPriceMode('unit');
@@ -263,6 +276,7 @@ export default function TripForm() {
     }
     setSaving(true);
     try {
+      await setPref(db, 'lastStore', cleanName(store));
       await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice }) => ({ name: n, unit: u, qty: q, unitPrice })) });
       showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${money(total)} DH`);
       router.canGoBack() ? router.back() : router.replace('/trips');
@@ -274,100 +288,122 @@ export default function TripForm() {
 
   return (
     <Screen>
-      <Header title={editId ? 'Modifier la course' : 'Nouvelle course'} />
+      <Header
+        title={editId ? 'Modifier la course' : 'Nouvelle course'}
+        right={
+          editId ? undefined : (
+            <View style={st.headActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Scanner le ticket avec l'appareil photo" disabled={scanning} onPress={() => scan('camera')} style={({ pressed }) => [ui.round, pressed && ui.pressed, scanning && ui.disabled]}>
+                <Icon name="camera-outline" size={22} color={colors.blue} />
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Scanner un ticket depuis la galerie" disabled={scanning} onPress={() => scan('gallery')} style={({ pressed }) => [ui.round, pressed && ui.pressed, scanning && ui.disabled]}>
+                <Icon name="images-outline" size={22} color={colors.blue} />
+              </Pressable>
+            </View>
+          )
+        }
+      />
       <KeyboardAvoidingView style={ui.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView ref={scrollRef} contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
-          <View style={st.dateRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Jour précédent" onPress={() => setDate(addDays(date, -1))} style={ui.round}>
-              <Icon name="chevron-back" size={22} color={colors.ink} />
-            </Pressable>
-            <View style={st.dateBox}>
-              <Text style={st.dateText}>{date === today ? "Aujourd'hui" : longDate(date)}</Text>
-              {date === today ? <Text style={t.meta}>{longDate(date)}</Text> : null}
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Jour suivant"
-              accessibilityState={{ disabled: date >= today }}
-              disabled={date >= today}
-              onPress={() => setDate(addDays(date, 1))}
-              style={[ui.round, date >= today && ui.disabled]}
-            >
-              <Icon name="chevron-forward" size={22} color={colors.ink} />
-            </Pressable>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Changer le magasin ou la date"
+            accessibilityState={{ expanded: setupOpen }}
+            onPress={() => setSetupOpen((o) => !o)}
+            style={({ pressed }) => [st.summary, pressed && ui.pressed]}
+          >
+            <Text style={st.summaryText} numberOfLines={1}>
+              {cleanName(store) || 'Choisis le magasin'}
+              <Text style={st.summaryDate}> · {date === today ? "aujourd'hui" : longDate(date)}</Text>
+            </Text>
+            <Icon name={setupOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
+          </Pressable>
 
-          {editId ? null : (
-            <Card style={st.scanCard}>
-              <View style={st.scanHead}>
-                <View style={ui.flex}>
-                  <Text style={st.scanTitle}>Scanner le ticket</Text>
-                  <Text style={t.meta}>{scanAvailable ? (visionOn ? 'Lecture Gemini : français et arabe.' : 'Lecture sur le téléphone. Pour l\'arabe : Réglages.') : "Aperçu : Photo = ticket Marjane, Galerie = ticket en arabe."}</Text>
+          {setupOpen ? (
+            <View style={st.setup}>
+              <View style={st.dateRow}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Jour précédent" onPress={() => setDate(addDays(date, -1))} style={ui.round}>
+                  <Icon name="chevron-back" size={22} color={colors.ink} />
+                </Pressable>
+                <View style={st.dateBox}>
+                  <Text style={st.dateText}>{date === today ? "Aujourd'hui" : longDate(date)}</Text>
+                  {date === today ? <Text style={t.meta}>{longDate(date)}</Text> : null}
                 </View>
-              </View>
-              <View style={st.scanButtons}>
-                <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('camera')} style={({ pressed }) => [st.scanBtn, pressed && ui.pressed, scanning && ui.disabled]}>
-                  <Icon name="camera-outline" size={20} color={colors.blue} />
-                  <Text style={st.scanBtnText}>{scanning ? 'Lecture…' : 'Photo'}</Text>
-                </Pressable>
-                <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('gallery')} style={({ pressed }) => [st.scanBtn, pressed && ui.pressed, scanning && ui.disabled]}>
-                  <Icon name="images-outline" size={20} color={colors.blue} />
-                  <Text style={st.scanBtnText}>Galerie</Text>
-                </Pressable>
-              </View>
-              {scanNote ? <Text style={st.scanNote}>{scanNote}</Text> : null}
-              {scanRows.length ? (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => Alert.alert('Texte lu sur le ticket', scanRows.join('\n'))}
-                  style={({ pressed }) => [st.rawBtn, pressed && ui.pressed]}
+                  accessibilityLabel="Jour suivant"
+                  accessibilityState={{ disabled: date >= today }}
+                  disabled={date >= today}
+                  onPress={() => setDate(addDays(date, 1))}
+                  style={[ui.round, date >= today && ui.disabled]}
                 >
-                  <Icon name="document-text-outline" size={18} color={colors.blue} />
-                  <Text style={st.rawBtnText}>Voir le texte lu</Text>
+                  <Icon name="chevron-forward" size={22} color={colors.ink} />
                 </Pressable>
+              </View>
+              <Text style={st.label}>Où as-tu fait tes courses ?</Text>
+              <View style={st.wrap}>
+                {stores.map((name_) => (
+                  <Pill
+                    key={name_}
+                    label={name_}
+                    active={!otherStore && productKey(store) === productKey(name_)}
+                    onPress={() => {
+                      setOtherStore(false);
+                      setStore(name_);
+                      setError('');
+                      setSetupOpen(false);
+                    }}
+                  />
+                ))}
+                <Pill
+                  label="Autre"
+                  active={otherStore}
+                  onPress={() => {
+                    setOtherStore(true);
+                    setStore('');
+                  }}
+                />
+              </View>
+              {otherStore ? (
+                <TextInput
+                  accessibilityLabel="Nom du magasin"
+                  value={store}
+                  onChangeText={setStore}
+                  placeholder="Nom du magasin"
+                  placeholderTextColor={colors.muted}
+                  style={[st.input, st.gapTop]}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={() => setSetupOpen(false)}
+                />
               ) : null}
-            </Card>
-          )}
+              {editId ? null : (
+                <Text style={[t.meta, st.gapTop]}>
+                  {scanAvailable ? (visionOn ? 'Scan du ticket : lecture Gemini, français et arabe.' : "Scan du ticket : lecture sur le téléphone. Pour l'arabe : Réglages.") : 'Aperçu : Photo = ticket Marjane, Galerie = ticket en arabe.'}
+                </Text>
+              )}
+            </View>
+          ) : null}
 
-          <Text style={st.label}>Où as-tu fait tes courses ?</Text>
-          <View style={st.wrap}>
-            {stores.map((name_) => (
-              <Pill
-                key={name_}
-                label={name_}
-                active={!otherStore && productKey(store) === productKey(name_)}
-                onPress={() => {
-                  setOtherStore(false);
-                  setStore(name_);
-                  setError('');
-                }}
-              />
-            ))}
-            <Pill
-              label="Autre"
-              active={otherStore}
-              onPress={() => {
-                setOtherStore(true);
-                setStore('');
-              }}
-            />
-          </View>
-          {otherStore ? (
-            <TextInput
-              accessibilityLabel="Nom du magasin"
-              value={store}
-              onChangeText={setStore}
-              placeholder="Nom du magasin"
-              placeholderTextColor={colors.muted}
-              style={[st.input, st.gapTop]}
-              autoFocus
-            />
+          {scanning ? <Text style={st.scanNote}>Lecture du ticket…</Text> : null}
+          {scanNote ? <Text style={[st.scanNote, st.gapTop]}>{scanNote}</Text> : null}
+          {scanRows.length ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => Alert.alert('Texte lu sur le ticket', scanRows.join('\n'))}
+              style={({ pressed }) => [st.rawBtn, pressed && ui.pressed]}
+            >
+              <Icon name="document-text-outline" size={18} color={colors.blue} />
+              <Text style={st.rawBtnText}>Voir le texte lu</Text>
+            </Pressable>
           ) : null}
 
           <View onLayout={(e) => { formY.current = e.nativeEvent.layout.y; }}>
           <Card style={st.form}>
             <Text style={st.label}>Article</Text>
             <TextInput
+              ref={nameRef}
+              autoFocus={!editId && !params.scan}
               accessibilityLabel="Nom de l'article"
               value={name}
               onChangeText={(v) => {
@@ -506,7 +542,7 @@ export default function TripForm() {
             <Empty title="Ton panier est vide" text="Ajoute ton premier article juste au-dessus." />
           ) : (
             <View style={st.basket}>
-              {items.map((it, i) => {
+              {items.map((it, i) => ({ it, i })).reverse().map(({ it, i }) => {
                 const v = it.name === STAMP_DUTY ? null : verdict(it.unitPrice, it.last);
                 const dup = !it.unnamed && items.filter((x) => !x.unnamed && productKey(x.name) === productKey(it.name)).length > 1;
                 return (
@@ -590,13 +626,13 @@ const st = sheet(() => ({
   stripCard: { backgroundColor: colors.night, ...bubble(radius.lg), padding: space.lg, gap: space.md, marginBottom: space.md },
   stripTitle: { fontFamily: fonts.title, fontSize: type.body, color: colors.white },
   verdictRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.lg },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md },
   dateBox: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   dateText: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
   label: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted, marginBottom: space.sm },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   gapTop: { marginTop: space.md },
-  form: { marginTop: space.lg, padding: space.lg },
+  form: { marginTop: space.sm, padding: space.lg },
   input: { minHeight: 48, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, backgroundColor: colors.card, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink },
   number: { fontFamily: fonts.title, fontSize: type.title, ...tabular },
   suggest: { marginTop: space.md, gap: space.sm },
@@ -604,12 +640,11 @@ const st = sheet(() => ({
   suggestText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.softText, ...tabular },
   numbers: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, marginTop: space.md },
   qtyBox: { width: 88 },
-  scanCard: { marginBottom: space.lg, gap: space.md, padding: space.lg },
-  scanHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  scanTitle: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
-  scanButtons: { flexDirection: 'row', gap: space.sm },
-  scanBtn: { flex: 1, minHeight: 48, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
-  scanBtnText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
+  headActions: { flexDirection: 'row', gap: space.sm },
+  summary: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48, paddingHorizontal: space.xs },
+  summaryText: { flex: 1, fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
+  summaryDate: { fontFamily: fonts.body, color: colors.muted },
+  setup: { paddingTop: space.sm, paddingBottom: space.md },
   rawBtn: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, alignSelf: 'flex-start', paddingHorizontal: space.xs },
   rawBtnText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
   scanNote: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.softText, backgroundColor: colors.soft, borderRadius: radius.sm, padding: space.md, overflow: 'hidden' },
