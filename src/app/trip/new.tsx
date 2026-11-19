@@ -7,7 +7,7 @@ import { Alert } from '@/alert';
 import type { ScrollViewInstance, TextInputInstance } from 'react-native';
 import { Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
-import { scanAvailable, scanReceipt } from '@/scan';
+import { readPhoto, scanReceipt, type Photo, type ScanResult } from '@/scan';
 import { STAMP_DUTY } from '@/receipt';
 import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -51,14 +51,10 @@ export default function TripForm() {
   const [scanning, setScanning] = useState(false);
   const [scanNote, setScanNote] = useState('');
   const [scanRows, setScanRows] = useState<string[]>([]);
-  const [visionOn, setVisionOn] = useState(false);
   const [loaded, setLoaded] = useState(false);
   /** Store + date picker, folded into one summary line once a store is known. */
   const [setupOpen, setSetupOpen] = useState(false);
   const nameRef = useRef<TextInputInstance>(null);
-  useEffect(() => {
-    getPref(db, 'geminiKey').then((k) => setVisionOn(!!k));
-  }, [db]);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const formY = useRef(0);
 
@@ -75,13 +71,6 @@ export default function TripForm() {
       setLoaded(true);
       const keys = new Set(used.map(productKey));
       setStores([...used, ...DEFAULT_STORES.filter((d) => !keys.has(productKey(d)))]);
-      if (!existing) {
-        const last = await getPref(db, 'lastStore');
-        if (!alive) return;
-        const def = last || used[0] || '';
-        if (def) setStore((cur) => cur || def);
-        else setSetupOpen(true);
-      }
       if (existing) {
         setStore(existing.trip.store);
         setDate(existing.trip.date);
@@ -189,14 +178,30 @@ export default function TripForm() {
 
   const total = items.reduce((sum, it) => sum + it.qty * it.unitPrice, 0);
 
-  const scan = async (source: 'camera' | 'gallery' | 'photo') => {
+  /** Gemini failed: let the user retry online or read on the phone (no Arabic). */
+  const askAfterFailure = (reason: string, photo: Photo) => {
+    Alert.alert('Lecture en ligne impossible', `${reason} Le ticket n'a pas été lu.`, [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Lire sur le téléphone (sans arabe)', onPress: () => scan({ photo, phone: true }) },
+      { text: 'Réessayer', onPress: () => scan({ photo }) },
+    ]);
+  };
+
+  const scan = async (source: 'camera' | 'gallery' | 'photo' | { photo: Photo; phone?: boolean }) => {
     setError('');
+    setScanNote('');
     setScanning(true);
     try {
       const key = await getPref(db, 'geminiKey');
       const model = await getPref(db, 'geminiModel');
-      const res = await scanReceipt(source, key, model);
+      let res: ScanResult | null;
+      if (typeof source === 'object') res = await readPhoto(source.photo, source.phone ? null : key, model, false);
+      else res = await scanReceipt(source, key, model);
       if (!res) return;
+      if (res.onlineFailed) {
+        askAfterFailure(res.onlineFailed.reason, res.onlineFailed.photo);
+        return;
+      }
       if (res.model && res.model !== model) await setPref(db, 'geminiModel', res.model);
       setScanRows(res.rows);
       if (res.items.length === 0) {
@@ -238,16 +243,13 @@ export default function TripForm() {
       // Receipts count units: "2 x 2.50" is 2 articles; a weighed item is 1.
       const units = res.items.filter((i) => i.name !== STAMP_DUTY).reduce((n, i) => n + (i.unit === 'pièce' && Number.isInteger(i.qty) ? i.qty : 1), 0);
       const missing = res.expected !== null && res.expected > units;
-      const prefix = (res.warning ? res.warning + ' ' : '') + (res.engine === 'gemini' ? 'Lu avec Gemini. ' : '');
-      setScanNote(prefix + (
-        missing
-          ? `Le ticket compte ${plural(res.expected!, 'article', 'articles')}, ${units} ${units > 1 ? 'ont été lus' : 'a été lu'}. Ajoute ceux qui manquent à la main, ou reprends la photo bien à plat et éclairée.`
-          : unnamedCount > 0
-          ? `${plural(articles, 'article lu', 'articles lus')}. Certains noms n'ont pas pu être lus : touche « Modifier » sur chaque ligne « Nom à écrire ». Les prix et quantités sont déjà remplis.`
-          : res.total !== null && gap > 0.5
-          ? `${plural(articles, 'article lu', 'articles lus')}. Le ticket dit ${money(res.total)} DH mais les articles font ${money(read)} DH : vérifie s'il en manque.`
-          : `${plural(articles, 'article lu', 'articles lus')}${articles < res.items.length ? ' + droit de timbre' : ''}. Vérifie les noms et les prix avant d'enregistrer.`
-      ));
+      const ticketTotal = res.total ?? read;
+      setScanNote(
+        `${plural(articles, 'article lu', 'articles lus')} · Total du ticket : ${money(ticketTotal)} DH` +
+          (missing ? ` · le ticket en compte ${res.expected}` : '') +
+          (res.total !== null && gap > 0.5 ? ` · les articles font ${money(read)} DH` : '') +
+          (unnamedCount > 0 ? ` · ${plural(unnamedCount, 'nom à écrire', 'noms à écrire')}` : '')
+      );
     } catch (e) {
       Alert.alert('Le scan a échoué', String((e as Error).message ?? e));
     } finally {
@@ -378,11 +380,6 @@ export default function TripForm() {
                   onSubmitEditing={() => setSetupOpen(false)}
                 />
               ) : null}
-              {editId ? null : (
-                <Text style={[t.meta, st.gapTop]}>
-                  {scanAvailable ? (visionOn ? 'Scan du ticket : lecture Gemini, français et arabe.' : "Scan du ticket : lecture sur le téléphone. Pour l'arabe : Réglages.") : 'Aperçu : Photo = ticket Marjane, Galerie = ticket en arabe.'}
-                </Text>
-              )}
             </View>
           ) : null}
 

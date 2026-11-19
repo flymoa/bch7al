@@ -36,3 +36,9 @@ export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', _gemin
   await new Promise((r) => setTimeout(r, 600));
   return { ...parseReceipt(source === 'camera' ? MARJANE : SOUFI), date: null, engine: 'phone' };
 }
+
+export type { Photo } from './scan';
+/** Web preview has no online reading: retries just read the Marjane sample again. */
+export async function readPhoto(): Promise<ScanResult> {
+  return (await scanReceipt('camera'))!;
+}

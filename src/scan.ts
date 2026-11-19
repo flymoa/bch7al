@@ -9,7 +9,13 @@ import { geminiRead } from './gemini';
 
 export const scanAvailable = true;
 
-export type ScanResult = ReceiptResult & { engine: 'gemini' | 'phone'; warning?: string; model?: string };
+export type ScanResult = ReceiptResult & {
+  engine: 'gemini' | 'phone';
+  warning?: string;
+  model?: string;
+  /** Gemini failed and the phone reader was not allowed: why, and the photo to retry with. */
+  onlineFailed?: { reason: string; photo: Photo };
+};
 
 export type Photo = { uri: string; base64?: string | null; mimeType?: string | null };
 
@@ -21,7 +27,7 @@ export function takePendingPhoto(): Photo | null { const p = pending; pending = 
 export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', geminiKey?: string | null, geminiModel?: string | null): Promise<ScanResult | null> {
   if (source === 'photo') {
     const photo = takePendingPhoto();
-    return photo ? readPhoto(photo, geminiKey, geminiModel) : null;
+    return photo ? readPhoto(photo, geminiKey, geminiModel, false) : null;
   }
   if (source === 'camera') {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
@@ -30,11 +36,15 @@ export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', gemini
   const options: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.85, allowsEditing: true };
   const picked = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
   if (picked.canceled || !picked.assets?.length) return null;
-  return readPhoto(picked.assets[0], geminiKey, geminiModel);
+  return readPhoto(picked.assets[0], geminiKey, geminiModel, false);
 }
 
-/** Reads one receipt photo: Gemini when a key is set, otherwise (or on failure) on the phone. */
-export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiModel?: string | null): Promise<ScanResult> {
+/**
+ * Reads one receipt photo: Gemini when a key is set, otherwise on the phone.
+ * When Gemini fails and phoneFallback is false, nothing is read: the result carries
+ * onlineFailed so the screen can offer "Réessayer" or "Lire sur le téléphone".
+ */
+export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiModel?: string | null, phoneFallback = true): Promise<ScanResult> {
 
   let warning: string | undefined;
   if (geminiKey) {
@@ -44,19 +54,20 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
       const small = await shrink(asset.uri);
       const res = await geminiRead(small, 'image/jpeg', geminiKey, geminiModel);
       if (res.items.length > 0) return { ...res, engine: 'gemini' };
-      warning = "Gemini n'a trouvé aucun article. Ticket lu sur le téléphone.";
+      warning = "Gemini n'a trouvé aucun article.";
     } catch (e) {
       const msg = String((e as Error).message ?? e);
       const status = (e as { status?: number }).status;
       warning = status === 429 || (status ?? 0) >= 500
-        ? "Gemini est saturé en ce moment (réessayé plusieurs fois) : ticket lu sur le téléphone (sans les noms en arabe). Réessaie plus tard."
-        : status === 429
-        ? "Limite gratuite de Gemini atteinte pour l'instant : ticket lu sur le téléphone (sans les noms en arabe). Réessaie dans une minute."
-        : /abort/i.test(msg) || (e as Error).name === 'AbortError'
-        ? 'Gemini a mis trop de temps à répondre : ticket lu sur le téléphone (sans les noms en arabe). Réessaie.'
+        ? 'Gemini est saturé en ce moment.'
+        : /abort|cancel/i.test(msg) || (e as Error).name === 'AbortError'
+        ? 'Gemini a mis trop de temps à répondre.'
         : !status || /network|fetch|timeout/i.test(msg)
-        ? 'Pas de connexion : ticket lu sur le téléphone (sans les noms en arabe).'
-        : `Gemini a refusé la lecture (${msg}). Ticket lu sur le téléphone.`;
+        ? 'Pas de connexion internet.'
+        : `Gemini a refusé la lecture (${msg}).`;
+    }
+    if (!phoneFallback) {
+      return { store: null, date: null, items: [], total: null, expected: null, rows: [], engine: 'gemini', onlineFailed: { reason: warning ?? "Gemini n'a trouvé aucun article.", photo: asset } };
     }
   }
 
