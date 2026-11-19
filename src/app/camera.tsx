@@ -25,8 +25,8 @@ export default function Camera() {
     if (!cam.current || !ready || busy) return;
     setBusy(true);
     try {
-      const pic = await cam.current.takePictureAsync({ quality: 0.85, base64: true });
-      setPendingPhoto({ uri: pic.uri, base64: pic.base64, mimeType: 'image/jpeg' });
+      const pic = await cam.current.takePictureAsync({ quality: 0.85 });
+      setPendingPhoto({ uri: pic.uri, mimeType: 'image/jpeg' });
       router.replace('/trip/new?scan=photo');
     } catch (e) {
       setBusy(false);
