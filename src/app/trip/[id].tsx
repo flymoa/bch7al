@@ -8,6 +8,7 @@ import { showToast } from '@/components/toast';
 import { deleteTrip, getTrip, tripVerdicts, type ItemRow, type TripRow } from '@/db';
 import { longDate, money, plural, qtyLabel, type Verdict } from '@/format';
 import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
 export default function TripDetail() {
   useTheme();
@@ -66,11 +67,14 @@ export default function TripDetail() {
   const known = items.map((it) => verdicts[it.id] ?? null);
   return (
     <Screen>
-      <Header title="Ticket" />
+      <Header title="Course" />
       <ScrollView contentContainerStyle={st.content}>
         <View>
-          <Text style={st.h1}>{trip.store}</Text>
+          <Text style={st.h1} numberOfLines={1}>{trip.store}</Text>
           <Text style={t.meta}>{longDate(trip.date)}</Text>
+          <Text style={st.total} accessibilityLabel={`Total ${money(trip.total)} dirhams`}>
+            {money(trip.total)} <Text style={st.totalUnit}>DH</Text>
+          </Text>
         </View>
 
         <View style={st.night}>
@@ -110,15 +114,7 @@ export default function TripDetail() {
           })}
         </View>
 
-        <View style={st.totalRow}>
-          <View>
-            <Text style={t.meta}>Total</Text>
-            <Text style={st.total}>
-              {money(trip.total)} <Text style={st.totalUnit}>DH</Text>
-            </Text>
-          </View>
-          <Button label="Modifier" icon="create-outline" style={st.edit} onPress={() => router.push(`/trip/new?id=${trip.id}`)} />
-        </View>
+        <Button label="Modifier" icon="create-outline" onPress={() => router.push(`/trip/new?id=${trip.id}`)} />
         <Button label="Supprimer" icon="trash-outline" tone="danger" onPress={confirmDelete} />
       </ScrollView>
     </Screen>
@@ -126,18 +122,16 @@ export default function TripDetail() {
 }
 
 const st = sheet(() => ({
-  pad: { padding: 16 },
-  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24, gap: 14 },
-  h1: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.6, color: colors.ink },
-  night: { backgroundColor: colors.night, ...bubble(26), padding: 18, gap: 12 },
-  nightHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' },
-  nightTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.white },
-  nightMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.onNight },
-  items: { gap: 8 },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 60, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.card, borderRadius: 18 },
-  itemPrice: { width: 64, textAlign: 'right', fontFamily: fonts.title, fontSize: 16, color: colors.ink },
-  totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 },
-  total: { fontFamily: fonts.titleBold, fontSize: 26, color: colors.ink },
-  totalUnit: { fontFamily: fonts.title, fontSize: 14, color: colors.muted },
-  edit: { minWidth: 150 },
+  pad: { padding: space.lg },
+  content: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xl, gap: space.lg },
+  h1: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
+  night: { backgroundColor: colors.night, ...bubble(radius.lg), padding: space.lg, gap: space.md },
+  nightHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm, flexWrap: 'wrap' },
+  nightTitle: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.white },
+  nightMeta: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onNight },
+  items: { gap: space.sm },
+  item: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64, paddingHorizontal: space.lg, paddingVertical: space.md, backgroundColor: colors.card, borderRadius: radius.md },
+  itemPrice: { minWidth: 64, textAlign: 'right', fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, ...tabular },
+  total: { fontFamily: fonts.titleBold, fontSize: type.priceHero, color: colors.ink, marginTop: space.sm, ...tabular },
+  totalUnit: { fontFamily: fonts.title, fontSize: type.body, color: colors.muted },
 }));

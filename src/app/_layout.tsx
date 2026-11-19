@@ -55,7 +55,7 @@ export default function RootLayout() {
     [scheme, pref],
   );
 
-  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: '#3D3BD9' }} />;
+  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: colors.blue }} />;
 
   return (
     <ThemeContext.Provider value={theme}>

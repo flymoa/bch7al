@@ -1,26 +1,23 @@
 // "Ton mois" : one month told in a few lines.
-import { Icon } from '@/components/icon';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
-import { Button, Card, Empty, Header, Screen, s as ui, t } from '@/components/ui';
+import { Button, Card, Empty, Header, Screen, t } from '@/components/ui';
 import { monthRecap, type MonthRecap } from '@/db';
 import { currentMonth, money, monthLabel, pct, pctChange, plural } from '@/format';
-import { colors, fonts, sheet, useTheme } from '@/theme';
+import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
-function Fact({ icon, label, index, warm, children }: { icon: string; label: string; index: number; warm?: boolean; children: ReactNode }) {
+// One fact = a muted label over the thing itself. No decorative icon tile: the number or name is the hero.
+// "warm" (prices went up) = ink outline, never a warm colour.
+function Fact({ label, index, warm, children }: { label: string; index: number; warm?: boolean; children: ReactNode }) {
   return (
     <FadeIn index={index}>
-      <Card style={st.fact}>
-        <View style={[st.factIcon, warm && { backgroundColor: colors.upBg }, warm && ui.upBox]}>
-          <Icon name={icon} size={22} color={warm ? colors.upText : colors.softText} />
-        </View>
-        <View style={ui.flex}>
-          <Text style={t.label}>{label}</Text>
-          {children}
-        </View>
+      <Card style={[st.fact, warm && st.factUp]}>
+        <Text style={t.label}>{label}</Text>
+        {children}
       </Card>
     </FadeIn>
   );
@@ -43,7 +40,11 @@ export default function Recap() {
     <Screen>
       <Header title="Ton mois" />
       {r === null ? null : r.trips === 0 ? (
-        <Empty title={`Rien de noté en ${monthLabel(month).toLowerCase()}`} text="Note tes courses, et ton résumé du mois se remplira tout seul." />
+        <Empty
+          title={`Rien de noté en ${monthLabel(month).toLowerCase()}`}
+          text="Note tes courses, et ton résumé du mois se remplira tout seul."
+          action={{ label: 'Nouvelle course', icon: 'add', onPress: () => router.push('/trip/new') }}
+        />
       ) : (
         <ScrollView contentContainerStyle={st.content}>
           <FadeIn>
@@ -61,16 +62,16 @@ export default function Recap() {
           </FadeIn>
 
           {r.mainStore ? (
-            <Fact icon="storefront-outline" label="Ton magasin du mois" index={1}>
-              <Text style={st.big}>{r.mainStore.store}</Text>
+            <Fact label="Ton magasin du mois" index={1}>
+              <Text style={st.name} numberOfLines={1}>{r.mainStore.store}</Text>
               <Text style={t.meta}>{money(r.mainStore.total)} DH en {plural(r.mainStore.trips, 'course', 'courses')}</Text>
             </Fact>
           ) : null}
 
-          <Fact icon="wallet-outline" label="Celui qui t'a fait économiser" index={2}>
+          <Fact label="Celui qui t'a fait économiser" index={2}>
             {r.bestStore ? (
               <>
-                <Text style={st.big}>{r.bestStore.store}</Text>
+                <Text style={st.name} numberOfLines={1}>{r.bestStore.store}</Text>
                 <Text style={t.meta}>Environ {money(r.bestStore.saved)} DH de moins que les mêmes produits ailleurs.</Text>
               </>
             ) : (
@@ -78,11 +79,12 @@ export default function Recap() {
             )}
           </Fact>
 
-          <Fact icon="trending-up" label="La plus forte hausse" index={3} warm={!!r.rise}>
+          <Fact label="La plus forte hausse" index={3} warm={!!r.rise}>
             {r.rise ? (
               <>
-                <Text style={st.big}>{r.rise.name}</Text>
-                <Text style={t.meta}>+{pct(r.rise.change)} · {money(r.rise.before)} → {money(r.rise.now)} DH</Text>
+                <Text style={st.name} numberOfLines={1}>{r.rise.name}</Text>
+                <Text style={st.num}>+{pct(r.rise.change)}</Text>
+                <Text style={t.meta}>{money(r.rise.before)} → {money(r.rise.now)} DH</Text>
               </>
             ) : (
               <Text style={st.plain}>Aucun de tes produits n'a augmenté. Hamdoullah !</Text>
@@ -90,15 +92,16 @@ export default function Recap() {
           </Fact>
 
           {r.drop ? (
-            <Fact icon="trending-down" label="La bonne surprise" index={4}>
-              <Text style={st.big}>{r.drop.name}</Text>
-              <Text style={t.meta}>−{pct(r.drop.change)} · {money(r.drop.before)} → {money(r.drop.now)} DH</Text>
+            <Fact label="La bonne surprise" index={4}>
+              <Text style={st.name} numberOfLines={1}>{r.drop.name}</Text>
+              <Text style={st.num}>−{pct(r.drop.change)}</Text>
+              <Text style={t.meta}>{money(r.drop.before)} → {money(r.drop.now)} DH</Text>
             </Fact>
           ) : null}
 
           {r.inflation !== null ? (
-            <Fact icon="pulse-outline" label="Tes prix, en moyenne" index={5} warm={r.inflation > 0.05}>
-              <Text style={st.big}>{r.inflation >= 0 ? '+' : '−'}{pct(r.inflation)}</Text>
+            <Fact label="Tes prix, en moyenne" index={5} warm={r.inflation > 0.05}>
+              <Text style={st.num}>{r.inflation >= 0 ? '+' : '−'}{pct(r.inflation)}</Text>
               <Text style={t.meta}>Par rapport à ton achat précédent de chaque produit.</Text>
             </Fact>
           ) : null}
@@ -111,16 +114,17 @@ export default function Recap() {
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 28, gap: 10 },
-  hero: { backgroundColor: colors.blue, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderBottomRightRadius: 28, borderBottomLeftRadius: 9, padding: 22, gap: 2 },
-  heroMonth: { fontFamily: fonts.title, fontSize: 20, color: colors.white },
-  heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  heroTotal: { fontFamily: fonts.title, fontSize: 50, color: colors.white },
-  heroUnit: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.white },
-  heroMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.white, lineHeight: 20 },
-  fact: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  factIcon: { width: 46, height: 46, borderRadius: 16, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  big: { fontFamily: fonts.title, fontSize: 20, color: colors.ink },
-  plain: { fontFamily: fonts.body, fontSize: 14, color: colors.ink, lineHeight: 20, marginTop: 2 },
-  gap: { marginTop: 6 },
+  content: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xxl, gap: space.md },
+  hero: { backgroundColor: colors.blue, ...bubble(radius.lg), padding: space.xl, gap: space.xs },
+  heroMonth: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.white },
+  heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  heroTotal: { fontFamily: fonts.titleBold, fontSize: type.priceHero, color: colors.white, ...tabular },
+  heroUnit: { fontFamily: fonts.bodyBold, fontSize: type.bodyLg, color: colors.white },
+  heroMeta: { fontFamily: fonts.body, fontSize: type.body, color: colors.white, lineHeight: type.body + space.sm },
+  fact: { gap: space.xs },
+  factUp: { backgroundColor: colors.upBg, borderWidth: 2, borderColor: colors.upText },
+  name: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
+  num: { fontFamily: fonts.titleBold, fontSize: type.price, color: colors.ink, ...tabular },
+  plain: { fontFamily: fonts.body, fontSize: type.body, color: colors.ink, lineHeight: type.body + space.sm },
+  gap: { marginTop: space.sm },
 }));

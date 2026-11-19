@@ -68,7 +68,7 @@ export function RowCard({ children, onPress, label }: { children: ReactNode; onP
 }
 
 /** Rounded square with an icon guessed from the name: a product icon, or a store icon with kind="store". */
-export function Tile({ text, size = 46, kind = 'product' }: { text: string; size?: number; kind?: 'product' | 'store' }) {
+export function Tile({ text, size = 48, kind = 'product' }: { text: string; size?: number; kind?: 'product' | 'store' }) {
   const icon = kind === 'store' ? storeIcon(text) : productIcon(text);
   return (
     <View style={[s.tile, { width: size, height: size, borderRadius: size / 3 }, s.bubbleTile]}>

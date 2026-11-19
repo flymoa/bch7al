@@ -2,12 +2,13 @@ import { Icon } from '@/components/icon';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Text, TextInput, View } from 'react-native';
 import { FadeIn } from '@/components/motion';
 import { ChangeChip, Empty, Header, RowCard, Screen, Tile, t } from '@/components/ui';
 import { listProducts, type ProductRow } from '@/db';
 import { money, plural } from '@/format';
 import { colors, fonts, shadow, sheet, useTheme } from '@/theme';
+import { radius, space, type } from '@/tokens';
 
 export default function Products() {
   useTheme();
@@ -32,7 +33,7 @@ export default function Products() {
       <Header title="Mes produits" />
       {nothingYet ? (
         <View style={st.pad}>
-          <Empty title="Aucun produit pour l'instant" text="Les produits apparaissent ici dès que tu enregistres une course." />
+          <Empty title="Aucun produit pour l'instant" text="Les produits apparaissent ici dès que tu enregistres une course." action={{ label: 'Noter une course', icon: 'add', onPress: () => router.push('/trip/new') }} />
         </View>
       ) : (
         <>
@@ -67,7 +68,7 @@ export default function Products() {
                   </Text>
                 </View>
                 <View style={st.right}>
-                  <Text style={t.price}>{money(p.last_price ?? 0)}</Text>
+                  <Text style={t.price}>{money(p.last_price ?? 0)} <Text style={t.unit}>DH</Text></Text>
                   <ChangeChip from={p.prev_price} to={p.last_price} />
                 </View>
               </RowCard>
@@ -81,11 +82,11 @@ export default function Products() {
 }
 
 const st = sheet(() => ({
-  pad: { padding: 16 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 4, paddingHorizontal: 14, minHeight: 50, borderRadius: 25, backgroundColor: colors.card, ...shadow },
-  search: { flex: 1, minHeight: 50, fontFamily: fonts.body, fontSize: 16, color: colors.ink },
-  list: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24, gap: 8 },
-  count: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.muted, paddingHorizontal: 4 },
+  pad: { padding: space.lg },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginTop: space.xs, paddingHorizontal: space.lg, minHeight: 48, borderRadius: radius.pill, backgroundColor: colors.card, ...shadow },
+  search: { flex: 1, minHeight: 48, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink },
+  list: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl, gap: space.sm },
+  count: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted, paddingHorizontal: space.xs },
   grow: { flex: 1, minWidth: 0 },
-  right: { alignItems: 'flex-end', gap: 3 },
+  right: { alignItems: 'flex-end', gap: space.xs },
 }));

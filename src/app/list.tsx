@@ -10,6 +10,7 @@ import { Button, Card, Empty, Screen, s as ui, t } from '@/components/ui';
 import { addListItem, clearListDone, listPlan, listProducts, removeListItem, setListDone, type ListLine, type ListPlan, type ProductRow } from '@/db';
 import { money, plural, productKey } from '@/format';
 import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
 export default function ShoppingList() {
   useTheme();
@@ -71,12 +72,10 @@ export default function ShoppingList() {
                 <Text style={st.heroMeta}>
                   {shown === first ? (first.covered === plan.todo ? 'Pour tout acheter au même endroit' : 'Le magasin qui a le plus de ta liste') : 'Si tu vas chez'}
                 </Text>
-                <View style={st.heroRow}>
-                  <Text style={st.heroStore} numberOfLines={1}>{shown.store}</Text>
-                  <Text style={st.heroTotal}>
-                    {money(shown.total)} <Text style={st.heroUnit}>DH</Text>
-                  </Text>
-                </View>
+                <Text style={st.heroStore} numberOfLines={1}>{shown.store}</Text>
+                <Text style={st.heroTotal} adjustsFontSizeToFit numberOfLines={1}>
+                  {money(shown.total)} <Text style={st.heroUnit}>DH</Text>
+                </Text>
                 <Text style={st.heroLine}>
                   {shown.covered === plan.todo
                     ? shown === first && dearest && dearest.total - first.total > 0.005
@@ -206,44 +205,43 @@ export default function ShoppingList() {
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28 },
+  content: { paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.xxl },
   head: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  h1: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.6, color: colors.ink },
-  hero: { backgroundColor: colors.blue, ...bubble(26), padding: 18, gap: 4, marginTop: 14 },
-  heroMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.onBlue },
-  heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
-  heroStore: { flexShrink: 1, fontFamily: fonts.titleBold, fontSize: 38, letterSpacing: -1, color: '#FFFFFF' },
-  heroTotal: { fontFamily: fonts.titleBold, fontSize: 26, color: colors.white },
-  heroUnit: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.onBlue },
-  heroLine: { fontFamily: fonts.body, fontSize: 14, color: colors.white },
-  heroSmall: { fontFamily: fonts.body, fontSize: 12, color: colors.onBlue, marginTop: 8 },
-  storeBtns: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  storeBtn: { flex: 1, minHeight: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  storeBtnOn: { backgroundColor: '#FFFFFF' },
-  storeBtnName: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#FFFFFF' },
-  storeBtnTotal: { fontFamily: fonts.body, fontSize: 13, color: '#FFFFFF' },
-  storeBtnTextOn: { color: '#12133D' },
-  note: { marginTop: 14 },
-  gap: { marginTop: 14 },
-  lines: { gap: 6, marginTop: 14 },
-  line: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 16, paddingLeft: 14 },
+  h1: { fontFamily: fonts.titleBold, fontSize: type.h1, letterSpacing: -0.6, color: colors.ink },
+  hero: { backgroundColor: colors.blue, ...bubble(radius.lg), padding: space.xl, gap: space.xs, marginTop: space.lg },
+  heroMeta: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onBlue },
+  heroStore: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.white },
+  heroTotal: { fontFamily: fonts.titleBold, fontSize: type.priceHero, letterSpacing: -1.5, color: colors.white, ...tabular },
+  heroUnit: { fontFamily: fonts.bodyMedium, fontSize: type.title, color: colors.onBlue },
+  heroLine: { fontFamily: fonts.body, fontSize: type.body, color: colors.white },
+  heroSmall: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onBlue, marginTop: space.sm },
+  storeBtns: { flexDirection: 'row', gap: space.sm, marginTop: space.md },
+  storeBtn: { flex: 1, minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.onBlue, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xs },
+  storeBtnOn: { backgroundColor: colors.white, borderColor: colors.white },
+  storeBtnName: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.white },
+  storeBtnTotal: { fontFamily: fonts.body, fontSize: type.caption, color: colors.white, ...tabular },
+  storeBtnTextOn: { color: colors.blue },
+  note: { marginTop: space.lg },
+  gap: { marginTop: space.lg },
+  lines: { gap: space.sm, marginTop: space.lg },
+  line: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: radius.md, paddingLeft: space.md },
   lineDone: { backgroundColor: colors.soft },
-  lineMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
-  box: { width: 24, height: 24, borderRadius: 8, borderBottomLeftRadius: 3, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  lineMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 52 },
+  box: { width: 24, height: 24, borderRadius: radius.sm, borderBottomLeftRadius: space.xs, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: colors.blue, borderColor: colors.blue },
-  lineName: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  lineName: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
   struck: { textDecorationLine: 'line-through', color: colors.muted, fontFamily: fonts.body },
-  storeChip: { height: 24, maxWidth: 76, borderRadius: 12, paddingHorizontal: 8, justifyContent: 'center', backgroundColor: colors.neutral },
+  storeChip: { minHeight: 24, maxWidth: 88, borderRadius: radius.sm, paddingHorizontal: space.sm, justifyContent: 'center', backgroundColor: colors.neutral },
   storeChipBest: { backgroundColor: colors.soft },
-  storeChipText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.muted },
+  storeChipText: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted },
   storeChipTextBest: { color: colors.softText },
-  linePrice: { width: 54, textAlign: 'right', fontFamily: fonts.title, fontSize: 15, color: colors.ink },
+  linePrice: { minWidth: 56, textAlign: 'right', fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, ...tabular },
   muted: { color: colors.muted },
-  remove: { width: 40, height: 52, alignItems: 'center', justifyContent: 'center' },
-  addRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, borderRadius: 28, borderWidth: 1.5, borderColor: colors.barSoft, backgroundColor: colors.card, paddingLeft: 16, paddingRight: 6, minHeight: 56 },
-  input: { flex: 1, fontFamily: fonts.body, fontSize: 16, color: colors.ink, paddingVertical: 10 },
-  add: { width: 44, height: 44, ...bubble(16), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.soft, borderRadius: 18, paddingHorizontal: 12, minHeight: 36 },
-  chipText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText },
+  remove: { width: 44, height: 52, alignItems: 'center', justifyContent: 'center' },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.barSoft, backgroundColor: colors.card, paddingLeft: space.lg, paddingRight: space.sm, minHeight: 56 },
+  input: { flex: 1, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink, paddingVertical: space.sm },
+  add: { width: 44, height: 44, ...bubble(radius.md), backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, backgroundColor: colors.soft, borderRadius: radius.pill, paddingHorizontal: space.md, minHeight: 44 },
+  chipText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.softText },
 }));

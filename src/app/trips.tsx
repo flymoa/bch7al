@@ -1,12 +1,13 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { CountUp, FadeIn } from '@/components/motion';
 import { Empty, Header, Pill, RowCard, Screen, Tile, t } from '@/components/ui';
 import { listMonths, listTrips, type TripRow } from '@/db';
 import { currentMonth, longDate, money, monthLabel, plural } from '@/format';
-import { colors, fonts, sheet, useTheme } from '@/theme';
+import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
+import { space, tabular, type } from '@/tokens';
 
 export default function Trips() {
   useTheme();
@@ -41,7 +42,7 @@ export default function Trips() {
       <Header title="Mes courses" />
       {months.length === 0 ? (
         <View style={st.pad}>
-          <Empty title="Aucune course pour l'instant" text="Touche le bouton + en bas pour noter ta première course." />
+          <Empty title="Aucune course pour l'instant" text="Note ta première course : 30 secondes dans le magasin." action={{ label: 'Nouvelle course', icon: 'add', onPress: () => router.push('/trip/new') }} />
         </View>
       ) : (
         <>
@@ -64,7 +65,7 @@ export default function Trips() {
               </View>
               {trips.length > 0 ? (
                 <View style={st.avg}>
-                  <Text style={st.summaryMeta}>En moyenne</Text>
+                  <Text style={st.summaryMeta}>moyenne</Text>
                   <Text style={st.avgValue}>{money(total / trips.length)}</Text>
                 </View>
               ) : null}
@@ -91,14 +92,14 @@ export default function Trips() {
 }
 
 const st = sheet(() => ({
-  pad: { padding: 16 },
-  months: { paddingHorizontal: 16, gap: 8, paddingVertical: 6 },
-  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, gap: 8 },
-  summary: { backgroundColor: colors.blue, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottomRightRadius: 24, borderBottomLeftRadius: 8, padding: 18, flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  summaryMeta: { fontFamily: fonts.body, fontSize: 14, color: colors.white },
-  summaryTotal: { fontFamily: fonts.title, fontSize: 32, color: colors.white },
-  summaryUnit: { fontFamily: fonts.bodyBold, fontSize: 15 },
+  pad: { padding: space.lg },
+  months: { paddingHorizontal: space.lg, gap: space.sm, paddingVertical: space.sm },
+  content: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xl, gap: space.sm },
+  summary: { backgroundColor: colors.blue, ...bubble(), padding: space.lg, flexDirection: 'row', alignItems: 'flex-end', marginBottom: space.sm },
+  summaryMeta: { fontFamily: fonts.body, fontSize: type.caption, color: colors.white },
+  summaryTotal: { fontFamily: fonts.titleBold, fontSize: type.priceHero, color: colors.white, ...tabular },
+  summaryUnit: { fontFamily: fonts.bodyBold, fontSize: type.body },
   avg: { alignItems: 'flex-end' },
-  avgValue: { fontFamily: fonts.title, fontSize: 18, color: colors.white },
+  avgValue: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.white, ...tabular },
   grow: { flex: 1, minWidth: 0 },
 }));

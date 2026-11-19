@@ -2,7 +2,7 @@ import { Icon } from '@/components/icon';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
 import type { ScrollViewInstance } from 'react-native';
 import { Pop } from '@/components/motion';
@@ -14,7 +14,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, Pill, Screen, s as ui, t , VerdictBadge, VerdictStrip} from '@/components/ui';
 import { getPref, setPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
 import { addDays, cleanName, longDate, money, parseNumber, pct, plural, productKey, verdict, qty as fmtQty, qtyLabel, todayIso } from '@/format';
-import { colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
+import { bubble, colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
 /** `last` is the usual price of the product (average of earlier purchases), or null when there is nothing to compare. */
 type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean; unnamed?: boolean; otherUnit?: boolean };
@@ -151,16 +152,6 @@ export default function TripForm() {
     });
   };
 
-  const moveLine = (index: number, direction: -1 | 1) => {
-    setItems((cur) => {
-      const to = index + direction;
-      if (to < 0 || to >= cur.length) return cur;
-      const copy = [...cur];
-      [copy[index], copy[to]] = [copy[to], copy[index]];
-      return copy;
-    });
-  };
-
   const removeLine = (index: number) => {
     setItems((cur) => cur.filter((_, i) => i !== index));
   };
@@ -168,7 +159,7 @@ export default function TripForm() {
   /** Moves a basket line back into the form so its price or quantity can be corrected. */
   const editLine = (index: number) => {
     const it = items[index];
-    scrollRef.current?.scrollTo({ y: Math.max(0, formY.current - 12), animated: true });
+    scrollRef.current?.scrollTo({ y: Math.max(0, formY.current - space.md), animated: true });
     setName(it.unnamed ? '' : it.name);
     setUnit(it.unit);
     setPriceMode('unit');
@@ -309,9 +300,6 @@ export default function TripForm() {
           {editId ? null : (
             <Card style={st.scanCard}>
               <View style={st.scanHead}>
-                <View style={st.scanIcon}>
-                  <Icon name="receipt-outline" size={24} color={colors.softText} />
-                </View>
                 <View style={ui.flex}>
                   <Text style={st.scanTitle}>Scanner le ticket</Text>
                   <Text style={t.meta}>{scanAvailable ? (visionOn ? 'Lecture Gemini : français et arabe.' : 'Lecture sur le téléphone. Pour l\'arabe : Réglages.') : "Aperçu : Photo = ticket Marjane, Galerie = ticket en arabe."}</Text>
@@ -319,12 +307,12 @@ export default function TripForm() {
               </View>
               <View style={st.scanButtons}>
                 <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('camera')} style={({ pressed }) => [st.scanBtn, pressed && ui.pressed, scanning && ui.disabled]}>
-                  <Icon name="camera-outline" size={20} color={colors.white} />
+                  <Icon name="camera-outline" size={20} color={colors.blue} />
                   <Text style={st.scanBtnText}>{scanning ? 'Lecture…' : 'Photo'}</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('gallery')} style={({ pressed }) => [st.scanBtn, st.scanBtnLight, pressed && ui.pressed, scanning && ui.disabled]}>
+                <Pressable accessibilityRole="button" disabled={scanning} onPress={() => scan('gallery')} style={({ pressed }) => [st.scanBtn, pressed && ui.pressed, scanning && ui.disabled]}>
                   <Icon name="images-outline" size={20} color={colors.blue} />
-                  <Text style={[st.scanBtnText, { color: colors.blue }]}>Galerie</Text>
+                  <Text style={st.scanBtnText}>Galerie</Text>
                 </Pressable>
               </View>
               {scanNote ? <Text style={st.scanNote}>{scanNote}</Text> : null}
@@ -565,26 +553,6 @@ export default function TripForm() {
                           </Pressable>
                         </View>
                         <View style={st.lineButtons}>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Monter ${it.name}`}
-                            accessibilityState={{ disabled: i === 0 }}
-                            disabled={i === 0}
-                            onPress={() => moveLine(i, -1)}
-                            style={({ pressed }) => [st.iconBtn, i === 0 && ui.disabled, pressed && ui.pressed]}
-                          >
-                            <Icon name="arrow-up" size={20} color={colors.ink} />
-                          </Pressable>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={`Descendre ${it.name}`}
-                            accessibilityState={{ disabled: i === items.length - 1 }}
-                            disabled={i === items.length - 1}
-                            onPress={() => moveLine(i, 1)}
-                            style={({ pressed }) => [st.iconBtn, i === items.length - 1 && ui.disabled, pressed && ui.pressed]}
-                          >
-                            <Icon name="arrow-down" size={20} color={colors.ink} />
-                          </Pressable>
                           <Pressable accessibilityRole="button" accessibilityLabel={`Modifier ${it.name}`} onPress={() => editLine(i)} style={({ pressed }) => [st.iconBtn, pressed && ui.pressed]}>
                             <Icon name="create-outline" size={20} color={colors.blue} />
                           </Pressable>
@@ -616,60 +584,57 @@ export default function TripForm() {
 }
 
 const st = sheet(() => ({
-  hint: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 },
-  hintText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 13 },
-  content: { paddingHorizontal: 16, paddingBottom: 20 },
-  stripCard: { backgroundColor: colors.night, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottomRightRadius: 24, borderBottomLeftRadius: 8, padding: 16, gap: 10, marginBottom: 10 },
-  stripTitle: { fontFamily: fonts.title, fontSize: 15, color: colors.white },
-  verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  dateBox: { flex: 1, minHeight: 52, backgroundColor: colors.card, borderRadius: 18, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 },
-  dateText: { fontFamily: fonts.title, fontSize: 17, color: colors.ink },
-  label: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.muted, marginBottom: 6 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  gapTop: { marginTop: 12 },
-  form: { marginTop: 16, padding: 14 },
-  input: { minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, backgroundColor: colors.card, fontFamily: fonts.body, fontSize: 16, color: colors.ink },
-  number: { fontFamily: fonts.title, fontSize: 18 },
-  suggest: { marginTop: 10, gap: 6 },
-  suggestChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 14, backgroundColor: colors.soft },
-  suggestText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.softText },
-  numbers: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
-  qtyBox: { width: 92 },
-  scanCard: { marginBottom: 14, gap: 12, padding: 14 },
-  scanHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  scanIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
-  scanTitle: { fontFamily: fonts.title, fontSize: 17, color: colors.ink },
-  scanButtons: { flexDirection: 'row', gap: 8 },
-  scanBtn: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: colors.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  scanBtnLight: { backgroundColor: colors.card, borderWidth: 2, borderColor: colors.border },
-  scanBtnText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.white },
-  rawBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, alignSelf: 'flex-start', paddingHorizontal: 4 },
-  rawBtnText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
-  scanNote: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText, backgroundColor: colors.soft, borderRadius: 12, padding: 10, overflow: 'hidden' },
-  weightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  calc: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.softText, backgroundColor: colors.soft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10, overflow: 'hidden' },
-  add: { width: 50, height: 50, borderRadius: 16, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
-  error: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.danger, marginTop: 10, paddingHorizontal: 4 },
-  basketHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, paddingTop: 18, paddingBottom: 8 },
-  basketTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink },
-  basket: { gap: 8 },
-  lineIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  hint: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, marginTop: space.md },
+  hintText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body },
+  content: { paddingHorizontal: space.lg, paddingBottom: space.xl },
+  stripCard: { backgroundColor: colors.night, ...bubble(radius.lg), padding: space.lg, gap: space.md, marginBottom: space.md },
+  stripTitle: { fontFamily: fonts.title, fontSize: type.body, color: colors.white },
+  verdictRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.lg },
+  dateBox: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  dateText: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
+  label: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted, marginBottom: space.sm },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  gapTop: { marginTop: space.md },
+  form: { marginTop: space.lg, padding: space.lg },
+  input: { minHeight: 48, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, backgroundColor: colors.card, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink },
+  number: { fontFamily: fonts.title, fontSize: type.title, ...tabular },
+  suggest: { marginTop: space.md, gap: space.sm },
+  suggestChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: colors.soft },
+  suggestText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.softText, ...tabular },
+  numbers: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, marginTop: space.md },
+  qtyBox: { width: 88 },
+  scanCard: { marginBottom: space.lg, gap: space.md, padding: space.lg },
+  scanHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  scanTitle: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
+  scanButtons: { flexDirection: 'row', gap: space.sm },
+  scanBtn: { flex: 1, minHeight: 48, borderRadius: radius.pill, backgroundColor: colors.card, borderWidth: 2, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
+  scanBtnText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
+  rawBtn: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 44, alignSelf: 'flex-start', paddingHorizontal: space.xs },
+  rawBtnText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
+  scanNote: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.softText, backgroundColor: colors.soft, borderRadius: radius.sm, padding: space.md, overflow: 'hidden' },
+  weightRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  calc: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.softText, backgroundColor: colors.soft, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.sm, marginTop: space.md, overflow: 'hidden', ...tabular },
+  add: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
+  error: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.danger, marginTop: space.md, paddingHorizontal: space.xs },
+  basketHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: space.xs, paddingTop: space.xl, paddingBottom: space.sm },
+  basketTitle: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
+  basket: { gap: space.sm },
+  lineIcon: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
   lineDup: { borderWidth: 2, borderColor: colors.upText },
-  lineTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  lineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8 },
-  lineButtons: { flexDirection: 'row', gap: 6 },
-  iconBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: 10, borderRadius: 14, backgroundColor: colors.neutral, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  iconBtnText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 },
-  line: { paddingVertical: 10, paddingHorizontal: 12 },
-  lineMain: { flex: 1, minWidth: 0, gap: 3, minHeight: 44, justifyContent: 'center' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  step: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.neutral, alignItems: 'center', justifyContent: 'center' },
-  stepValue: { fontFamily: fonts.title, fontSize: 15, color: colors.ink, minWidth: 30, textAlign: 'center' },
-  lineTotal: { fontFamily: fonts.title, fontSize: 17, color: colors.ink, minWidth: 64, textAlign: 'right' },
-  footer: { backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14, gap: 10, elevation: 12 },
+  lineTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  lineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: space.sm },
+  lineButtons: { flexDirection: 'row', gap: space.sm },
+  iconBtn: { minHeight: 44, minWidth: 44, paddingHorizontal: space.md, borderRadius: radius.md, backgroundColor: colors.neutral, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
+  line: { paddingVertical: space.md, paddingHorizontal: space.md },
+  lineMain: { flex: 1, minWidth: 0, gap: space.xs, minHeight: 44, justifyContent: 'center' },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  step: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.neutral, alignItems: 'center', justifyContent: 'center' },
+  stepValue: { fontFamily: fonts.title, fontSize: type.body, color: colors.ink, minWidth: 32, textAlign: 'center', ...tabular },
+  lineTotal: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, minWidth: 64, textAlign: 'right', ...tabular },
+  footer: { backgroundColor: colors.card, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: space.lg, paddingVertical: space.lg, gap: space.md, elevation: 12 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  totalLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted, flex: 1 },
-  total: { fontFamily: fonts.title, fontSize: 28, color: colors.ink },
+  totalLabel: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.muted, flex: 1 },
+  total: { fontFamily: fonts.titleBold, fontSize: type.price, color: colors.ink, ...tabular },
 }));

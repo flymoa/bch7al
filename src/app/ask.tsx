@@ -12,6 +12,7 @@ import Svg, { Circle, Polyline } from 'react-native-svg';
 import { addListItem, getProduct, listProducts, pricesByStore, productHistory, type HistoryRow, type ProductRow, type StorePrice } from '@/db';
 import { money, parseNumber, pct, plural, shortDate, verdict } from '@/format';
 import { bubble, bubbleRight, colors, fonts, shadow, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
 const per = (unit: string) => (unit === 'pièce' ? '' : ` / ${unit}`);
 
@@ -86,7 +87,7 @@ export default function Ask() {
       />
       {query ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Effacer" onPress={() => setQuery('')} style={st.inputBtn}>
-          <Icon name="close" size={20} color="#FFFFFF" />
+          <Icon name="close" size={20} color={colors.white} />
         </Pressable>
       ) : (
         <View style={st.inputBtn}>
@@ -137,6 +138,37 @@ export default function Ask() {
                 </View>
               </Pop>
 
+              <View style={st.bubbleCard}>
+                <Text style={st.cardTitle}>Tu vois un prix en magasin ?</Text>
+                <View style={st.seenRow}>
+                  <TextInput
+                    accessibilityLabel={`Prix vu en dirhams${per(picked.unit)}`}
+                    value={seen}
+                    onChangeText={setSeen}
+                    placeholder="0,00"
+                    placeholderTextColor={colors.muted}
+                    keyboardType="decimal-pad"
+                    style={st.seenInput}
+                  />
+                  <Text style={st.mad}>DH{per(picked.unit)}</Text>
+                </View>
+                {v ? (
+                  <View style={[st.verdict, v.kind === 'good' ? { backgroundColor: colors.blue } : v.kind === 'high' ? ui.upBox : { backgroundColor: colors.soft }]} accessibilityLiveRegion="polite">
+                    <Text style={[st.verdictTitle, { color: v.kind === 'good' ? colors.white : colors.ink }]}>
+                      {v.kind === 'good' ? 'Mzyan, chri !' : v.kind === 'high' ? 'Ghali' : 'Normal'}
+                    </Text>
+                    <Text style={[st.verdictText, { color: v.kind === 'good' ? colors.white : colors.ink }]}>
+                      {v.kind === 'normal'
+                        ? `À peu près ce que tu paies d'habitude (${money(usual ?? 0)} DH).`
+                        : `${pct(v.change)} ${v.change < 0 ? 'de moins' : 'de plus'} que d'habitude (${money(usual ?? 0)} DH).`}
+                      {best && seenPrice > best.price + 0.005 ? ` Tu l'as eu à ${money(best.price)} chez ${best.store}.` : ''}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={t.meta}>Écris le prix affiché, je te dis si c'est mzyan ou ghali.</Text>
+                )}
+              </View>
+
               {others.length > 0 ? (
                 <FadeIn index={1}>
                   <View style={st.bubbleCard}>
@@ -175,37 +207,6 @@ export default function Ask() {
                   </View>
                 </FadeIn>
               ) : null}
-
-              <View style={st.bubbleCard}>
-                <Text style={st.cardTitle}>Tu vois un prix en magasin ?</Text>
-                <View style={st.seenRow}>
-                  <TextInput
-                    accessibilityLabel={`Prix vu en dirhams${per(picked.unit)}`}
-                    value={seen}
-                    onChangeText={setSeen}
-                    placeholder="0,00"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    style={st.seenInput}
-                  />
-                  <Text style={st.mad}>DH{per(picked.unit)}</Text>
-                </View>
-                {v ? (
-                  <View style={[st.verdict, v.kind === 'good' ? { backgroundColor: colors.blue } : v.kind === 'high' ? ui.upBox : { backgroundColor: colors.soft }]} accessibilityLiveRegion="polite">
-                    <Text style={[st.verdictTitle, { color: v.kind === 'good' ? '#FFFFFF' : colors.ink }]}>
-                      {v.kind === 'good' ? 'Mzyan, chri !' : v.kind === 'high' ? 'Ghali' : 'Normal'}
-                    </Text>
-                    <Text style={[st.verdictText, { color: v.kind === 'good' ? '#FFFFFF' : colors.ink }]}>
-                      {v.kind === 'normal'
-                        ? `À peu près ce que tu paies d'habitude (${money(usual ?? 0)} DH).`
-                        : `${pct(v.change)} ${v.change < 0 ? 'de moins' : 'de plus'} que d'habitude (${money(usual ?? 0)} DH).`}
-                      {best && seenPrice > best.price + 0.005 ? ` Tu l'as eu à ${money(best.price)} chez ${best.store}.` : ''}
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={t.meta}>Écris le prix affiché, je te dis si c'est mzyan ou ghali.</Text>
-                )}
-              </View>
 
               <View style={st.actions}>
                 <Pressable
@@ -257,49 +258,49 @@ export default function Ask() {
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, gap: 12 },
+  content: { paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.xl, gap: space.md },
   head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  h1: { fontFamily: fonts.titleBold, fontSize: 28, letterSpacing: -0.6, color: colors.ink },
+  h1: { fontFamily: fonts.titleBold, fontSize: type.h1, letterSpacing: -0.6, color: colors.ink },
   right: { alignSelf: 'flex-end', maxWidth: '86%' },
-  question: { backgroundColor: colors.night, ...bubbleRight(24), paddingHorizontal: 18, paddingVertical: 13 },
-  questionText: { fontFamily: fonts.bodyMedium, fontSize: 16, color: '#FFFFFF' },
-  answer: { backgroundColor: colors.blue, ...bubble(26), padding: 20, gap: 4, maxWidth: 330 },
+  question: { backgroundColor: colors.night, ...bubbleRight(radius.lg), paddingHorizontal: space.lg, paddingVertical: space.md },
+  questionText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.white },
+  answer: { backgroundColor: colors.blue, ...bubble(radius.lg), padding: space.xl, gap: space.xs },
   answerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  answerLabel: { fontFamily: fonts.body, fontSize: 13, color: colors.onBlue },
-  answerBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 28, paddingHorizontal: 11, borderRadius: 14, backgroundColor: '#FFFFFF' },
-  answerBadgeText: { fontFamily: fonts.bodyBold, fontSize: 12, color: '#3D3BD9' },
-  answerRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  answerPrice: { fontFamily: fonts.titleBold, fontSize: 68, lineHeight: 80, letterSpacing: -2.5, color: '#FFFFFF', flexShrink: 1 },
-  answerUnit: { fontFamily: fonts.bodyMedium, fontSize: 20, color: colors.onBlue },
-  answerMeta: { fontFamily: fonts.body, fontSize: 15, color: '#FFFFFF' },
-  answerSmall: { fontFamily: fonts.body, fontSize: 13, color: colors.onBlue, marginTop: 2 },
+  answerLabel: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onBlue },
+  answerBadge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 28, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.white },
+  answerBadgeText: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.blue },
+  answerRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  answerPrice: { fontFamily: fonts.titleBold, fontSize: type.priceHero, lineHeight: 58, letterSpacing: -1.5, color: colors.white, flexShrink: 1, ...tabular },
+  answerUnit: { fontFamily: fonts.bodyMedium, fontSize: type.title, color: colors.onBlue },
+  answerMeta: { fontFamily: fonts.body, fontSize: type.body, color: colors.white },
+  answerSmall: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onBlue },
   strong: { fontFamily: fonts.bodyBold },
-  bubbleCard: { alignSelf: 'stretch', backgroundColor: colors.card, ...bubble(24), padding: 16, gap: 10, maxWidth: 340, ...shadow },
+  bubbleCard: { alignSelf: 'stretch', backgroundColor: colors.card, ...bubble(radius.lg), padding: space.lg, gap: space.md, ...shadow },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  cardTitle: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
-  otherRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  otherName: { width: 76, fontFamily: fonts.body, fontSize: 14, color: colors.ink },
-  otherTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.soft },
-  otherBar: { height: 8, borderRadius: 4, backgroundColor: colors.barSoft },
-  otherPrice: { width: 48, textAlign: 'right', fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
-  chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
-  seenRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  seenInput: { flex: 1, minWidth: 0, width: '100%', backgroundColor: colors.bg, borderRadius: 16, borderWidth: 1.5, borderColor: colors.line, paddingHorizontal: 14, minHeight: 54, fontFamily: fonts.title, fontSize: 22, color: colors.ink },
-  mad: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted },
-  verdict: { ...bubble(18), padding: 14, gap: 2 },
-  verdictTitle: { fontFamily: fonts.titleBold, fontSize: 20 },
-  verdictText: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  action: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
+  cardTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
+  otherRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 32 },
+  otherName: { width: 88, fontFamily: fonts.body, fontSize: type.body, color: colors.ink },
+  otherTrack: { flex: 1, height: space.sm, borderRadius: space.xs, backgroundColor: colors.soft },
+  otherBar: { height: space.sm, borderRadius: space.xs, backgroundColor: colors.barSoft },
+  otherPrice: { minWidth: 64, textAlign: 'right', fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink, ...tabular },
+  chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
+  seenRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  seenInput: { flex: 1, minWidth: 0, backgroundColor: colors.bg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: space.lg, minHeight: 64, fontFamily: fonts.titleBold, fontSize: type.price, color: colors.ink, ...tabular },
+  mad: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.muted },
+  verdict: { ...bubble(radius.md), padding: space.lg, gap: space.xs },
+  verdictTitle: { fontFamily: fonts.titleBold, fontSize: type.h1 },
+  verdictText: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  action: { minHeight: 44, paddingHorizontal: space.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
   actionMain: { borderColor: colors.blue },
-  actionText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.ink },
-  actionMainText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.blue },
-  hint: { alignSelf: 'flex-start', backgroundColor: colors.soft, ...bubble(20), paddingHorizontal: 16, paddingVertical: 12, maxWidth: '90%' },
-  hintText: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.ink },
-  list: { gap: 8 },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 20, marginBottom: 12, minHeight: 56, borderRadius: 28, backgroundColor: colors.card, paddingLeft: 18, paddingRight: 6, ...shadow },
-  inputLead: { fontFamily: fonts.titleBold, fontSize: 16, color: colors.blue },
-  input: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: 16, color: colors.ink, paddingVertical: 10 },
-  inputBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
-  inputQ: { fontFamily: fonts.titleBold, fontSize: 20, color: '#FFFFFF' },
+  actionText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.ink },
+  actionMainText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
+  hint: { alignSelf: 'flex-start', backgroundColor: colors.soft, ...bubble(radius.lg), paddingHorizontal: space.lg, paddingVertical: space.md, maxWidth: '90%' },
+  hintText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.ink },
+  list: { gap: space.sm },
+  inputBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginBottom: space.md, minHeight: 56, borderRadius: radius.pill, backgroundColor: colors.card, paddingLeft: space.lg, paddingRight: space.sm, ...shadow },
+  inputLead: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.blue },
+  input: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink, paddingVertical: space.sm },
+  inputBtn: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
+  inputQ: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.white },
 }));

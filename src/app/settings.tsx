@@ -12,6 +12,7 @@ import { counts, exportCsv, getPref, importCsv, setPref as savePref } from '@/db
 import { geminiCheck } from '@/gemini';
 import { money, parseNumber, plural, todayIso } from '@/format';
 import { colors, fonts, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
 export default function Settings() {
   const { pref, setPref } = useTheme();
@@ -142,9 +143,18 @@ export default function Settings() {
       <ScrollView contentContainerStyle={st.content}>
         <Card style={st.card}>
           <Text style={st.title}>Mes données</Text>
-          <Text style={st.text}>
-            {plural(stats.trips, 'course', 'courses')}, {plural(stats.products, 'produit', 'produits')}, {plural(stats.items, 'prix noté', 'prix notés')}.
-          </Text>
+          <View style={st.counts}>
+            {[
+              [stats.trips, stats.trips > 1 ? 'courses' : 'course'],
+              [stats.products, stats.products > 1 ? 'produits' : 'produit'],
+              [stats.items, stats.items > 1 ? 'prix notés' : 'prix noté'],
+            ].map(([n, l]) => (
+              <View key={String(l)} style={st.count}>
+                <Text style={st.countNum}>{n}</Text>
+                <Text style={st.countLabel}>{l}</Text>
+              </View>
+            ))}
+          </View>
           <Text style={st.text}>Tout est enregistré sur ce téléphone. Seules les photos de tickets partent sur Internet, et seulement si la lecture Gemini est activée (plus bas).</Text>
         </Card>
 
@@ -230,16 +240,20 @@ export default function Settings() {
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24, gap: 12 },
-  card: { gap: 10, padding: 18 },
-  title: { fontFamily: fonts.title, fontSize: 19, color: colors.ink },
-  text: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, lineHeight: 21 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  keyInput: { minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 15, color: colors.ink, backgroundColor: colors.card },
-  budgetRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  content: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xl, gap: space.md },
+  card: { gap: space.md, padding: space.lg },
+  title: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
+  text: { fontFamily: fonts.body, fontSize: type.body, color: colors.muted, lineHeight: type.body + space.sm },
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  keyInput: { minHeight: 48, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, fontFamily: fonts.body, fontSize: type.body, color: colors.ink, backgroundColor: colors.card },
+  budgetRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   shrink: { flex: 1, minWidth: 0 },
-  input: { flex: 1, minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.title, fontSize: 18, color: colors.ink, backgroundColor: colors.card },
-  mad: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.muted },
-  about: { alignItems: 'center', paddingTop: 8 },
-  aboutText: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
+  input: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, backgroundColor: colors.card, ...tabular },
+  counts: { flexDirection: 'row', gap: space.xl },
+  count: { gap: space.xs },
+  countNum: { fontFamily: fonts.titleBold, fontSize: type.h1, color: colors.ink, ...tabular },
+  countLabel: { fontFamily: fonts.body, fontSize: type.caption, color: colors.muted },
+  mad: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.muted },
+  about: { alignItems: 'center', paddingTop: space.sm },
+  aboutText: { fontFamily: fonts.body, fontSize: type.caption, color: colors.muted },
 }));

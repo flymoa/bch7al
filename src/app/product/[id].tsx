@@ -1,13 +1,14 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import { Alert } from '@/alert';
 import { FadeIn, GrowBar } from '@/components/motion';
-import { Button, Card, ChangeChip, Chip, Empty, Header, Pill, RoundButton, Screen, Tile, s as ui, t } from '@/components/ui';
+import { Button, Card, ChangeChip, Chip, Empty, Header, Pill, RoundButton, Screen, SectionTitle, Tile, s as ui, t } from '@/components/ui';
 import { getProduct, productHistory, updateProduct, type HistoryRow, type ProductRow } from '@/db';
 import { money, productKey, shortDate } from '@/format';
 import { colors, fonts, UNITS, sheet, useTheme } from '@/theme';
+import { radius, space, tabular, type } from '@/tokens';
 
 const CHART_POINTS = 16;
 
@@ -107,17 +108,17 @@ export default function ProductDetail() {
             <Button label="Enregistrer" onPress={saveEdit} />
           </Card>
         ) : (
-          <View style={st.head}>
-            <Tile text={product.name} size={76} />
-            <View style={ui.flex}>
-              <Text style={st.name}>{product.name}</Text>
-              <Text style={t.meta}>
-                Acheté {product.n} fois · par {product.unit}
-              </Text>
-              <View style={st.priceRow}>
-                <Text style={st.price}>{money(last.unit_price)}</Text>
-                <Text style={st.priceUnit}>DH / {product.unit}</Text>
+          <View>
+            <View style={st.head}>
+              <Tile text={product.name} size={44} />
+              <View style={ui.flex}>
+                <Text style={st.name} numberOfLines={2}>{product.name}</Text>
+                <Text style={t.meta}>Acheté {product.n} fois · par {product.unit}</Text>
               </View>
+            </View>
+            <View style={st.priceRow}>
+              <Text style={st.price} adjustsFontSizeToFit numberOfLines={1}>{money(last.unit_price)}</Text>
+              <Text style={st.priceUnit}>DH / {product.unit}</Text>
             </View>
           </View>
         )}
@@ -143,7 +144,7 @@ export default function ProductDetail() {
                 accessibilityLabel={`Prix de ${money(chart[0].unit_price)} à ${money(last.unit_price)} dirhams sur les ${chart.length} derniers achats`}
               >
                 {chart.map((h, i) => (
-                  <GrowBar key={i} index={i} style={st.bar} height={22 + ((h.unit_price - chartLow) / chartSpan) * 74} color={i === chart.length - 1 ? colors.blue : colors.barSoft} />
+                  <GrowBar key={i} index={i} style={st.bar} height={space.xl + ((h.unit_price - chartLow) / chartSpan) * 72} color={i === chart.length - 1 ? colors.blue : colors.barSoft} />
                 ))}
               </View>
               <View style={st.axis}>
@@ -168,7 +169,7 @@ export default function ProductDetail() {
           </View>
         </Card></FadeIn>
 
-        <Text style={st.section}>Dernier prix par magasin</Text>
+        <SectionTitle>Dernier prix par magasin</SectionTitle>
         <Card style={st.rows}>
           {stores.map((h, i) => (
             <View key={h.store} style={[st.rowLine, i > 0 && st.rowBorder]}>
@@ -183,13 +184,13 @@ export default function ProductDetail() {
           ))}
         </Card>
 
-        <Text style={st.section}>Tous les achats</Text>
+        <SectionTitle>Tous les achats</SectionTitle>
         <Card style={st.rows}>
           {[...history].reverse().slice(0, 40).map((h, i) => (
             <View key={i} style={[st.rowLine, i > 0 && st.rowBorder]}>
               <View style={ui.flex}>
-                <Text style={t.name}>{shortDate(h.date)}</Text>
-                <Text style={t.meta}>{h.store}</Text>
+                <Text style={t.name} numberOfLines={1}>{h.store}</Text>
+                <Text style={t.meta}>{shortDate(h.date)}</Text>
               </View>
               <Text style={t.price}>{money(h.unit_price)}</Text>
             </View>
@@ -201,29 +202,28 @@ export default function ProductDetail() {
 }
 
 const st = sheet(() => ({
-  pad: { padding: 16 },
-  content: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 28 },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  name: { fontFamily: fonts.title, fontSize: 23, color: colors.ink },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 2 },
-  price: { fontFamily: fonts.title, fontSize: 38, color: colors.ink },
-  priceUnit: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.ink },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
-  edit: { gap: 10 },
-  input: { minHeight: 50, borderRadius: 14, borderWidth: 2, borderColor: colors.border, paddingHorizontal: 12, fontFamily: fonts.body, fontSize: 16, color: colors.ink },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  block: { marginTop: 14, gap: 10, padding: 16 },
-  blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  blockTitle: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, flex: 1 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 4, height: 96 },
-  bar: { flex: 1, maxWidth: 28, borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 },
+  pad: { padding: space.lg },
+  content: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xxl },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  name: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, marginTop: space.md },
+  price: { fontFamily: fonts.titleBold, fontSize: type.priceHero, letterSpacing: -1.5, color: colors.ink, flexShrink: 1, ...tabular },
+  priceUnit: { fontFamily: fonts.bodyMedium, fontSize: type.bodyLg, color: colors.muted },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
+  edit: { gap: space.md },
+  input: { minHeight: 48, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  block: { marginTop: space.lg, gap: space.md, padding: space.lg },
+  blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm },
+  blockTitle: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink, flex: 1 },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, height: 96 },
+  bar: { flex: 1, maxWidth: 28, borderTopLeftRadius: space.sm, borderTopRightRadius: space.sm, borderBottomLeftRadius: space.xs, borderBottomRightRadius: space.xs },
   axis: { flexDirection: 'row', justifyContent: 'space-between' },
-  stats: { flexDirection: 'row', gap: 8 },
-  stat: { flex: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8 },
-  statLabel: { fontFamily: fonts.bodyBold, fontSize: 12 },
-  statValue: { fontFamily: fonts.title, fontSize: 18, color: colors.ink },
-  section: { fontFamily: fonts.title, fontSize: 18, color: colors.ink, paddingHorizontal: 4, paddingTop: 18, paddingBottom: 8 },
-  rows: { paddingVertical: 4 },
-  rowLine: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingVertical: 8 },
+  stats: { flexDirection: 'row', gap: space.sm },
+  stat: { flex: 1, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
+  statLabel: { fontFamily: fonts.bodyBold, fontSize: type.caption },
+  statValue: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, ...tabular },
+  rows: { paddingVertical: space.xs },
+  rowLine: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 52, paddingVertical: space.sm },
   rowBorder: { borderTopWidth: 1, borderTopColor: colors.line },
 }));

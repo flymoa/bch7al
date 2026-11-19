@@ -39,7 +39,7 @@ const dark: typeof light = {
   bg: '#0C0D2B',
   card: '#181A45',
   cardPressed: '#20235A',
-  blue: '#4E4CF0',
+  blue: '#4644E0',
   ink: '#EDEDFF',
   onInk: '#0C0D2B',
   muted: '#A6A8D6',
@@ -59,7 +59,7 @@ const dark: typeof light = {
   nightSoft: '#24275E',
   onNight: '#C9C8FF',
   nightBlue: '#8F8CFF',
-  onBlue: '#D6D5FF',
+  onBlue: '#E6E5FF',
 };
 
 /** The bubble shape of the logo: round corners, the bottom-left one tighter. */
