@@ -42,7 +42,8 @@ export default function TripDetail() {
           try {
             await deleteTrip(db, tripId);
             showToast('Course supprimée');
-            router.canGoBack() ? router.back() : router.replace('/trips');
+            if (router.canGoBack()) router.back();
+            else router.replace('/trips');
           } catch (e) {
             Alert.alert('La suppression a échoué', String((e as Error).message ?? e));
           }

@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, TextInput } from 'react-native';
+import { ScrollView, Text, View, TextInput } from 'react-native';
 import { Alert } from '@/alert';
 import { Button, Card, Header, Pill, Screen } from '@/components/ui';
 import { counts, exportCsv, getPref, importCsv, setPref as savePref } from '@/db';

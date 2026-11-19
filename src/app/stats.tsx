@@ -80,12 +80,10 @@ export default function Stats() {
   // Ring: one arc per store, with a small gap between arcs.
   const ringColors = [colors.blue, colors.ink, colors.accent, colors.barSoft];
   const GAP = shares.length > 1 ? space.xs : 0;
-  let at = 0;
+  const fulls = shares.map((x) => (stats && stats.total > 0 ? (x.total / stats.total) * CIRC : 0));
   const arcs = shares.map((x, k) => {
-    const full = stats && stats.total > 0 ? (x.total / stats.total) * CIRC : 0;
-    const arc = { store: x.store, total: x.total, color: ringColors[k], start: at + GAP / 2, len: Math.max(0, full - GAP) };
-    at += full;
-    return arc;
+    const at = fulls.slice(0, k).reduce((a, f) => a + f, 0);
+    return { store: x.store, total: x.total, color: ringColors[k], start: at + GAP / 2, len: Math.max(0, fulls[k] - GAP) };
   });
 
   return (

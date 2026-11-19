@@ -5,6 +5,8 @@ import type { ScanResult } from './scan';
 
 export const scanAvailable = false;
 
+// Sample receipt kept for manual web testing.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const BIM = [
   'BIM MAROC', 'MAHASIN AMCERNATE', 'AGADIR', '12.11.2026 13:42  N° Ticket : 47',
   'PILES ALC4P LR06 POW  %20  *12.50', 'PILES LR03 4PC POWER  Z20  *12.50', 'GAUF CACO CENTRO142G  %20  *8.90',

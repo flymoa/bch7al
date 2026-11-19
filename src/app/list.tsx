@@ -22,6 +22,8 @@ export default function ShoppingList() {
 
   const refresh = useCallback(async () => setPlan(await listPlan(db)), [db]);
   useEffect(() => {
+    // Async load: setState runs after the await, not synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     listProducts(db, '', 'frequent').then(setProducts);
   }, [db, refresh]);

@@ -13,7 +13,7 @@ import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, IconButton, LEAD, ListGroup, Pill, Screen, s as ui, t, VerdictBadge, VerdictStrip } from '@/components/ui';
 import { getPref, setPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
-import { addDays, cleanName, longDate, money, parseNumber, pct, plural, productKey, verdict, qty as fmtQty, qtyLabel, todayIso } from '@/format';
+import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, verdict, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { bubble, colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 import { radius, space, tabular, type } from '@/tokens';
 
@@ -279,7 +279,8 @@ export default function TripForm() {
       await setPref(db, 'lastStore', cleanName(store));
       await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice }) => ({ name: n, unit: u, qty: q, unitPrice })) });
       showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${money(total)} DH`);
-      router.canGoBack() ? router.back() : router.replace('/trips');
+      if (router.canGoBack()) router.back();
+      else router.replace('/trips');
     } catch (e) {
       setSaving(false);
       Alert.alert("L'enregistrement a échoué", String((e as Error).message ?? e));

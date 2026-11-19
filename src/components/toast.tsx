@@ -1,7 +1,7 @@
 // A short message that slides up from the bottom, e.g. after saving a trip.
 import { Icon } from '@/components/icon';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text } from 'react-native';
+import { Animated, Text } from 'react-native';
 import { colors, fonts, sheet } from '@/theme';
 import { radius, space, type } from '@/tokens';
 

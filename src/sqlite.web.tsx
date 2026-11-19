@@ -45,6 +45,8 @@ export function SQLiteProvider({ onInit, children }: { databaseName: string; onI
         setDb(d);
       } catch (e) { setErr(String((e as Error).message ?? e)); }
     })();
+    // Open the database once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (err) return <div style={{ padding: 20, fontFamily: 'sans-serif' }}>Erreur de chargement : {err}</div>;
   if (!db) return null;

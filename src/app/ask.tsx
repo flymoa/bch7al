@@ -54,7 +54,6 @@ export default function Ask() {
 
   const usual = picked?.avg_price ?? null;
   const best = where[0] ?? null;
-  const maxStore = Math.max(...where.map((w) => w.price), 0.01);
   const seenPrice = parseNumber(seen);
   const v = seen.trim() && seenPrice >= 0 ? verdict(seenPrice, usual) : null;
   const bestVerdict = best && where.length > 1 ? verdict(best.price, usual) : null;
