@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { CountUp, FadeIn, GrowBar } from '@/components/motion';
-import { Button, Card, Chip, Empty, Header, ListGroup, ListRow, Screen, Tile, s as ui, t } from '@/components/ui';
+import { Chip, Empty, Header, ListGroup, ListRow, Screen, SectionTitle, Tile, s as ui, t } from '@/components/ui';
 import { listMonths, monthRecap, monthStats, weekSpend, type MonthRecap, type MonthStats } from '@/db';
 import { currentMonth, money, monthLabel, pct, pctChange, plural, qtyLabel } from '@/format';
 import { useSQLiteContext } from '@/sqlite';
@@ -17,6 +17,11 @@ const CIRC = 2 * Math.PI * RR;
 const RING_W = space.lg;
 const BAR_MIN = space.sm;
 const BAR_MAX = 76;
+const NAV = [
+  { label: 'Ton mois en résumé', icon: 'reader-outline', href: (m: string) => `/recap?month=${m}` },
+  { label: 'Toutes les courses', icon: 'receipt-outline', href: () => '/trips' },
+  { label: 'Tous les produits', icon: 'cube-outline', href: () => '/products' },
+] as const;
 
 export default function Stats() {
   useTheme();
@@ -128,7 +133,8 @@ export default function Stats() {
               </View>
             </FadeIn>
             <FadeIn index={1}>
-              <Card style={st.ringCard}>
+              <SectionTitle>Par magasin</SectionTitle>
+              <ListGroup style={st.ringBox}>
                 <View accessible accessibilityLabel={arcs.map((x) => `${x.store} : ${money(x.total)} DH`).join(', ')}>
                   <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`}>
                     <Circle cx={RING / 2} cy={RING / 2} r={RR} fill="none" stroke={colors.soft} strokeWidth={RING_W} />
@@ -157,29 +163,25 @@ export default function Stats() {
                     </View>
                   ))}
                 </View>
-              </Card>
+              </ListGroup>
             </FadeIn>
 
             <FadeIn index={2}>
-              <Card style={st.block}>
-                <View style={st.blockHead}>
-                  <Text style={st.title}>Par semaine</Text>
-                  {maxWeek > 1 ? <Text style={t.meta}>plus grosse : sem. {weeks.indexOf(maxWeek) + 1}</Text> : null}
-                </View>
-                <View style={st.weeks} accessible accessibilityLabel={weeks.map((w, k) => `Semaine ${k + 1} : ${money(w)} DH`).join(', ')}>
-                  {weeks.map((w, k) => (
-                    <View key={k} style={st.week}>
-                      <Text style={st.weekValue}>{w > 0 ? Math.round(w) : '–'}</Text>
-                      <GrowBar index={k} height={BAR_MIN + (w / maxWeek) * BAR_MAX} color={w === maxWeek && w > 0 ? colors.blue : colors.barSoft} style={st.weekBar} />
-                      <Text style={st.weekLabel}>Sem. {k + 1}</Text>
-                    </View>
-                  ))}
-                </View>
-              </Card>
+              <SectionTitle>Par semaine</SectionTitle>
+              {maxWeek > 1 ? <Text style={[t.meta, st.sub]}>Plus grosse : sem. {weeks.indexOf(maxWeek) + 1}</Text> : null}
+              <View style={st.weeks} accessible accessibilityLabel={weeks.map((w, k) => `Semaine ${k + 1} : ${money(w)} DH`).join(', ')}>
+                {weeks.map((w, k) => (
+                  <View key={k} style={st.week}>
+                    <Text style={st.weekValue}>{w > 0 ? Math.round(w) : '–'}</Text>
+                    <GrowBar index={k} height={BAR_MIN + (w / maxWeek) * BAR_MAX} color={w === maxWeek && w > 0 ? colors.blue : colors.barSoft} style={st.weekBar} />
+                    <Text style={st.weekLabel}>Sem. {k + 1}</Text>
+                  </View>
+                ))}
+              </View>
             </FadeIn>
 
             {recap.drop || recap.rise ? (
-              <View style={st.tiles}>
+              <View style={[st.tiles, st.gapTop]}>
                 {recap.drop ? (
                   <Pressable accessibilityRole="button" accessibilityLabel={`Bonne surprise : ${recap.drop.name}`} onPress={() => router.push(`/ask?id=${recap.drop!.id}`)} style={({ pressed }) => [st.tile, st.tileBlue, pressed && ui.pressed]}>
                     <Text style={st.tileLabelOn}>Bonne surprise</Text>
@@ -198,54 +200,49 @@ export default function Stats() {
                 ) : null}
               </View>
             ) : null}
-          </View>
 
-          <View style={[st.content, st.more]}>
-            <Button label="Ton mois en résumé" icon="reader-outline" tone="light" onPress={() => router.push(`/recap?month=${month}`)} />
-
-            <Card style={st.block}>
-              <Text style={st.title}>Mes prix ont-ils augmenté ?</Text>
-              {stats.inflation === null ? (
-                <Text style={t.meta}>
-                  Il faut avoir acheté un même produit avant ce mois-ci pour comparer. Continue à noter tes courses, ce chiffre apparaîtra tout seul.
-                </Text>
-              ) : (
-                <>
-                  <View style={st.inflRow}>
-                    <Text style={st.infl}>
-                      {stats.inflation >= 0 ? '+' : '−'}{pct(stats.inflation)}
-                    </Text>
-                    <Text style={[t.meta, st.flex]}>
-                      Variation moyenne de tes prix, comparée à ton achat précédent, sur {plural(stats.compared, 'produit', 'produits')}.
-                    </Text>
-                  </View>
-                  <ListGroup bleed>
-                  {stats.moves.slice(0, 4).map((m, i) => (
-                    <ListRow
-                      key={m.id}
-                      label={m.name}
-                      onPress={() => router.push(`/product/${m.id}`)}
-                      first={i === 0}
-                      leading={<Tile text={m.name} />}
-                      title={m.name}
-                      meta={`avant ${money(m.before)} DH / ${m.unit}`}
-                      price={money(m.now)}
-                      unit="DH"
-                      verdict={Math.abs(m.change) < 0.05 ? (
-                        <Chip label="Même prix" />
-                      ) : (
-                        <Chip label={pct(m.change)} tone={m.change < 0 ? 'down' : 'up'} icon={m.change < 0 ? 'arrow-down' : 'arrow-up'} />
-                      )}
-                    />
-                  ))}
+            <SectionTitle>Mes prix ont-ils augmenté ?</SectionTitle>
+            {stats.inflation === null ? (
+              <Text style={[t.meta, st.sub]}>
+                Il faut avoir acheté un même produit avant ce mois-ci pour comparer. Continue à noter tes courses, ce chiffre apparaîtra tout seul.
+              </Text>
+            ) : (
+              <>
+                <View style={[st.inflRow, st.sub]}>
+                  <Text style={st.infl}>
+                    {stats.inflation >= 0 ? '+' : '−'}{pct(stats.inflation)}
+                  </Text>
+                  <Text style={[t.meta, st.flex]}>
+                    Variation moyenne de tes prix, comparée à ton achat précédent, sur {plural(stats.compared, 'produit', 'produits')}.
+                  </Text>
+                </View>
+                {stats.moves.length > 0 ? (
+                  <ListGroup style={st.gapTop}>
+                    {stats.moves.slice(0, 4).map((m, i) => (
+                      <ListRow
+                        key={m.id}
+                        label={m.name}
+                        onPress={() => router.push(`/product/${m.id}`)}
+                        first={i === 0}
+                        leading={<Tile text={m.name} />}
+                        title={m.name}
+                        meta={`avant ${money(m.before)} DH / ${m.unit}`}
+                        price={money(m.now)}
+                        unit="DH"
+                        verdict={Math.abs(m.change) < 0.05 ? (
+                          <Chip label="Même prix" />
+                        ) : (
+                          <Chip label={pct(m.change)} tone={m.change < 0 ? 'down' : 'up'} icon={m.change < 0 ? 'arrow-down' : 'arrow-up'} />
+                        )}
+                      />
+                    ))}
                   </ListGroup>
-                </>
-              )}
-            </Card>
+                ) : null}
+              </>
+            )}
 
-            <Card style={st.block}>
-              <Text style={st.title}>Là où part ton argent</Text>
-              <ListGroup bleed>
+            <SectionTitle>Là où part ton argent</SectionTitle>
+            <ListGroup>
               {stats.topProducts.map((p, k) => (
                 <ListRow
                   key={p.id}
@@ -259,18 +256,21 @@ export default function Stats() {
                   unit="DH"
                 />
               ))}
-              </ListGroup>
-            </Card>
+            </ListGroup>
 
-            <View style={st.links}>
-              {/* Each button sits in its own half so the two are always the same width. */}
-              <View style={st.flex}>
-                <Button label="Courses" icon="receipt-outline" tone="light" style={st.linkBtn} onPress={() => router.push('/trips')} />
-              </View>
-              <View style={st.flex}>
-                <Button label="Produits" icon="cube-outline" tone="light" style={st.linkBtn} onPress={() => router.push('/products')} />
-              </View>
-            </View>
+            <ListGroup style={st.nav}>
+              {NAV.map((n, k) => (
+                <ListRow
+                  key={n.label}
+                  label={n.label}
+                  first={k === 0}
+                  onPress={() => router.push(n.href(month))}
+                  leading={<Icon name={n.icon} size={type.title} color={colors.blue} />}
+                  title={n.label}
+                  right={<Icon name="chevron-forward" size={type.bodyLg} color={colors.muted} />}
+                />
+              ))}
+            </ListGroup>
           </View>
         </ScrollView>
       ) : null}
@@ -288,20 +288,21 @@ const st = sheet(() => ({
   arrow: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   off: { opacity: 0.35 },
   monthName: { minWidth: 84, maxWidth: 120, textAlign: 'center', fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
-  content: { paddingHorizontal: space.lg, paddingTop: space.md, gap: space.md },
-  more: { paddingTop: space.md },
+  content: { paddingHorizontal: space.lg, paddingTop: space.md },
   hero: { gap: space.xs, paddingVertical: space.sm },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
   heroTotal: { fontFamily: fonts.titleBold, fontSize: type.priceHero, letterSpacing: -1, color: colors.ink, ...tabular },
   heroUnit: { fontFamily: fonts.bodyBold, fontSize: type.bodyLg, color: colors.muted },
   heroMeta: { fontFamily: fonts.body, fontSize: type.body, color: colors.muted },
-  ringCard: { flexDirection: 'row', alignItems: 'center', gap: space.lg, padding: space.lg },
+  ringBox: { flexDirection: 'row', alignItems: 'center', gap: space.lg, padding: space.lg },
+  sub: { paddingHorizontal: space.xs, paddingBottom: space.sm },
+  gapTop: { marginTop: space.md },
+  nav: { marginTop: space.xxl },
   legendBox: { flex: 1, gap: space.sm },
   legend: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   dot: { width: space.md, height: space.md, borderRadius: radius.pill },
   legendName: { flex: 1, fontFamily: fonts.body, fontSize: type.body, color: colors.ink },
   legendValue: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink, ...tabular },
-  blockHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   weeks: { flexDirection: 'row', alignItems: 'flex-end', gap: space.md, minHeight: 122 },
   week: { flex: 1, gap: space.sm },
   weekValue: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.ink, textAlign: 'center', ...tabular },
@@ -317,10 +318,6 @@ const st = sheet(() => ({
   tileLabel: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted },
   tileName: { fontFamily: fonts.title, fontSize: type.body, color: colors.ink },
   tilePrice: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, ...tabular },
-  block: { gap: space.md, padding: space.lg },
-  title: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
   inflRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   infl: { fontFamily: fonts.titleBold, fontSize: type.price, letterSpacing: -0.5, color: colors.ink, ...tabular },
-  links: { flexDirection: 'row', gap: space.md },
-  linkBtn: { paddingHorizontal: space.md },
 }));
