@@ -40,6 +40,8 @@ export default function TripForm() {
   const [items, setItems] = useState<BasketItem[]>([]);
   const [name, setName] = useState('');
   const [unit, setUnit] = useState<string>(UNITS[0]);
+  /** The unit was picked by hand: it wins over the unit already known for the product. */
+  const [unitPicked, setUnitPicked] = useState(false);
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
   /** For kg / L: was the weight typed in grams (mL)? */
@@ -98,7 +100,9 @@ export default function TripForm() {
   const typedKey = productKey(name);
   const match = byKey.get(typedKey);
   // A product keeps one unit for its whole history, otherwise prices could not be compared.
-  const shownUnit = match ? match.unit : unit;
+  // It can still be changed by hand (pièce, kg, paquet…); a different unit is noted apart.
+  const shownUnit = match && !unitPicked ? match.unit : unit;
+  const sameUnit = !match || match.unit === shownUnit;
   const measured = isMeasured(shownUnit);
 
   // Turns what was typed into a quantity in kg / L / pieces and a price for one unit.
@@ -112,7 +116,7 @@ export default function TripForm() {
   })();
 
   // While typing the price of a product already bought: is it a good price?
-  const hint = !editId && match && computed && price.trim() && match.name !== STAMP_DUTY ? verdict(computed.unitPrice, match.avg_price) : null;
+  const hint = !editId && match && sameUnit && computed && price.trim() && match.name !== STAMP_DUTY ? verdict(computed.unitPrice, match.avg_price) : null;
 
   const basketKeys = new Set(items.map((it) => productKey(it.name)));
   const suggestions = products
@@ -137,13 +141,14 @@ export default function TripForm() {
     const clean = cleanName(name);
     if (!productKey(clean)) return setError("Écris le nom de l'article.");
     if (!computed) return setError(measured ? 'Écris le poids et le prix, par exemple 750 g et 6,50.' : 'Écris le prix, par exemple 12,50, et une quantité plus grande que zéro.');
-    upsert({ name: match ? match.name : clean, unit: shownUnit, qty: computed.qty, unitPrice: computed.unitPrice, last: editId ? null : match?.avg_price ?? null, known: !!match });
+    upsert({ name: match ? match.name : clean, unit: shownUnit, qty: computed.qty, unitPrice: computed.unitPrice, last: editId || !sameUnit ? null : match?.avg_price ?? null, known: !!match });
     setName('');
     setPrice('');
     setQuantity('1');
     setSmall(false);
     setPriceMode('unit');
     setUnit(UNITS[0]);
+    setUnitPicked(false);
     setError('');
     nameRef.current?.focus();
   };
@@ -175,6 +180,7 @@ export default function TripForm() {
     nameRef.current?.focus();
     setName(it.unnamed ? '' : it.name);
     setUnit(it.unit);
+    setUnitPicked(true);
     setPriceMode('unit');
     setPrice(String(Math.round(it.unitPrice * 100) / 100).replace('.', ','));
     if (isMeasured(it.unit) && it.qty < 1) {
@@ -438,10 +444,10 @@ export default function TripForm() {
               </View>
             ) : null}
 
-            <Text style={[st.label, st.gapTop]}>{match ? `Vendu par (fixé pour ${match.name})` : 'Vendu par'}</Text>
+            <Text style={[st.label, st.gapTop]}>{match && !sameUnit ? `Vendu par (avant : ${match.unit})` : 'Vendu par'}</Text>
             <View style={st.wrap}>
               {UNITS.map((u) => (
-                <Pill key={u} label={u} active={shownUnit === u} disabled={!!match} onPress={() => setUnit(u)} />
+                <Pill key={u} label={u} active={shownUnit === u} onPress={() => { setUnit(u); setUnitPicked(true); setError(''); }} />
               ))}
             </View>
 

@@ -136,8 +136,18 @@ async function storeId(db: Db, name: string): Promise<number> {
 async function productId(db: Db, name: string, unit: string): Promise<number> {
   const clean = cleanName(name);
   const key = productKey(clean);
-  const found = await db.getFirstAsync<{ id: number }>('SELECT id FROM products WHERE key = ?', [key]);
-  if (found) return found.id;
+  const found = await db.getFirstAsync<{ id: number; unit: string }>('SELECT id, unit FROM products WHERE key = ?', [key]);
+  if (found && found.unit === unit) return found.id;
+  if (found) {
+    // Unit changed (e.g. pièce -> paquet). With no other purchase recorded, just switch the unit;
+    // otherwise keep old prices comparable and note this one apart, as "Name (unit)".
+    const used = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM items WHERE product_id = ?', [found.id]);
+    if (!used?.n) {
+      await db.runAsync('UPDATE products SET unit = ? WHERE id = ?', [unit, found.id]);
+      return found.id;
+    }
+    return productId(db, `${clean} (${unit})`, unit);
+  }
   const res = await db.runAsync('INSERT INTO products (name, key, unit) VALUES (?, ?, ?)', [clean, key, unit]);
   return res.lastInsertRowId;
 }
