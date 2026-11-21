@@ -149,9 +149,18 @@ export default function Home() {
             <Icon name="add" size={22} color={colors.blue} />
             <Text style={st.actionText} numberOfLines={1}>Nouvelle course</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/trips')} style={({ pressed }) => [st.action, pressed && ui.pressed]}>
+        </View>
+        ) : null}
+
+        {trips.length > 0 ? (
+        <View style={st.actions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Mes courses" onPress={() => router.push('/trips')} style={({ pressed }) => [st.action, pressed && ui.pressed]}>
             <Icon name="receipt-outline" size={22} color={colors.ink} />
             <Text style={[st.actionText, st.actionTextQuiet]} numberOfLines={1}>Courses</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Tous mes produits achetés" onPress={() => router.push('/products')} style={({ pressed }) => [st.action, pressed && ui.pressed]}>
+            <Icon name="cube-outline" size={22} color={colors.ink} />
+            <Text style={[st.actionText, st.actionTextQuiet]} numberOfLines={1}>Produits</Text>
           </Pressable>
         </View>
         ) : null}
