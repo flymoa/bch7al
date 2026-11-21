@@ -76,6 +76,7 @@ export default function TripDetail() {
           <Text style={st.total} accessibilityLabel={`Total ${money(trip.total)} dirhams`}>
             {money(trip.total)} <Text style={st.totalUnit}>DH</Text>
           </Text>
+          {trip.stamp > 0 ? <Text style={t.meta}>dont {money(trip.stamp)} DH de droit de timbre</Text> : null}
         </View>
 
         <View style={st.night}>

@@ -2,19 +2,24 @@
 // logic can be exercised in Node with any object exposing the same methods.
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { cleanName, productKey, parseCsv, parseNumber, toCsv, verdict, type Verdict } from './format';
+import { STAMP_DUTY } from './receipt';
 
 export type Db = SQLiteDatabase;
 
-export type TripRow = { id: number; date: string; store: string; total: number; n: number };
+/** `total` includes `stamp`, the droit de timbre paid in cash: a tax on the ticket, not a product. */
+export type TripRow = { id: number; date: string; store: string; total: number; n: number; stamp: number };
 export type ItemRow = { id: number; product_id: number; name: string; unit: string; qty: number; unit_price: number };
 export type ProductRow = { id: number; name: string; unit: string; n: number; last_price: number | null; prev_price: number | null; avg_price: number | null };
 export type HistoryRow = { date: string; store: string; unit_price: number; qty: number };
 export type MonthSummary = { trips: number; total: number; items: number };
 /** `unitChanged`: the unit was changed by hand on purpose; otherwise the product keeps its known unit. */
 export type NewItem = { name: string; unit: string; qty: number; unitPrice: number; unitChanged?: boolean };
-export type NewTrip = { id?: number; store: string; date: string; items: NewItem[] };
+export type NewTrip = { id?: number; store: string; date: string; items: NewItem[]; stamp?: number };
 
-const DATABASE_VERSION = 4;
+/** The droit de timbre is a cash tax printed on the ticket, never a product. */
+export const isStampDuty = (name: string) => /\btimbres?\b/i.test(name);
+
+const DATABASE_VERSION = 5;
 
 export async function migrate(db: Db): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -72,6 +77,21 @@ export async function migrate(db: Db): Promise<void> {
     await rekeyArabic(db);
     version = 4;
     await db.execAsync(`PRAGMA user_version = 4`); // each step is saved, so a closed app resumes cleanly
+  }
+  if (version === 4) {
+    // The droit de timbre used to be saved as a product: it moves onto its trip.
+    await db.withTransactionAsync(async () => {
+      const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(trips)', []);
+      if (!cols.some((c) => c.name === 'stamp')) await db.execAsync('ALTER TABLE trips ADD COLUMN stamp REAL NOT NULL DEFAULT 0');
+      const stamps = (await db.getAllAsync<{ id: number; name: string }>('SELECT id, name FROM products', [])).filter((p) => isStampDuty(p.name));
+      for (const p of stamps) {
+        await db.runAsync('UPDATE trips SET stamp = stamp + COALESCE((SELECT SUM(qty * unit_price) FROM items WHERE product_id = ? AND trip_id = trips.id), 0)', [p.id]);
+        await db.runAsync('DELETE FROM items WHERE product_id = ?', [p.id]);
+        await db.runAsync('DELETE FROM products WHERE id = ?', [p.id]);
+      }
+      await db.execAsync(`PRAGMA user_version = 5`);
+    });
+    version = 5;
   }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
@@ -220,8 +240,12 @@ export async function updateProduct(db: Db, id: number, name: string, unit: stri
 
 const TRIP_SELECT = `
   SELECT t.id, t.date, s.name AS store,
-    COALESCE(SUM(i.qty * i.unit_price), 0) AS total, COUNT(i.id) AS n
+    COALESCE(SUM(i.qty * i.unit_price), 0) + t.stamp AS total, COUNT(i.id) AS n, t.stamp
   FROM trips t JOIN stores s ON s.id = t.store_id LEFT JOIN items i ON i.trip_id = t.id`;
+
+/** One row per trip with what was paid, droit de timbre included. */
+const TRIP_TOTALS = `(SELECT t.id, t.store_id, t.date,
+    t.stamp + COALESCE((SELECT SUM(qty * unit_price) FROM items WHERE trip_id = t.id), 0) AS total FROM trips t)`;
 
 export async function listTrips(db: Db, month?: string, limit = 1000): Promise<TripRow[]> {
   if (month) {
@@ -240,9 +264,11 @@ export async function listMonths(db: Db): Promise<string[]> {
 
 export async function monthSummary(db: Db, month: string): Promise<MonthSummary> {
   const row = await db.getFirstAsync<MonthSummary>(
-    `SELECT COUNT(DISTINCT t.id) AS trips, COALESCE(SUM(i.qty * i.unit_price), 0) AS total, COUNT(i.id) AS items
+    `SELECT COUNT(DISTINCT t.id) AS trips,
+       COALESCE(SUM(i.qty * i.unit_price), 0) + (SELECT COALESCE(SUM(stamp), 0) FROM trips WHERE substr(date, 1, 7) = ?) AS total,
+       COUNT(i.id) AS items
      FROM trips t LEFT JOIN items i ON i.trip_id = t.id WHERE substr(t.date, 1, 7) = ?`,
-    [month],
+    [month, month],
   );
   return row ?? { trips: 0, total: 0, items: 0 };
 }
@@ -265,15 +291,18 @@ async function dropUnusedProducts(db: Db): Promise<void> {
 
 async function writeTrip(db: Db, trip: NewTrip): Promise<number> {
   const sid = await storeId(db, trip.store);
+  // A "Droit de timbre" line (scan, old backup) goes onto the trip, not into the products.
+  const stamp = Math.round(((trip.stamp ?? 0) + trip.items.filter((it) => isStampDuty(it.name)).reduce((a, it) => a + it.qty * it.unitPrice, 0)) * 100) / 100;
+  const items = trip.items.filter((it) => !isStampDuty(it.name));
   let id = trip.id;
   if (id) {
-    await db.runAsync('UPDATE trips SET store_id = ?, date = ? WHERE id = ?', [sid, trip.date, id]);
+    await db.runAsync('UPDATE trips SET store_id = ?, date = ?, stamp = ? WHERE id = ?', [sid, trip.date, stamp, id]);
     await db.runAsync('DELETE FROM items WHERE trip_id = ?', [id]);
   } else {
-    const res = await db.runAsync('INSERT INTO trips (store_id, date) VALUES (?, ?)', [sid, trip.date]);
+    const res = await db.runAsync('INSERT INTO trips (store_id, date, stamp) VALUES (?, ?, ?)', [sid, trip.date, stamp]);
     id = res.lastInsertRowId;
   }
-  for (const it of trip.items) {
+  for (const it of items) {
     const pid = await productId(db, it.name, it.unit, it.unitChanged);
     await db.runAsync('INSERT INTO items (trip_id, product_id, qty, unit_price) VALUES (?, ?, ?, ?)', [id, pid, it.qty, it.unitPrice]);
   }
@@ -285,7 +314,8 @@ async function writeTrip(db: Db, trip: NewTrip): Promise<number> {
 export async function saveTrip(db: Db, trip: NewTrip): Promise<number> {
   if (!cleanName(trip.store)) throw new Error('Magasin manquant');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trip.date)) throw new Error('Date invalide');
-  if (trip.items.length === 0) throw new Error('Aucun article');
+  if (trip.items.filter((it) => !isStampDuty(it.name)).length === 0) throw new Error('Aucun article');
+  if (!((trip.stamp ?? 0) >= 0)) throw new Error('Droit de timbre invalide');
   for (const it of trip.items) {
     if (!productKey(it.name) || !(it.qty > 0) || !(it.unitPrice >= 0)) throw new Error('Article invalide : ' + it.name);
   }
@@ -322,6 +352,10 @@ export async function exportCsv(db: Db): Promise<{ csv: string; rows: number }> 
   for (const r of rows) {
     out.push([r.date, r.store, r.name, r.unit, r.qty, r.unit_price, Math.round(r.qty * r.unit_price * 100) / 100, r.trip_id]);
   }
+  // The droit de timbre rides as its own line; the restore puts it back on its trip.
+  const stamps = await db.getAllAsync<{ id: number; date: string; store: string; stamp: number }>(
+    'SELECT t.id, t.date, s.name AS store, t.stamp FROM trips t JOIN stores s ON s.id = t.store_id WHERE t.stamp > 0 ORDER BY t.date, t.id', []);
+  for (const t of stamps) out.push([t.date, t.store, STAMP_DUTY, 'pièce', 1, t.stamp, t.stamp, t.id]);
   // The shopping list and the budget ride along on marked lines at the end.
   const list = await db.getAllAsync<{ name: string; done: number }>('SELECT name, done FROM list_items ORDER BY id', []);
   for (const l of list) out.push([LIST_MARK, '', l.name, '', l.done ? 1 : 0, '', '', '']);
@@ -443,9 +477,9 @@ export async function monthStats(db: Db, month: string): Promise<MonthStats> {
   const sum = await monthSummary(db, month);
   const prev = await monthSummary(db, prevMonth(month));
   const byStore = await db.getAllAsync<StoreSpend>(
-    `SELECT s.name AS store, SUM(i.qty * i.unit_price) AS total, COUNT(DISTINCT t.id) AS trips
-     FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id
-     WHERE substr(t.date, 1, 7) = ? GROUP BY s.id ORDER BY total DESC`,
+    `SELECT s.name AS store, SUM(x.total) AS total, COUNT(*) AS trips
+     FROM ${TRIP_TOTALS} x JOIN stores s ON s.id = x.store_id
+     WHERE substr(x.date, 1, 7) = ? GROUP BY s.id ORDER BY total DESC`,
     [month],
   );
   const topProducts = await db.getAllAsync<ProductSpend>(
@@ -516,8 +550,8 @@ export async function tripVerdicts(db: Db, tripId: number): Promise<Record<numbe
 /** Money spent in each week of a month: days 1–7, 8–14, 15–21, 22 to the end. */
 export async function weekSpend(db: Db, month: string): Promise<number[]> {
   const rows = await db.getAllAsync<{ w: number; total: number }>(
-    `SELECT MIN(3, (CAST(substr(t.date, 9, 2) AS INTEGER) - 1) / 7) AS w, SUM(i.qty * i.unit_price) AS total
-     FROM items i JOIN trips t ON t.id = i.trip_id WHERE substr(t.date, 1, 7) = ? GROUP BY w`,
+    `SELECT MIN(3, (CAST(substr(x.date, 9, 2) AS INTEGER) - 1) / 7) AS w, SUM(x.total) AS total
+     FROM ${TRIP_TOTALS} x WHERE substr(x.date, 1, 7) = ? GROUP BY w`,
     [month],
   );
   const weeks = [0, 0, 0, 0];

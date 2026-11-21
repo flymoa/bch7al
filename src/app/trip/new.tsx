@@ -12,7 +12,7 @@ import { STAMP_DUTY } from '@/receipt';
 import { productIcon } from '@/icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Button, Card, Chip, Empty, Header, IconButton, LEAD, ListGroup, Pill, Screen, s as ui, t, VerdictBadge, VerdictStrip } from '@/components/ui';
-import { getPref, setPref, getTrip, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
+import { getPref, setPref, getTrip, isStampDuty, listProducts, listStores, saveTrip, type ProductRow } from '@/db';
 import { addDays, cleanName, longDate, money, parseNumber, plural, productKey, verdict, qty as fmtQty, qtyLabel, todayIso } from '@/format';
 import { bubble, colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@/theme';
 import { radius, space, tabular, type } from '@/tokens';
@@ -42,6 +42,8 @@ export default function TripForm() {
   const [unit, setUnit] = useState<string>(UNITS[0]);
   /** The unit was picked by hand: it wins over the unit already known for the product. */
   const [unitPicked, setUnitPicked] = useState(false);
+  /** Droit de timbre (cash payments): part of the ticket total, never a product. */
+  const [stamp, setStamp] = useState(0);
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
   /** For kg / L: was the weight typed in grams (mL)? */
@@ -87,6 +89,7 @@ export default function TripForm() {
       if (existing) {
         setStore(existing.trip.store);
         setDate(existing.trip.date);
+        setStamp(existing.trip.stamp ?? 0);
         // When editing, the comparison with "last time" would include this very trip, so it is not shown.
         setItems(existing.items.map((it) => ({ id: nextLineId++, name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unit_price, last: null, known: true })));
       }
@@ -193,7 +196,7 @@ export default function TripForm() {
     setItems((cur) => cur.filter((_, i) => i !== index));
   };
 
-  const total = items.reduce((sum, it) => sum + it.qty * it.unitPrice, 0);
+  const total = items.reduce((sum, it) => sum + it.qty * it.unitPrice, 0) + stamp;
 
   const scan = async (source: 'camera' | 'gallery' | 'photo') => {
     setError('');
@@ -215,7 +218,9 @@ export default function TripForm() {
         setStore(known ?? res.store);
       }
       if (res.date && res.date <= todayIso()) setDate(res.date);
-      for (const it of res.items) {
+      const stamps = res.items.filter((it) => isStampDuty(it.name));
+      if (stamps.length) setStamp(Math.round(stamps.reduce((a, it) => a + it.qty * it.unitPrice, 0) * 100) / 100);
+      for (const it of res.items.filter((x) => !isStampDuty(x.name))) {
         let existing = it.unnamed ? undefined : byKey.get(productKey(it.name));
         let name = existing ? existing.name : it.name;
         // Same product but sold another way (kg vs piece): kept as its own product so the
@@ -283,7 +288,7 @@ export default function TripForm() {
     setSaving(true);
     try {
       await setPref(db, 'lastStore', cleanName(store));
-      await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice, unitChanged }) => ({ name: n, unit: u, qty: q, unitPrice, unitChanged })) });
+      await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice, unitChanged }) => ({ name: n, unit: u, qty: q, unitPrice, unitChanged })), stamp });
       showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${money(total)} DH`);
       if (router.canGoBack()) router.back();
       else router.replace('/trips');
@@ -605,6 +610,16 @@ export default function TripForm() {
               })}
             </ListGroup>
           )}
+          {stamp > 0 ? (
+            <View style={st.stampRow}>
+              <View style={ui.flex}>
+                <Text style={st.stampTitle}>Droit de timbre</Text>
+                <Text style={t.meta}>Taxe du paiement en espèces, pas un produit</Text>
+              </View>
+              <Text style={st.stampPrice}>{money(stamp)}</Text>
+              <IconButton icon="trash-outline" label="Retirer le droit de timbre" onPress={() => setStamp(0)} tone="danger" />
+            </View>
+          ) : null}
         </ScrollView>
 
         <View style={st.footer}>
@@ -622,6 +637,9 @@ export default function TripForm() {
 }
 
 const st = sheet(() => ({
+  stampRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.line, borderStyle: 'dashed' },
+  stampTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
+  stampPrice: { fontFamily: fonts.titleBold, fontSize: type.body, color: colors.ink, ...tabular },
   hint: { flexDirection: 'row', alignItems: 'center', gap: space.sm, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm, marginTop: space.md },
   hintText: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body },
   content: { paddingHorizontal: space.lg, paddingBottom: space.xl },

@@ -240,6 +240,40 @@ async function main() {
   await D.saveTrip(old, { store: 'Soufi', date: '2026-11-12', items: [{ name: 'مايفين 180غ', unit: 'pièce', qty: 1, unitPrice: 7.5 }] });
   assert.equal((await D.listProducts(old, 'مايفين'))[0].n, 2, 'new purchase joins the old history');
 
+  // Droit de timbre: a tax on the trip, never a product, but counted in the totals
+  const tdb = adapter();
+  await D.onOpen(tdb);
+  const tt = await D.saveTrip(tdb, { store: 'BIM', date: '2026-11-20', items: [
+    { name: 'Lait', unit: 'pièce', qty: 2, unitPrice: 3.5 },
+    { name: 'Droit de timbre', unit: 'pièce', qty: 1, unitPrice: 0.25 },
+  ] });
+  assert.equal((await D.listProducts(tdb)).length, 1, 'droit de timbre is not a product');
+  const got = (await D.getTrip(tdb, tt))!;
+  assert.equal(got.trip.stamp, 0.25);
+  assert.equal(got.trip.total, 7.25);
+  assert.equal(got.items.length, 1);
+  assert.equal((await D.monthSummary(tdb, '2026-11')).total, 7.25);
+  await D.saveTrip(tdb, { id: tt, store: 'BIM', date: '2026-11-20', items: [{ name: 'Lait', unit: 'pièce', qty: 2, unitPrice: 3.5 }], stamp: 0.3 });
+  assert.equal((await D.getTrip(tdb, tt))!.trip.total, 7.3);
+  const csv = (await D.exportCsv(tdb)).csv;
+  await D.importCsv(tdb, csv);
+  assert.equal((await D.listTrips(tdb))[0].stamp, 0.3, 'backup keeps the droit de timbre');
+  assert.equal((await D.listProducts(tdb)).length, 1);
+
+  // Upgrade: a droit de timbre saved as a product moves onto its trip
+  const v4 = adapter();
+  await D.onOpen(v4);
+  await v4.runAsync('INSERT INTO stores (name, key) VALUES (?, ?)', ['BIM', 'bim']);
+  await v4.runAsync('INSERT INTO products (name, key, unit) VALUES (?, ?, ?)', ['Lait', 'lait', 'pièce']);
+  await v4.runAsync('INSERT INTO products (name, key, unit) VALUES (?, ?, ?)', ['Droit de timbre', 'droit de timbre', 'pièce']);
+  await v4.runAsync('INSERT INTO trips (store_id, date) VALUES (1, ?)', ['2026-11-01']);
+  await v4.runAsync('INSERT INTO items (trip_id, product_id, qty, unit_price) VALUES (1, 1, 1, 7), (1, 2, 1, 0.08)', []);
+  await v4.execAsync('PRAGMA user_version = 4');
+  await D.onOpen(v4);
+  assert.equal((await D.listProducts(v4)).length, 1);
+  assert.equal((await D.getTrip(v4, 1))!.trip.stamp, 0.08);
+  assert.equal((await D.getTrip(v4, 1))!.trip.total, 7.08);
+
   console.log('All database checks passed.');
 }
 
