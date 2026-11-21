@@ -18,7 +18,7 @@ import { bubble, colors, DEFAULT_STORES, fonts, UNITS, sheet, useTheme } from '@
 import { radius, space, tabular, type } from '@/tokens';
 
 /** `last` is the usual price of the product (average of earlier purchases), or null when there is nothing to compare. */
-type BasketItem = { id: number; name: string; unit: string; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean; unnamed?: boolean; otherUnit?: boolean };
+type BasketItem = { id: number; name: string; unit: string; unitChanged?: boolean; qty: number; unitPrice: number; last: number | null; known: boolean; scanned?: boolean; unnamed?: boolean; otherUnit?: boolean };
 type NewLine = Omit<BasketItem, 'id'>;
 let nextLineId = 1;
 
@@ -141,7 +141,7 @@ export default function TripForm() {
     const clean = cleanName(name);
     if (!productKey(clean)) return setError("Écris le nom de l'article.");
     if (!computed) return setError(measured ? 'Écris le poids et le prix, par exemple 750 g et 6,50.' : 'Écris le prix, par exemple 12,50, et une quantité plus grande que zéro.');
-    upsert({ name: match ? match.name : clean, unit: shownUnit, qty: computed.qty, unitPrice: computed.unitPrice, last: editId || !sameUnit ? null : match?.avg_price ?? null, known: !!match });
+    upsert({ name: match ? match.name : clean, unit: shownUnit, unitChanged: !sameUnit, qty: computed.qty, unitPrice: computed.unitPrice, last: editId || !sameUnit ? null : match?.avg_price ?? null, known: !!match });
     setName('');
     setPrice('');
     setQuantity('1');
@@ -283,7 +283,7 @@ export default function TripForm() {
     setSaving(true);
     try {
       await setPref(db, 'lastStore', cleanName(store));
-      await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice }) => ({ name: n, unit: u, qty: q, unitPrice })) });
+      await saveTrip(db, { id: editId, store, date, items: items.map(({ name: n, unit: u, qty: q, unitPrice, unitChanged }) => ({ name: n, unit: u, qty: q, unitPrice, unitChanged })) });
       showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${money(total)} DH`);
       if (router.canGoBack()) router.back();
       else router.replace('/trips');

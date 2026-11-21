@@ -10,7 +10,8 @@ export type ItemRow = { id: number; product_id: number; name: string; unit: stri
 export type ProductRow = { id: number; name: string; unit: string; n: number; last_price: number | null; prev_price: number | null; avg_price: number | null };
 export type HistoryRow = { date: string; store: string; unit_price: number; qty: number };
 export type MonthSummary = { trips: number; total: number; items: number };
-export type NewItem = { name: string; unit: string; qty: number; unitPrice: number };
+/** `unitChanged`: the unit was changed by hand on purpose; otherwise the product keeps its known unit. */
+export type NewItem = { name: string; unit: string; qty: number; unitPrice: number; unitChanged?: boolean };
 export type NewTrip = { id?: number; store: string; date: string; items: NewItem[] };
 
 const DATABASE_VERSION = 4;
@@ -133,11 +134,11 @@ async function storeId(db: Db, name: string): Promise<number> {
 }
 
 /** Same product typed with other capitals, accents or spacing maps to the existing row. */
-async function productId(db: Db, name: string, unit: string): Promise<number> {
+async function productId(db: Db, name: string, unit: string, unitChanged = false): Promise<number> {
   const clean = cleanName(name);
   const key = productKey(clean);
   const found = await db.getFirstAsync<{ id: number; unit: string }>('SELECT id, unit FROM products WHERE key = ?', [key]);
-  if (found && found.unit === unit) return found.id;
+  if (found && (found.unit === unit || !unitChanged)) return found.id;
   if (found) {
     // Unit changed (e.g. pièce -> paquet). With no other purchase recorded, just switch the unit;
     // otherwise keep old prices comparable and note this one apart, as "Name (unit)".
@@ -146,7 +147,7 @@ async function productId(db: Db, name: string, unit: string): Promise<number> {
       await db.runAsync('UPDATE products SET unit = ? WHERE id = ?', [unit, found.id]);
       return found.id;
     }
-    return productId(db, `${clean} (${unit})`, unit);
+    return productId(db, `${clean} (${unit})`, unit, true);
   }
   const res = await db.runAsync('INSERT INTO products (name, key, unit) VALUES (?, ?, ?)', [clean, key, unit]);
   return res.lastInsertRowId;
@@ -273,7 +274,7 @@ async function writeTrip(db: Db, trip: NewTrip): Promise<number> {
     id = res.lastInsertRowId;
   }
   for (const it of trip.items) {
-    const pid = await productId(db, it.name, it.unit);
+    const pid = await productId(db, it.name, it.unit, it.unitChanged);
     await db.runAsync('INSERT INTO items (trip_id, product_id, qty, unit_price) VALUES (?, ?, ?, ?)', [id, pid, it.qty, it.unitPrice]);
   }
   await dropUnusedProducts(db);
