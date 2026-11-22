@@ -27,15 +27,20 @@ export default function Products() {
   const [sort, setSort] = useState<Sort>(params.sort === 'moves' ? 'moves' : 'recent');
   const [rows, setRows] = useState<ProductRow[] | null>(null);
   const [sparks, setSparks] = useState<Record<number, number[]>>({});
+  const [failure, setFailure] = useState('');
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      Promise.all([listProducts(db, search, sort === 'moves' ? 'recent' : sort), recentPrices(db)]).then(([res, sp]) => {
-        if (!alive) return;
-        setRows(res.filter((p) => !/timbre/i.test(p.name)));
-        setSparks(sp);
-      });
+      listProducts(db, search, sort === 'moves' ? 'recent' : sort)
+        .then(async (res) => {
+          if (!alive) return;
+          setFailure('');
+          setRows(res.filter((p) => !/timbre/i.test(p.name)));
+          const sp = await recentPrices(db).catch(() => ({}));
+          if (alive) setSparks(sp);
+        })
+        .catch((e) => alive && (setFailure(String((e as Error).message ?? e)), setRows([])));
       return () => { alive = false; };
     }, [db, search, sort]),
   );
@@ -49,7 +54,7 @@ export default function Products() {
       .map((x) => x.p);
   }, [rows, sort]);
 
-  const nothingYet = rows !== null && rows.length === 0 && search.trim() === '';
+  const nothingYet = rows !== null && rows.length === 0 && search.trim() === '' && !failure;
 
   return (
     <Screen tab="products">
@@ -76,7 +81,7 @@ export default function Products() {
             keyboardShouldPersistTaps="handled"
             initialNumToRender={14}
             ListEmptyComponent={rows ? (
-              <Text style={[t.body, st.none]}>{sort === 'moves' && !search ? "Aucun prix n'a monté à ton dernier achat. Mzyan." : `Aucun produit ne correspond à « ${search.trim()} ».`}</Text>
+              <Text style={[t.body, st.none]}>{failure ? `Erreur de lecture : ${failure}` : sort === 'moves' && !search ? "Aucun prix n'a monté à ton dernier achat. Mzyan." : `Aucun produit ne correspond à « ${search.trim()} ».`}</Text>
             ) : undefined}
             renderItem={({ item: p, index }) => {
               const base = p.last_price !== null && p.unit !== 'kg' && p.unit !== 'L' ? basePrice(p.last_price, p.unit, p.name) : null;

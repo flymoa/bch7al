@@ -131,10 +131,37 @@ async function rekeyArabic(db: Db): Promise<void> {
   }
 }
 
+/**
+ * Runs on every open, whatever user_version says: makes sure every v4 table and column
+ * exists. A phone whose version number got ahead of its real schema (seen on the first v4
+ * install: "no such table: aliases") is repaired instead of failing on every screen.
+ */
+export async function ensureSchema(db: Db): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(items)', []);
+  if (cols.length > 0 && !cols.some((c) => c.name === 'promo')) {
+    await db.execAsync('ALTER TABLE items ADD COLUMN promo INTEGER NOT NULL DEFAULT 0;');
+  }
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS prefs (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS list_items (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, key TEXT NOT NULL UNIQUE, done INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS aliases (key TEXT PRIMARY KEY NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE);
+    CREATE INDEX IF NOT EXISTS aliases_product ON aliases(product_id);
+  `);
+}
+
 /** Runs on every open: SQLite only enforces foreign keys when asked to. */
 export async function onOpen(db: Db): Promise<void> {
   await db.execAsync('PRAGMA foreign_keys = ON');
   await migrate(db);
+  await ensureSchema(db);
+}
+
+/** For Réglages: the schema version and whether the v4 parts are really there. */
+export async function schemaInfo(db: Db): Promise<{ version: number; ok: boolean }> {
+  const v = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+  const t = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'aliases'");
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(items)', []);
+  return { version: v?.user_version ?? 0, ok: !!t?.n && cols.some((c) => c.name === 'promo') };
 }
 
 // ---------- stores & products ----------

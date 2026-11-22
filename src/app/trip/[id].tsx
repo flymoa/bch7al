@@ -19,15 +19,20 @@ export default function TripDetail() {
   const tripId = Number(id);
   const [data, setData] = useState<{ trip: TripRow; items: ItemRow[] } | null | undefined>(undefined);
   const [verdicts, setVerdicts] = useState<Record<number, Verdict | null>>({});
+  const [failure, setFailure] = useState('');
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      Promise.all([getTrip(db, tripId), tripVerdicts(db, tripId)]).then(([res, v]) => {
-        if (!alive) return;
-        setVerdicts(v);
-        setData(res);
-      });
+      getTrip(db, tripId)
+        .then(async (res) => {
+          if (!alive) return;
+          setData(res);
+          // Verdicts are a bonus: the trip shows even if they cannot be computed.
+          const v = await tripVerdicts(db, tripId).catch(() => ({}));
+          if (alive) setVerdicts(v);
+        })
+        .catch((e) => alive && (setFailure(String((e as Error).message ?? e)), setData(null)));
       return () => { alive = false; };
     }, [db, tripId]),
   );
@@ -57,7 +62,7 @@ export default function TripDetail() {
     return (
       <Screen>
         <TopBar title="Course" />
-        <View style={st.pad}><Empty icon="receipt" title="Course introuvable" text="Elle a peut-être été supprimée." /></View>
+        <View style={st.pad}><Empty icon="receipt" title={failure ? 'Course illisible' : 'Course introuvable'} text={failure || 'Elle a peut-être été supprimée.'} /></View>
       </Screen>
     );
   }

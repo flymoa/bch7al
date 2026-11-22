@@ -112,6 +112,20 @@ async function main() {
   const sugar = (await D.getTrip(old, 1))!;
   assert.equal(sugar.items[0].unit_price, 9.5);
   assert.equal(sugar.items[0].promo, 0);
+  // a phone whose user_version is already 5 but has no aliases table / promo column is repaired
+  const ahead = adapter();
+  await ahead.execAsync(`CREATE TABLE stores (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, key TEXT NOT NULL UNIQUE);
+    CREATE TABLE products (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, key TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'pièce');
+    CREATE TABLE trips (id INTEGER PRIMARY KEY NOT NULL, store_id INTEGER NOT NULL REFERENCES stores(id), date TEXT NOT NULL);
+    CREATE TABLE items (id INTEGER PRIMARY KEY NOT NULL, trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE, product_id INTEGER NOT NULL REFERENCES products(id), qty REAL NOT NULL, unit_price REAL NOT NULL);
+    INSERT INTO stores VALUES (1, 'BIM', 'bim'); INSERT INTO products VALUES (1, 'Sucre', 'sucre', 'kg');
+    INSERT INTO trips VALUES (1, 1, '2026-09-01'); INSERT INTO items VALUES (1, 1, 1, 2, 9.5);
+    PRAGMA user_version = 5;`);
+  await D.onOpen(ahead);
+  assert.deepEqual(await D.schemaInfo(ahead), { version: 5, ok: true });
+  assert.equal((await D.getTrip(ahead, 1))!.items[0].promo, 0, 'trip opens');
+  assert.equal((await D.listProducts(ahead)).length, 1, 'products list works');
+  assert.equal(await D.findProduct(ahead, 'Sucre').then((p) => p!.name), 'Sucre', 'scan lookup works');
   console.log('v4 tests passed');
 }
 
