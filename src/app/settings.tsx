@@ -10,7 +10,7 @@ import { Alert } from '@/alert';
 import { Mark } from '@/components/brand';
 import { Icon, type IconName } from '@/components/icon';
 import { Button, Field, Pill, Screen, TopBar, t } from '@/components/ui';
-import { counts, exportCsv, getPref, importCsv, setPref as savePref } from '@/db';
+import { counts, exportCsv, getPref, importCsv, schemaInfo, setPref as savePref } from '@/db';
 import { geminiCheck } from '@/gemini';
 import { longDate, money, parseNumber, plural, todayIso } from '@/format';
 import { useSQLiteContext } from '@/sqlite';
@@ -41,6 +41,7 @@ export default function Settings() {
   const [visionMsg, setVisionMsg] = useState('');
   const [model, setModel] = useState<string | null>(null);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [schema, setSchema] = useState<{ version: number; ok: boolean } | null>(null);
 
   useEffect(() => {
     getPref(db, 'geminiKey').then((k) => {
@@ -100,6 +101,7 @@ export default function Settings() {
   const refresh = useCallback(async () => {
     setStats(await counts(db));
     setLastBackup(await getPref(db, 'lastBackup'));
+    setSchema(await schemaInfo(db).catch(() => null));
   }, [db]);
   useFocusEffect(
     useCallback(() => {
@@ -231,7 +233,7 @@ export default function Settings() {
 
         <View style={st.about}>
           <Mark size={28} />
-          <Text style={t.meta}>bch7al? · version {Constants.expoConfig?.version ?? '4.0.0'} · Majorelle Nuit</Text>
+          <Text style={t.meta}>bch7al? · version {Constants.expoConfig?.version ?? '4.0.1'}{schema ? ` · base v${schema.version}${schema.ok ? '' : ' (à réparer)'}` : ''}</Text>
         </View>
       </ScrollView>
     </Screen>

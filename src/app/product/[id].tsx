@@ -29,10 +29,14 @@ export default function ProductDetail() {
   const [chartW, setChartW] = useState(0);
 
   const load = useCallback(async () => {
-    const [p, h, a] = await Promise.all([getProduct(db, productId), productHistory(db, productId), listAliases(db, productId)]);
-    setProduct(p);
-    setHistory(h);
-    setAliases(a);
+    try {
+      const [p, h] = await Promise.all([getProduct(db, productId), productHistory(db, productId)]);
+      setProduct(p);
+      setHistory(h);
+      setAliases(await listAliases(db, productId).catch(() => []));
+    } catch {
+      setProduct(null);
+    }
   }, [db, productId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

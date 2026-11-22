@@ -65,6 +65,8 @@ export default function TripForm() {
   const nameRef = useRef<TextInputInstance>(null);
   const scrollRef = useRef<ScrollViewInstance>(null);
   const formY = useRef(0);
+  /** The last ticket photo, so « Réessayer » works whatever went wrong after the photo. */
+  const lastPhoto = useRef<Photo | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
@@ -191,15 +193,22 @@ export default function TripForm() {
     if (res.date && res.date <= todayIso()) setDate(res.date);
     const lines: NewLine[] = [];
     for (const it of res.items) {
-      // Own name or a remembered receipt spelling (alias).
-      let existing: ProductRow | null | undefined = it.unnamed ? undefined : byKey.get(productKey(it.name)) ?? (await findProduct(db, it.name));
+      // Same matching as v3 (exact name), then — as an extra that can never break the scan —
+      // a remembered receipt spelling (alias).
+      let existing: ProductRow | null | undefined = it.unnamed ? undefined : byKey.get(productKey(it.name));
+      if (!existing && !it.unnamed) existing = await findProduct(db, it.name).catch(() => null);
       let lineName = existing ? existing.name : it.name;
       const otherUnit = !!existing && existing.unit !== it.unit;
       if (otherUnit) {
         lineName = `${existing!.name} (${it.unit})`;
         existing = byKey.get(productKey(lineName));
       }
-      const close = !existing && !it.unnamed && it.name !== STAMP_DUTY ? closestName(it.name, products.filter((p) => !/timbre/i.test(p.name))) : null;
+      let close: ProductRow | null = null;
+      try {
+        close = !existing && !it.unnamed && it.name !== STAMP_DUTY ? closestName(it.name, products.filter((p) => !/timbre/i.test(p.name))) : null;
+      } catch {
+        close = null;
+      }
       lines.push({
         name: lineName, otherUnit, unit: existing ? existing.unit : it.unit, qty: it.qty, unitPrice: it.unitPrice,
         last: editId ? null : existing?.avg_price ?? null, known: !!existing, scanned: true, unnamed: it.unnamed,
@@ -227,12 +236,13 @@ export default function TripForm() {
     try {
       const key = await getPref(db, 'geminiKey');
       const model = await getPref(db, 'geminiModel');
-      const res = source === 'retry' && scan?.photo ? await readPhoto(scan.photo, key, model) : source === 'retry' ? null : await scanReceipt(source, key, model);
+      const res = source === 'retry' ? (lastPhoto.current ? await readPhoto(lastPhoto.current, key, model) : null) : await scanReceipt(source, key, model);
       if (!res) return;
+      if (res.photo) lastPhoto.current = res.photo;
       if (res.model && res.model !== model) await setPref(db, 'geminiModel', res.model);
       await applyScan(res);
     } catch (e) {
-      setScan({ count: 0, total: null, lines: 0, missing: 0, unnamed: 0, warning: String((e as Error).message ?? e), failed: true, photo: scan?.photo });
+      setScan({ count: 0, total: null, lines: 0, missing: 0, unnamed: 0, warning: String((e as Error).message ?? e), failed: true, photo: lastPhoto.current });
     } finally {
       setScanning(false);
     }
@@ -261,8 +271,11 @@ export default function TripForm() {
       await saveTrip(db, { id: editId, store, date, items: items.map((it) => ({ name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unitPrice, promo: it.promo })) });
       for (const it of items) {
         if (!it.raw) continue;
-        const p = await findProduct(db, it.name);
-        if (p) await addAlias(db, it.raw, p.id);
+        // Remembering a spelling is a bonus: the trip is already saved if this fails.
+        try {
+          const p = await findProduct(db, it.name);
+          if (p) await addAlias(db, it.raw, p.id);
+        } catch {}
       }
       showToast(editId ? 'Course modifiée' : `Bsse7a ! Course enregistrée · ${dh(total)}`);
       if (router.canGoBack()) router.back();
