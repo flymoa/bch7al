@@ -50,7 +50,7 @@ async function main() {
     { name: 'Tomates', unit: 'kg', qty: 2, unitPrice: 8 },
   ] });
   const t2 = await D.saveTrip(db, { store: 'marjane ', date: '2026-11-09', items: [
-    { name: 'huile lesieur 5l', unit: 'kg', qty: 1, unitPrice: 98 }, // same product, other spelling, unit ignored
+    { name: 'huile lesieur 5l', unit: 'pièce', qty: 1, unitPrice: 98 }, // same product, other spelling
     { name: 'Lait Centrale 1L', unit: 'pièce', qty: 6, unitPrice: 7.5 },
   ] });
   await D.saveTrip(db, { store: 'Souk', date: '2026-11-06', items: [

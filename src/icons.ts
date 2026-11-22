@@ -1,67 +1,57 @@
 // Picks an icon from a product or store name by keywords (French, Darija in Latin letters, English).
+// Pure module (no React Native import) so Node tests can use it.
 import { productKey } from './format';
 
-export type IconName = string;
+export type GuessIcon =
+  | 'dairy' | 'egg' | 'bread' | 'grains' | 'bottle' | 'coffee' | 'meat' | 'fish' | 'shrimp' | 'veg' | 'pepper' | 'herbs'
+  | 'fruit' | 'drink' | 'sweets' | 'cleaning' | 'paper' | 'pack' | 'products' | 'market' | 'store' | 'cart';
 
-const PRODUCT_RULES: [string[], IconName][] = [
-  [['lait', 'milk', 'hlib', 'halib', 'yaourt', 'yogourt', 'raib', 'lben', 'leben', 'danone'], 'cup-water'],
-  [['fromage', 'cheese', 'jben', 'vache qui rit'], 'cheese'],
-  [['beurre', 'zebda', 'smen'], 'cheese'],
-  [['oeuf', 'oeufs', 'egg', 'bid'], 'egg-outline'],
-  [['pain', 'khobz', 'baguette', 'harcha', 'msemen', 'batbout'], 'baguette'],
-  [['farine', 'semoule', 'dqiq', 'smida', 'ble', 'orge'], 'barley'],
-  [['riz', 'rice'], 'rice'],
-  [['pates', 'spaghetti', 'macaroni', 'vermicelle', 'chaariya', 'couscous'], 'pasta'],
-  [['huile', 'oil', 'zit', 'olive'], 'bottle-tonic-outline'],
-  [['sucre', 'sugar', 'skar', 'sel', 'melh', 'epice', 'poivre', 'cumin', 'kamoun', 'paprika', 'tahmira'], 'shaker-outline'],
-  [['the ', 'the', 'atay', 'tea', 'sultan', 'menthe', 'naanaa'], 'tea-outline'],
-  [['cafe', 'coffee', 'qahwa', 'nescafe'], 'coffee-outline'],
-  [['poulet', 'djaj', 'chicken', 'dinde', 'pilon'], 'food-drumstick'],
-  [['viande', 'boeuf', 'lham', 'khrouf', 'agneau', 'mouton', 'kefta', 'hachee', 'steak'], 'food-steak'],
-  [['merguez', 'saucisse', 'cachir', 'kachir'], 'sausage'],
-  [['poisson', 'hout', 'fish', 'sardine', 'thon', 'crevette', 'calamar'], 'fish'],
-  [['tomate', 'tomates', 'mticha', 'maticha'], 'fruit-cherries'],
-  [['carotte', 'khizou', 'pomme de terre', 'batata', 'oignon', 'bsla', 'courgette', 'poivron', 'aubergine', 'legume', 'navet', 'chou'], 'carrot'],
-  [['piment', 'harissa', 'felfla'], 'chili-mild'],
-  [['persil', 'maadnous', 'coriandre', 'qosbor', 'salade', 'laitue', 'epinard'], 'leaf'],
-  [['orange', 'citron', 'limoun', 'mandarine', 'clementine'], 'fruit-citrus'],
-  [['pasteque', 'dellah', 'melon', 'battikh'], 'fruit-watermelon'],
-  [['pomme', 'tfah', 'banane', 'banan', 'poire', 'fraise', 'raisin', 'fruit', 'datte', 'tmer'], 'food-apple'],
-  [['mais', 'corn'], 'corn'],
-  [['eau', 'water', 'sidi ali', 'ain saiss', 'oulmes', 'bahia'], 'water-outline'],
-  [['coca', 'soda', 'jus', 'juice', 'boisson', 'fanta', 'pepsi', 'hawai'], 'bottle-soda-outline'],
-  [['gateau', 'biscuit', 'chocolat', 'gaufrette', 'henrys', 'tonic', 'bonbon', 'confiture'], 'cupcake'],
-  [['lessive', 'javel', 'savon', 'tide', 'ariel', 'omo', 'detergent', 'nettoyant', 'liquide vaisselle', 'pril'], 'spray-bottle'],
-  [['papier', 'mouchoir', 'sopalin', 'serviette'], 'paper-roll-outline'],
-  [['dentifrice', 'brosse', 'shampoing', 'gel douche', 'deodorant'], 'toothbrush-paste'],
-  [['couche', 'pampers', 'bebe', 'biberon'], 'baby-bottle-outline'],
+const PRODUCT_RULES: [string[], GuessIcon][] = [
+  [['lait', 'milk', 'hlib', 'halib', 'yaourt', 'yogourt', 'raib', 'lben', 'leben', 'danone', 'fromage', 'cheese', 'jben', 'vache qui rit', 'beurre', 'zebda', 'smen'], 'dairy'],
+  [['oeuf', 'oeufs', 'egg', 'bid'], 'egg'],
+  [['pain', 'khobz', 'baguette', 'harcha', 'msemen', 'batbout'], 'bread'],
+  [['farine', 'semoule', 'dqiq', 'smida', 'ble', 'orge', 'riz', 'rice', 'pates', 'spaghetti', 'macaroni', 'vermicelle', 'chaariya', 'couscous', 'mais', 'lentille', 'pois chiche', 'loubia', 'haricot'], 'grains'],
+  [['huile', 'oil', 'zit', 'olive', 'vinaigre'], 'bottle'],
+  [['the ', 'the', 'atay', 'tea', 'sultan', 'cafe', 'coffee', 'qahwa', 'nescafe'], 'coffee'],
+  [['poulet', 'djaj', 'chicken', 'dinde', 'pilon', 'viande', 'boeuf', 'lham', 'khrouf', 'agneau', 'mouton', 'kefta', 'hachee', 'steak', 'merguez', 'saucisse', 'cachir', 'kachir'], 'meat'],
+  [['crevette', 'calamar', 'poulpe'], 'shrimp'],
+  [['poisson', 'hout', 'fish', 'sardine', 'thon', 'merlan', 'dorade'], 'fish'],
+  [['piment', 'harissa', 'felfla', 'poivron'], 'pepper'],
+  [['persil', 'maadnous', 'coriandre', 'qosbor', 'salade', 'laitue', 'epinard', 'menthe', 'naanaa'], 'herbs'],
+  [['tomate', 'tomates', 'mticha', 'maticha', 'carotte', 'khizou', 'pomme de terre', 'batata', 'oignon', 'bsla', 'courgette', 'aubergine', 'legume', 'navet', 'chou'], 'veg'],
+  [['orange', 'citron', 'limoun', 'mandarine', 'clementine', 'pasteque', 'dellah', 'melon', 'battikh', 'pomme', 'tfah', 'banane', 'banan', 'poire', 'fraise', 'raisin', 'fruit', 'datte', 'tmer'], 'fruit'],
+  [['eau', 'water', 'sidi ali', 'ain saiss', 'oulmes', 'bahia', 'coca', 'soda', 'jus', 'juice', 'boisson', 'fanta', 'pepsi', 'hawai'], 'drink'],
+  [['sucre', 'sugar', 'skar', 'gateau', 'biscuit', 'chocolat', 'gaufrette', 'henrys', 'tonic', 'bonbon', 'confiture'], 'sweets'],
+  [['lessive', 'javel', 'savon', 'tide', 'ariel', 'omo', 'detergent', 'nettoyant', 'liquide vaisselle', 'pril', 'dentifrice', 'shampoing', 'gel douche', 'deodorant'], 'cleaning'],
+  [['papier', 'mouchoir', 'sopalin', 'serviette', 'couche', 'pampers'], 'paper'],
+  [['timbre'], 'pack'],
 ];
 
-const STORE_RULES: [string[], IconName][] = [
-  [['souk', 'marche', 'souq', 'jouteya'], 'basket-outline'],
-  [['hanout', 'epicerie', 'mol hanout', 'superette'], 'storefront-outline'],
-  [['boucher', 'gezzar', 'jazzar'], 'food-steak'],
-  [['boulanger', 'patisserie', 'ferran'], 'baguette'],
+const STORE_RULES: [string[], GuessIcon][] = [
+  [['souk', 'marche', 'souq', 'jouteya'], 'market'],
+  [['hanout', 'epicerie', 'mol hanout', 'superette'], 'store'],
+  [['boucher', 'gezzar', 'jazzar'], 'meat'],
+  [['boulanger', 'patisserie', 'ferran'], 'bread'],
   [['poissonn', 'hout'], 'fish'],
+  [['khodar', 'legumes'], 'veg'],
   [['marjane', 'carrefour', 'bim', 'acima', 'aswak', 'label', 'kazyon', 'atacadao', 'metro', 'supermarche', 'hyper'], 'cart'],
 ];
 
-function match(rules: [string[], IconName][], name: string): IconName | null {
+function match(rules: [string[], GuessIcon][], name: string): GuessIcon | null {
   const key = ' ' + productKey(name) + ' ';
   for (const [words, icon] of rules) {
     for (const w of words) {
       const k = productKey(w);
-      // whole-word match, plus plural "s"
       if (key.includes(' ' + k + ' ') || key.includes(' ' + k + 's ')) return icon;
     }
   }
   return null;
 }
 
-export function productIcon(name: string): IconName {
-  return match(PRODUCT_RULES, name) ?? 'tag-outline';
+export function productIcon(name: string): GuessIcon {
+  return match(PRODUCT_RULES, name) ?? 'products';
 }
 
-export function storeIcon(name: string): IconName {
-  return match(STORE_RULES, name) ?? 'store-outline';
+export function storeIcon(name: string): GuessIcon {
+  return match(STORE_RULES, name) ?? 'store';
 }

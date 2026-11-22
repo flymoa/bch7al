@@ -1,37 +1,34 @@
-// "Prix" tab ("bch7al ?"): type a product, see your best price and where, how it moved,
-// and whether the price in front of you is a good one.
-import { Icon } from '@/components/icon';
+// « bch7al … ? » — the in-shop question. Type a product, see your best price and where,
+// then type the price on the shelf and get the verdict: Ghali / Normal / Rkhis.
 import { router, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from '@/sqlite';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { Icon } from '@/components/icon';
 import { FadeIn, Pop } from '@/components/motion';
 import { showToast } from '@/components/toast';
-import { Empty, ListGroup, ListRow, Screen, Tile, s as ui, t } from '@/components/ui';
-import Svg, { Circle, Polyline } from 'react-native-svg';
+import { Bars, Button, Empty, Field, Group, IconButton, Row, Screen, StepChart, Tile, s as ui, t } from '@/components/ui';
 import { addListItem, getProduct, listProducts, pricesByStore, productHistory, type HistoryRow, type ProductRow, type StorePrice } from '@/db';
-import { money, parseNumber, pct, plural, shortDate, verdict } from '@/format';
-import { bubble, bubbleRight, colors, fonts, shadow, sheet, useTheme } from '@/theme';
-import { radius, space, tabular, type } from '@/tokens';
-
-const per = (unit: string) => (unit === 'pièce' ? '' : ` / ${unit}`);
+import { basePrice, money, parseNumber, pct, perUnit, plural, ryal, shortDate, verdict } from '@/format';
+import { useSQLiteContext } from '@/sqlite';
+import { bubble, bubbleRight, colors, price as pc, sheet, text, useTheme } from '@/theme';
+import { size, space } from '@/tokens';
 
 export default function Ask() {
   useTheme();
   const db = useSQLiteContext();
   const params = useLocalSearchParams<{ id?: string }>();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<ProductRow[]>([]);
+  const [results, setResults] = useState<ProductRow[] | null>(null);
   const [picked, setPicked] = useState<ProductRow | null>(null);
   const [where, setWhere] = useState<StorePrice[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [seen, setSeen] = useState('');
-  const [chartW, setChartW] = useState(270);
+  const [chartW, setChartW] = useState(0);
 
   const pick = async (p: ProductRow) => {
     const [w, h] = await Promise.all([pricesByStore(db, p.id), productHistory(db, p.id)]);
     setWhere(w);
-    setHistory(h.slice(-8));
+    setHistory(h.slice(-10));
     setQuery('');
     setSeen('');
     setPicked(p);
@@ -47,260 +44,161 @@ export default function Ask() {
     listProducts(db, query, 'frequent', 30).then((rows) => {
       if (alive) setResults(rows.filter((p) => p.last_price !== null && !/timbre/i.test(p.name)).slice(0, 8));
     });
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [db, query]);
 
   const usual = picked?.avg_price ?? null;
   const best = where[0] ?? null;
   const seenPrice = parseNumber(seen);
   const v = seen.trim() && seenPrice >= 0 ? verdict(seenPrice, usual) : null;
-  const bestVerdict = best && where.length > 1 ? verdict(best.price, usual) : null;
-  const hLow = Math.min(...history.map((h) => h.unit_price));
-  const hHigh = Math.max(...history.map((h) => h.unit_price));
-  const hSpan = hHigh - hLow || 1;
-  const moved = history.length > 1 ? history[history.length - 1].unit_price - history[0].unit_price : 0;
-
   const others = where.slice(1);
-  const maxOther = Math.max(...others.map((w) => w.price), 0.01);
-  // Price line: one point per purchase, newest on the right.
-  const W = Math.max(120, chartW), H = 64;
-  const pts = history.map((h, i) => [history.length > 1 ? (i / (history.length - 1)) * (W - 12) + 6 : W / 2, 8 + (1 - (h.unit_price - hLow) / hSpan) * (H - 16)] as const);
-
-  const input = (
-    <View style={st.inputBar}>
-      <Text style={st.inputLead}>Bch7al…</Text>
-      <TextInput
-        accessibilityLabel="Nom du produit"
-        value={query}
-        onChangeText={(v) => {
-          setQuery(v);
-          if (picked) setPicked(null);
-        }}
-        placeholder={picked ? 'autre chose' : "le lait, l'huile, le thé"}
-        placeholderTextColor={colors.muted}
-        style={st.input}
-        autoCorrect={false}
-        returnKeyType="search"
-      />
-      {query ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Effacer" onPress={() => setQuery('')} style={st.inputBtn}>
-          <Icon name="close" size={20} color={colors.white} />
-        </Pressable>
-      ) : (
-        <View style={st.inputBtn}>
-          <Text style={st.inputQ}>?</Text>
-        </View>
-      )}
-    </View>
-  );
+  const base = picked && best ? basePrice(best.price, picked.unit, picked.name) : null;
 
   return (
-    <Screen bottomBar="ask">
-      <KeyboardAvoidingView style={ui.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <Screen>
+      <View style={st.top}>
+        <IconButton icon="back" label="Retour" tone="surface" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+        <View style={st.askBox}>
+          <Text style={st.askLead}>bch7al</Text>
+          <Field
+            accessibilityLabel="Nom du produit"
+            value={query}
+            onChangeText={(x) => { setQuery(x); if (picked) setPicked(null); }}
+            placeholder={picked ? 'autre chose…' : "le lait, l'huile…"}
+            autoFocus={!params.id}
+            autoCorrect={false}
+            returnKeyType="search"
+            style={st.askField}
+          />
+          <Text style={st.askQ}>?</Text>
+        </View>
+      </View>
+      <KeyboardAvoidingView style={ui.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
-          <View style={st.head}>
-            <Text style={st.h1}>Prix</Text>
-          </View>
           {picked ? (
             <>
               <Pop style={st.right}>
-                <View style={st.question}>
-                  <Text style={st.questionText}>Bch7al {picked.name} ?</Text>
-                </View>
+                <View style={st.question}><Text style={st.questionText}>bch7al {picked.name} ?</Text></View>
               </Pop>
-
               <Pop>
-                <View style={st.answer}>
-                  <View style={st.answerTop}>
-                    <Text style={st.answerLabel}>{where.length > 1 ? 'Ton meilleur prix' : 'Ton dernier prix'}</Text>
-                    {bestVerdict && bestVerdict.kind === 'good' ? (
-                      <View style={st.answerBadge}>
-                        <Icon name="arrow-down" size={13} color={colors.blue} />
-                        <Text style={st.answerBadgeText}>Mzyan</Text>
-                      </View>
-                    ) : null}
-                  </View>
+                <View style={st.answer} accessible accessibilityLabel={`${money(best?.price ?? picked.last_price ?? 0)} dirhams chez ${best?.store ?? ''}`}>
+                  <Text style={st.answerOver}>{where.length > 1 ? 'TON MEILLEUR PRIX' : 'TON DERNIER PRIX'}</Text>
                   <View style={st.answerRow}>
                     <Text style={st.answerPrice} adjustsFontSizeToFit numberOfLines={1}>{money(best?.price ?? picked.last_price ?? 0)}</Text>
-                    <Text style={st.answerUnit}>DH{per(picked.unit)}</Text>
+                    <Text style={st.answerUnit}>DH{perUnit(picked.unit)}</Text>
                   </View>
-                  {best ? (
-                    <Text style={st.answerMeta}>
-                      chez <Text style={st.strong}>{best.store}</Text> · vu le {shortDate(best.date)}
-                    </Text>
-                  ) : null}
+                  {best ? <Text style={st.answerMeta}>chez <Text style={st.strong}>{best.store}</Text> · le {shortDate(best.date)}</Text> : null}
                   <Text style={st.answerSmall}>
-                    D'habitude {money(usual ?? 0)} DH · acheté {plural(picked.n, 'fois', 'fois')}
+                    D'habitude {money(usual ?? 0)} DH · {plural(picked.n, 'achat', 'achats')}
+                    {base && picked.unit !== base.base ? ` · ${money(base.price)} DH/${base.base}` : ''}
+                    {picked.unit === 'kg' && best ? ` · ${ryal(best.price)}` : ''}
                   </Text>
                 </View>
               </Pop>
 
-              <View style={st.bubbleCard}>
+              <View style={st.card}>
                 <Text style={st.cardTitle}>Tu vois un prix en magasin ?</Text>
                 <View style={st.seenRow}>
-                  <TextInput
-                    accessibilityLabel={`Prix vu en dirhams${per(picked.unit)}`}
-                    value={seen}
-                    onChangeText={setSeen}
-                    placeholder="0,00"
-                    placeholderTextColor={colors.muted}
-                    keyboardType="decimal-pad"
-                    style={st.seenInput}
-                  />
-                  <Text style={st.mad}>DH{per(picked.unit)}</Text>
+                  <Field big onCard accessibilityLabel={`Prix vu en dirhams${perUnit(picked.unit)}`} value={seen} onChangeText={setSeen} placeholder="0,00" keyboardType="decimal-pad" style={ui.flex} />
+                  <Text style={st.mad}>DH{perUnit(picked.unit)}</Text>
                 </View>
                 {v ? (
-                  <View style={[st.verdict, v.kind === 'good' ? { backgroundColor: colors.blue } : v.kind === 'high' ? ui.upBox : { backgroundColor: colors.soft }]} accessibilityLiveRegion="polite">
-                    <Text style={[st.verdictTitle, { color: v.kind === 'good' ? colors.white : colors.ink }]}>
-                      {v.kind === 'good' ? 'Mzyan, chri !' : v.kind === 'high' ? 'Ghali' : 'Normal'}
-                    </Text>
-                    <Text style={[st.verdictText, { color: v.kind === 'good' ? colors.white : colors.ink }]}>
-                      {v.kind === 'normal'
-                        ? `À peu près ce que tu paies d'habitude (${money(usual ?? 0)} DH).`
-                        : `${pct(v.change)} ${v.change < 0 ? 'de moins' : 'de plus'} que d'habitude (${money(usual ?? 0)} DH).`}
-                      {best && seenPrice > best.price + 0.005 ? ` Tu l'as eu à ${money(best.price)} chez ${best.store}.` : ''}
-                    </Text>
-                  </View>
+                  <Pop>
+                    <View
+                      style={[st.verdict, { backgroundColor: v.kind === 'high' ? pc.upBg : v.kind === 'good' ? pc.downBg : pc.sameBg }]}
+                      accessibilityLiveRegion="polite"
+                    >
+                      <View style={st.verdictHead}>
+                        <Icon name={v.kind === 'high' ? 'up' : v.kind === 'good' ? 'down' : 'same'} weight="bold" color={v.kind === 'high' ? pc.upFg : v.kind === 'good' ? pc.downFg : pc.sameFg} />
+                        <Text style={[st.verdictWord, { color: v.kind === 'high' ? pc.upFg : v.kind === 'good' ? pc.downFg : colors.ink }]}>
+                          {v.kind === 'good' ? 'Rkhis, chri !' : v.kind === 'high' ? 'Ghali' : 'Normal'}
+                        </Text>
+                      </View>
+                      <Text style={[st.verdictText, { color: v.kind === 'high' ? pc.upFg : v.kind === 'good' ? pc.downFg : pc.sameFg }]}>
+                        {v.kind === 'normal'
+                          ? `À peu près ce que tu paies d'habitude (${money(usual ?? 0)} DH).`
+                          : `${v.change < 0 ? '−' : '+'}${pct(v.change)} : ${v.change < 0 ? 'moins' : 'plus'} cher que d'habitude (${money(usual ?? 0)} DH).`}
+                        {best && seenPrice > best.price + 0.005 ? ` Tu l'as eu à ${money(best.price)} chez ${best.store}.` : ''}
+                        {` · ${plural(picked.n, 'achat', 'achats')}`}
+                      </Text>
+                    </View>
+                  </Pop>
                 ) : (
-                  <Text style={t.meta}>Écris le prix affiché, je te dis si c'est mzyan ou ghali.</Text>
+                  <Text style={t.body}>Écris le prix affiché : je te dis si c'est rkhis ou ghali.</Text>
                 )}
               </View>
 
               {others.length > 0 ? (
                 <FadeIn index={1}>
-                  <View style={st.bubbleCard}>
+                  <View style={st.card}>
                     <Text style={st.cardTitle}>Ailleurs</Text>
-                    {others.map((w) => (
-                      <View key={w.store} style={st.otherRow}>
-                        <Text style={st.otherName} numberOfLines={1}>{w.store}</Text>
-                        <View style={st.otherTrack}>
-                          <View style={[st.otherBar, { width: `${Math.max(12, (w.price / maxOther) * 100)}%` }]} />
-                        </View>
-                        <Text style={st.otherPrice}>{money(w.price)}</Text>
-                      </View>
-                    ))}
+                    <Bars rows={others.map((w) => ({ key: w.store, label: w.store, value: w.price, meta: `le ${shortDate(w.date)}` }))} />
                   </View>
                 </FadeIn>
               ) : null}
 
               {history.length > 1 ? (
                 <FadeIn index={2}>
-                  <View style={st.bubbleCard}>
-                    <View style={st.cardHead}>
-                      <Text style={st.cardTitle}>Depuis le {shortDate(history[0].date)}</Text>
-                      <Text style={t.meta}>{Math.abs(moved) < 0.005 ? 'stable' : `${moved > 0 ? '+' : '−'}${money(Math.abs(moved))} DH`}</Text>
-                    </View>
-                    <View accessible accessibilityLabel={history.map((h) => `${shortDate(h.date)} ${money(h.unit_price)} DH`).join(', ')} onLayout={(e) => setChartW(Math.round(e.nativeEvent.layout.width))}>
-                      <Svg width={W} height={H}>
-                        <Polyline points={pts.map((q) => q.join(',')).join(' ')} fill="none" stroke={colors.blue} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-                        <Circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={11} fill={colors.blue} opacity={0.18} />
-                        <Circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={6} fill={colors.blue} />
-                      </Svg>
-                      <View style={st.chartLabels}>
-                        <Text style={t.meta}>{shortDate(history[0].date)}</Text>
-                        <Text style={[t.meta, st.strong]}>{shortDate(history[history.length - 1].date)}</Text>
-                      </View>
-                    </View>
+                  <View style={st.card} onLayout={(e) => setChartW(Math.round(e.nativeEvent.layout.width) - space.lg * 2)}>
+                    <Text style={st.cardTitle}>Depuis le {shortDate(history[0].date)}</Text>
+                    <StepChart width={chartW} height={110} points={history.map((h) => ({ v: h.unit_price, promo: !!h.promo }))} usual={usual} />
                   </View>
                 </FadeIn>
               ) : null}
 
               <View style={st.actions}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={async () => {
-                    const added = await addListItem(db, picked.name);
-                    showToast(added ? 'Ajouté à ta liste' : 'Déjà dans ta liste');
-                  }}
-                  style={({ pressed }) => [st.action, st.actionMain, pressed && ui.pressed]}
-                >
-                  <Text style={st.actionMainText}>Ajouter à ma liste</Text>
-                </Pressable>
-                <Pressable accessibilityRole="button" onPress={() => router.push(`/product/${picked.id}`)} style={({ pressed }) => [st.action, pressed && ui.pressed]}>
-                  <Text style={st.actionText}>Tout l'historique</Text>
-                </Pressable>
+                <Button kind="tonal" icon="list" label="À ma liste" compact style={ui.flex} onPress={async () => showToast((await addListItem(db, picked.name)) ? 'Ajouté à ta liste' : 'Déjà dans ta liste')} />
+                <Button kind="outline" icon="products" label="Historique" compact style={ui.flex} onPress={() => router.push(`/product/${picked.id}`)} />
               </View>
             </>
-          ) : results.length === 0 ? (
+          ) : results && results.length === 0 ? (
             <Empty
+              icon="search"
               title={query.trim() ? `Pas encore de prix pour « ${query.trim()} »` : 'Aucun prix noté pour le moment'}
-              text="Note-le dans une course, et la prochaine fois je te dirai combien tu le paies."
+              text="Note-le dans une course : la prochaine fois, je te dirai combien tu le paies."
             />
-          ) : (
+          ) : results ? (
             <>
-              <View style={st.hint}>
-                <Text style={st.hintText}>{query.trim() ? 'Touche un produit' : 'Demande-moi un prix. Tes produits habituels :'}</Text>
-              </View>
-              <ListGroup>
+              <Text style={[t.label, st.hint]}>{query.trim() ? 'TOUCHE UN PRODUIT' : 'TES PRODUITS HABITUELS'}</Text>
+              <Group>
                 {results.map((p, i) => (
-                  <FadeIn key={p.id} index={i}>
-                    <ListRow
-                      label={p.name}
-                      onPress={() => pick(p)}
-                      first={i === 0}
-                      leading={<Tile text={p.name} />}
-                      title={p.name}
-                      meta={`Acheté ${p.n} fois`}
-                      price={money(p.last_price ?? 0)}
-                      unit="DH"
-                    />
-                  </FadeIn>
+                  <Row key={p.id} first={i === 0} label={p.name} onPress={() => pick(p)} leading={<Tile text={p.name} />} title={p.name} meta={plural(p.n, 'achat', 'achats')} price={money(p.last_price ?? 0)} unit={`DH${perUnit(p.unit)}`} />
                 ))}
-              </ListGroup>
+              </Group>
             </>
-          )}
+          ) : null}
         </ScrollView>
-        {input}
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.xl, gap: space.md },
-  head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  h1: { fontFamily: fonts.titleBold, fontSize: type.h1, letterSpacing: -0.6, color: colors.ink },
+  top: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.md },
+  askBox: { flex: 1, flexDirection: 'row', alignItems: 'center', ...bubble('lg'), backgroundColor: colors.surfaceContainer, paddingLeft: space.lg, paddingRight: space.lg, minHeight: 56 },
+  askLead: { ...text('title'), color: colors.ink },
+  askField: { flex: 1, backgroundColor: 'transparent', borderWidth: 0, minHeight: 52, paddingHorizontal: space.sm },
+  askQ: { ...text('headlineSm'), color: colors.primary },
+  content: { paddingHorizontal: size.screen, paddingBottom: space.section, gap: space.md },
   right: { alignSelf: 'flex-end', maxWidth: '86%' },
-  question: { backgroundColor: colors.night, ...bubbleRight(radius.lg), paddingHorizontal: space.lg, paddingVertical: space.md },
-  questionText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.white },
-  answer: { backgroundColor: colors.blue, ...bubble(radius.lg), padding: space.xl, gap: space.xs },
-  answerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  answerLabel: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onBlue },
-  answerBadge: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 28, paddingHorizontal: space.md, borderRadius: radius.pill, backgroundColor: colors.white },
-  answerBadgeText: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.blue },
+  question: { backgroundColor: colors.primary, ...bubbleRight('lg'), paddingHorizontal: space.lg, paddingVertical: space.md },
+  questionText: { ...text('title'), color: colors.onPrimary },
+  answer: { backgroundColor: colors.hero, ...bubble('hero'), padding: space.xxl, gap: space.xs },
+  answerOver: { ...text('overline'), color: colors.onHeroMuted },
   answerRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  answerPrice: { fontFamily: fonts.titleBold, fontSize: type.priceHero, lineHeight: 58, letterSpacing: -1.5, color: colors.white, flexShrink: 1, ...tabular },
-  answerUnit: { fontFamily: fonts.bodyMedium, fontSize: type.title, color: colors.onBlue },
-  answerMeta: { fontFamily: fonts.body, fontSize: type.body, color: colors.white },
-  answerSmall: { fontFamily: fonts.body, fontSize: type.caption, color: colors.onBlue },
-  strong: { fontFamily: fonts.bodyBold },
-  bubbleCard: { alignSelf: 'stretch', backgroundColor: colors.card, ...bubble(radius.lg), padding: space.lg, gap: space.md, ...shadow },
-  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  cardTitle: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink },
-  otherRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 32 },
-  otherName: { width: 88, fontFamily: fonts.body, fontSize: type.body, color: colors.ink },
-  otherTrack: { flex: 1, height: space.sm, borderRadius: space.xs, backgroundColor: colors.soft },
-  otherBar: { height: space.sm, borderRadius: space.xs, backgroundColor: colors.barSoft },
-  otherPrice: { minWidth: 64, textAlign: 'right', fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.ink, ...tabular },
-  chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
+  answerPrice: { ...text('priceHero'), color: colors.onHero, flexShrink: 1 },
+  answerUnit: { ...text('title'), color: colors.onHeroMuted },
+  answerMeta: { ...text('body'), color: colors.onHero },
+  answerSmall: { ...text('caption'), color: colors.onHeroMuted },
+  strong: { fontFamily: text('title').fontFamily },
+  card: { backgroundColor: colors.surfaceContainer, ...bubble('lg'), padding: space.lg, gap: space.md },
+  cardTitle: { ...text('title'), color: colors.ink },
   seenRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  seenInput: { flex: 1, minWidth: 0, backgroundColor: colors.bg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: space.lg, minHeight: 64, fontFamily: fonts.titleBold, fontSize: type.price, color: colors.ink, ...tabular },
-  mad: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.muted },
-  verdict: { ...bubble(radius.md), padding: space.lg, gap: space.xs },
-  verdictTitle: { fontFamily: fonts.titleBold, fontSize: type.h1 },
-  verdictText: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  action: { minHeight: 44, paddingHorizontal: space.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.line, justifyContent: 'center' },
-  actionMain: { borderColor: colors.blue },
-  actionText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.ink },
-  actionMainText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
-  hint: { alignSelf: 'flex-start', backgroundColor: colors.soft, ...bubble(radius.lg), paddingHorizontal: space.lg, paddingVertical: space.md, maxWidth: '90%' },
-  hintText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.ink },
-  inputBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginBottom: space.md, minHeight: 56, borderRadius: radius.pill, backgroundColor: colors.card, paddingLeft: space.lg, paddingRight: space.sm, ...shadow },
-  inputLead: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.blue },
-  input: { flex: 1, minWidth: 0, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink, paddingVertical: space.sm },
-  inputBtn: { width: 44, height: 44, borderRadius: radius.pill, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
-  inputQ: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.white },
+  mad: { ...text('title'), color: colors.muted },
+  verdict: { ...bubble('sm'), padding: space.lg, gap: space.xs },
+  verdictHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  verdictWord: { ...text('headlineSm') },
+  verdictText: { ...text('bodySm') },
+  actions: { flexDirection: 'row', gap: space.sm },
+  hint: { paddingHorizontal: space.xs, paddingTop: space.sm },
 }));

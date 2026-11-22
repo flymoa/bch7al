@@ -9,7 +9,7 @@ import { geminiRead } from './gemini';
 
 export const scanAvailable = true;
 
-export type ScanResult = ReceiptResult & { engine: 'gemini' | 'phone'; warning?: string; model?: string };
+export type ScanResult = ReceiptResult & { engine: 'gemini' | 'phone'; warning?: string; model?: string; /** the photo, kept so a failed Gemini read can be retried */ photo?: Photo; /** Gemini was asked but the phone read it instead */ fellBack?: boolean };
 
 export type Photo = { uri: string; base64?: string | null; mimeType?: string | null };
 
@@ -43,7 +43,7 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
       // 60 s timeout and the app fell back to the phone reader. 1600 px is plenty to read a ticket.
       const small = await shrink(asset.uri);
       const res = await geminiRead(small, 'image/jpeg', geminiKey, geminiModel);
-      if (res.items.length > 0) return { ...res, engine: 'gemini' };
+      if (res.items.length > 0) return { ...res, engine: 'gemini', photo: asset };
       warning = "Gemini n'a trouvé aucun article. Ticket lu sur le téléphone.";
     } catch (e) {
       const msg = String((e as Error).message ?? e);
@@ -66,8 +66,9 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
       lines.push({ text: line.text ?? '', top: f?.top ?? 0, left: f?.left ?? 0, height: f ? Math.max(1, f.bottom - f.top) : 20, width: f ? Math.max(1, f.right - f.left) : undefined });
     }
   }
-  if (lines.length === 0) return { store: null, date: null, items: [], total: null, expected: null, rows: [], engine: 'phone', warning };
-  return { ...parseReceipt(toRows(lines)), engine: 'phone', warning };
+  const fellBack = !!geminiKey;
+  if (lines.length === 0) return { store: null, date: null, items: [], total: null, expected: null, rows: [], engine: 'phone', warning, photo: asset, fellBack };
+  return { ...parseReceipt(toRows(lines)), engine: 'phone', warning, photo: asset, fellBack };
 }
 
 /** Long edge 1600 px, JPEG 0.7: about 250-400 KB instead of several MB. */

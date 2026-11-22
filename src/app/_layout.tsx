@@ -1,7 +1,9 @@
-import { Rubik_400Regular } from '@expo-google-fonts/rubik/400Regular';
-import { Rubik_500Medium } from '@expo-google-fonts/rubik/500Medium';
-import { Rubik_600SemiBold } from '@expo-google-fonts/rubik/600SemiBold';
-import { Rubik_700Bold } from '@expo-google-fonts/rubik/700Bold';
+import { IBMPlexSansArabic_400Regular } from '@expo-google-fonts/ibm-plex-sans-arabic/400Regular';
+import { IBMPlexSansArabic_500Medium } from '@expo-google-fonts/ibm-plex-sans-arabic/500Medium';
+import { IBMPlexSansArabic_600SemiBold } from '@expo-google-fonts/ibm-plex-sans-arabic/600SemiBold';
+import { IBMPlexSansArabic_700Bold } from '@expo-google-fonts/ibm-plex-sans-arabic/700Bold';
+import { Kufam_600SemiBold } from '@expo-google-fonts/kufam/600SemiBold';
+import { Kufam_700Bold } from '@expo-google-fonts/kufam/700Bold';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -14,12 +16,16 @@ import { ToastHost } from '@/components/toast';
 import { getPref, onOpen, setPref as savePref, type Db } from '@/db';
 import { SQLiteProvider } from '@/sqlite';
 import { applyScheme, colors, ThemeContext, type Scheme, type ThemePref } from '@/theme';
+import { brand } from '@/tokens';
 
-// Keep the phone's launch screen up until our own intro is ready to take over.
+// Keep the phone's launch screen (plain night ink) up until our intro takes over.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({ Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold });
+  const [fontsLoaded, fontError] = useFonts({
+    Kufam_600SemiBold, Kufam_700Bold,
+    IBMPlexSansArabic_400Regular, IBMPlexSansArabic_500Medium, IBMPlexSansArabic_600SemiBold, IBMPlexSansArabic_700Bold,
+  });
   const fontsReady = fontsLoaded || !!fontError; // if a font fails, the app still opens with the system font
   const [dbReady, setDbReady] = useState(false);
   const [introDone, setIntroDone] = useState(false);
@@ -55,20 +61,19 @@ export default function RootLayout() {
     [scheme, pref],
   );
 
-  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: colors.blue }} />;
+  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: brand.night }} />;
 
+  const tab = { animation: 'none' as const };
   return (
     <ThemeContext.Provider value={theme}>
       <SafeAreaProvider>
         <StatusBar style={!introDone || scheme === 'dark' ? 'light' : 'dark'} />
         <SQLiteProvider databaseName="bch7al.db" onInit={init}>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-            <Stack.Screen name="index" options={{ animation: 'none' }} />
-            <Stack.Screen name="trips" options={{ animation: 'none' }} />
-            <Stack.Screen name="products" options={{ animation: 'none' }} />
-            <Stack.Screen name="stats" options={{ animation: 'none' }} />
-            <Stack.Screen name="ask" options={{ animation: 'none' }} />
-            <Stack.Screen name="list" options={{ animation: 'none' }} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg }, animation: 'slide_from_right' }}>
+            <Stack.Screen name="index" options={tab} />
+            <Stack.Screen name="products" options={tab} />
+            <Stack.Screen name="list" options={tab} />
+            <Stack.Screen name="month" options={tab} />
             <Stack.Screen name="camera" options={{ animation: 'fade' }} />
           </Stack>
           <ToastHost />
