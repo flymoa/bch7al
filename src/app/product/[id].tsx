@@ -1,14 +1,17 @@
+// One product's price memory: last price and verdict, the step chart with the usual-price
+// band, the price in each store, every purchase, and its other spellings (aliases).
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from '@/sqlite';
 import { useCallback, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Alert } from '@/alert';
-import { FadeIn, GrowBar } from '@/components/motion';
-import { Button, Card, ChangeChip, Chip, Empty, Header, ListGroup, ListRow, Pill, RoundButton, Screen, SectionTitle, Tile, s as ui, t } from '@/components/ui';
-import { getProduct, productHistory, updateProduct, type HistoryRow, type ProductRow } from '@/db';
-import { money, productKey, shortDate } from '@/format';
-import { colors, fonts, UNITS, sheet, useTheme } from '@/theme';
-import { radius, space, tabular, type } from '@/tokens';
+import { FadeIn } from '@/components/motion';
+import { showToast } from '@/components/toast';
+import { Button, Empty, Field, Group, IconButton, Pill, PriceChip, Row, Screen, SectionHeader, StepChart, Tile, TopBar, VerdictChip, s as ui, t } from '@/components/ui';
+import { addListItem, getProduct, listAliases, productHistory, removeAlias, updateProduct, type HistoryRow, type ProductRow } from '@/db';
+import { basePrice, money, perUnit, plural, productKey, shortDate, verdict } from '@/format';
+import { useSQLiteContext } from '@/sqlite';
+import { bubble, colors, price as pc, sheet, text, UNITS, useTheme } from '@/theme';
+import { radius, size, space } from '@/tokens';
 
 const CHART_POINTS = 16;
 
@@ -19,30 +22,26 @@ export default function ProductDetail() {
   const productId = Number(id);
   const [product, setProduct] = useState<ProductRow | null | undefined>(undefined);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [aliases, setAliases] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [unit, setUnit] = useState<string>(UNITS[0]);
+  const [chartW, setChartW] = useState(0);
 
   const load = useCallback(async () => {
-    const [p, h] = await Promise.all([getProduct(db, productId), productHistory(db, productId)]);
+    const [p, h, a] = await Promise.all([getProduct(db, productId), productHistory(db, productId), listAliases(db, productId)]);
     setProduct(p);
     setHistory(h);
+    setAliases(a);
   }, [db, productId]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
-
-  if (product === undefined) return <Screen><Header title="Produit" /></Screen>;
+  if (product === undefined) return <Screen><TopBar /></Screen>;
   if (product === null || history.length === 0) {
     return (
       <Screen>
-        <Header title="Produit" />
-        <View style={st.pad}>
-          <Empty title="Produit introuvable" text="Il n'est plus dans aucune course." />
-        </View>
+        <TopBar title="Produit" />
+        <View style={st.pad}><Empty icon="products" title="Produit introuvable" text="Il n'est plus dans aucune course." /></View>
       </Screen>
     );
   }
@@ -52,39 +51,26 @@ export default function ProductDetail() {
   const high = Math.max(...prices);
   const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
   const last = history[history.length - 1];
+  // The verdict of the last purchase compares it with the 3 regular-price purchases before it.
+  const before = history.slice(0, -1).filter((h) => !h.promo).slice(-3);
+  const usualBefore = before.length ? before.reduce((a, h) => a + h.unit_price, 0) / before.length : null;
+  const v = verdict(last.unit_price, usualBefore);
+  const base = basePrice(last.unit_price, product.unit, product.name);
   const chart = history.slice(-CHART_POINTS);
-  const chartLow = Math.min(...chart.map((h) => h.unit_price));
-  const chartSpan = Math.max(Math.max(...chart.map((h) => h.unit_price)) - chartLow, 0.0001);
-
-  // Latest price seen in each store, cheapest first.
   const latestByStore = new Map<string, HistoryRow>();
   for (const h of history) latestByStore.set(h.store, h);
   const stores = [...latestByStore.values()].sort((a, b) => a.unit_price - b.unit_price);
 
-  let verdict: { label: string; tone: 'up' | 'down' | 'neutral' } | null = null;
-  if (prices.length >= 3) {
-    if (last.unit_price > avg * 1.03) verdict = { label: "Plus cher que d'habitude", tone: 'up' };
-    else if (last.unit_price < avg * 0.97) verdict = { label: "Moins cher que d'habitude", tone: 'down' };
-    else verdict = { label: 'Prix habituel', tone: 'neutral' };
-  }
-
-  const startEdit = () => {
-    setName(product.name);
-    setUnit(product.unit);
-    setEditing(true);
-  };
-
+  const startEdit = () => { setName(product.name); setUnit(product.unit); setEditing(true); };
   const saveEdit = async () => {
     if (!productKey(name)) return Alert.alert('Nom manquant', 'Écris le nom du produit.');
     try {
       const target = await updateProduct(db, product.id, name, unit);
       setEditing(false);
       if (target !== product.id) {
-        Alert.alert('Produits regroupés', 'Ce nom existait déjà. Les deux historiques de prix ont été réunis.');
+        showToast('Produits regroupés : un seul historique');
         router.replace(`/product/${target}`);
-      } else {
-        await load();
-      }
+      } else await load();
     } catch (e) {
       Alert.alert('La modification a échoué', String((e as Error).message ?? e));
     }
@@ -92,130 +78,140 @@ export default function ProductDetail() {
 
   return (
     <Screen>
-      <Header title="Produit" right={<RoundButton icon={editing ? 'close' : 'create-outline'} label={editing ? 'Annuler la modification' : 'Renommer le produit'} onPress={() => (editing ? setEditing(false) : startEdit())} />} />
+      <TopBar right={<IconButton icon={editing ? 'close' : 'edit'} label={editing ? 'Annuler' : 'Renommer ou regrouper'} onPress={() => (editing ? setEditing(false) : startEdit())} />} />
       <ScrollView contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
         {editing ? (
-          <Card style={st.edit}>
-            <Text style={t.label}>Nom du produit</Text>
-            <TextInput accessibilityLabel="Nom du produit" value={name} onChangeText={setName} style={st.input} autoFocus />
-            <Text style={t.label}>Vendu par</Text>
-            <View style={st.wrap}>
-              {UNITS.map((u) => (
-                <Pill key={u} label={u} active={unit === u} onPress={() => setUnit(u)} />
-              ))}
-            </View>
-            <Text style={t.meta}>Si tu donnes le nom d'un produit qui existe déjà, les deux seront regroupés.</Text>
-            <Button label="Enregistrer" onPress={saveEdit} />
-          </Card>
+          <View style={st.edit}>
+            <Text style={t.label}>NOM DU PRODUIT</Text>
+            <Field accessibilityLabel="Nom du produit" value={name} onChangeText={setName} autoFocus />
+            <Text style={t.label}>VENDU PAR</Text>
+            <View style={st.wrap}>{UNITS.map((u) => <Pill key={u} label={u} active={unit === u} onPress={() => setUnit(u)} />)}</View>
+            <Text style={t.body}>Donne le nom d'un produit qui existe déjà et les deux historiques seront regroupés. L'ancien nom reste reconnu sur les tickets.</Text>
+            <Button label="Enregistrer" icon="check" onPress={saveEdit} />
+          </View>
         ) : (
-          <View>
-            <View style={st.head}>
-              <Tile text={product.name} size={44} />
+          <View style={st.head}>
+            <View style={st.titleRow}>
+              <Tile text={product.name} />
               <View style={ui.flex}>
                 <Text style={st.name} numberOfLines={2}>{product.name}</Text>
-                <Text style={t.meta}>Acheté {product.n} fois · par {product.unit}</Text>
+                <Text style={t.meta}>{plural(product.n, 'achat', 'achats')} · par {product.unit}</Text>
               </View>
             </View>
             <View style={st.priceRow}>
               <Text style={st.price} adjustsFontSizeToFit numberOfLines={1}>{money(last.unit_price)}</Text>
-              <Text style={st.priceUnit}>DH / {product.unit}</Text>
+              <Text style={st.priceUnit}>DH{perUnit(product.unit)}</Text>
             </View>
+            <View style={st.chips}>
+              {v ? <VerdictChip v={v} count={before.length} /> : null}
+              {last.promo ? <PriceChip dir="down" label="Promo" /> : null}
+              {base && product.unit !== base.base ? <Text style={t.meta}>soit {money(base.price)} DH/{base.base}</Text> : null}
+            </View>
+            <Text style={t.meta}>Dernier achat le {shortDate(last.date)} chez {last.store}</Text>
           </View>
         )}
 
-        <View style={st.chips}>
-          {verdict ? <Chip label={verdict.label} tone={verdict.tone} /> : null}
-          <Chip label={`Vu le ${shortDate(last.date)} chez ${last.store}`} />
+        <FadeIn index={1}>
+          <View style={st.block} onLayout={(e) => setChartW(Math.round(e.nativeEvent.layout.width) - space.lg * 2)}>
+            <Text style={st.blockTitle}>Son prix dans le temps</Text>
+            {history.length < 2 ? (
+              <Text style={t.body}>Ajoute un 2ᵉ achat pour voir l'évolution.</Text>
+            ) : (
+              <View accessible accessibilityRole="image" accessibilityLabel={`De ${money(chart[0].unit_price)} à ${money(last.unit_price)} dirhams sur ${chart.length} achats`}>
+                <StepChart width={chartW} points={chart.map((h) => ({ v: h.unit_price, promo: !!h.promo }))} usual={product.avg_price} />
+                <View style={st.axis}>
+                  <Text style={t.meta}>{shortDate(chart[0].date)}</Text>
+                  <Text style={t.meta}>bande = ton prix habituel · ◦ = promo</Text>
+                  <Text style={t.meta}>{shortDate(last.date)}</Text>
+                </View>
+              </View>
+            )}
+            <View style={st.stats}>
+              <View style={[st.stat, { backgroundColor: pc.downBg }]}>
+                <Text style={[st.statLabel, { color: pc.downFg }]}>Plus bas</Text>
+                <Text style={[st.statValue, { color: pc.downFg }]}>{money(low)}</Text>
+              </View>
+              <View style={[st.stat, { backgroundColor: pc.upBg }]}>
+                <Text style={[st.statLabel, { color: pc.upFg }]}>Plus haut</Text>
+                <Text style={[st.statValue, { color: pc.upFg }]}>{money(high)}</Text>
+              </View>
+              <View style={[st.stat, { backgroundColor: pc.sameBg }]}>
+                <Text style={[st.statLabel, { color: pc.sameFg }]}>Moyenne</Text>
+                <Text style={[st.statValue, { color: colors.ink }]}>{money(avg)}</Text>
+              </View>
+            </View>
+          </View>
+        </FadeIn>
+
+        <View style={st.actions}>
+          <Button kind="tonal" icon="list" label="À ma liste" compact style={ui.flex} onPress={async () => showToast((await addListItem(db, product.name)) ? 'Ajouté à ta liste' : 'Déjà dans ta liste')} />
+          <Button kind="outline" icon="search" label="Prix en magasin" compact style={ui.flex} onPress={() => router.push(`/ask?id=${product.id}`)} />
         </View>
 
-        <FadeIn index={1}><Card style={st.block}>
-          <View style={st.blockHead}>
-            <Text style={st.blockTitle}>Son prix dans le temps</Text>
-            {history.length > 1 ? <ChangeChip from={history[0].unit_price} to={last.unit_price} /> : null}
-          </View>
-          {history.length < 2 ? (
-            <Text style={t.meta}>Un seul prix noté pour l'instant. Le graphique apparaît dès le deuxième achat.</Text>
-          ) : (
-            <>
-              <View
-                style={st.chart}
-                accessible
-                accessibilityRole="image"
-                accessibilityLabel={`Prix de ${money(chart[0].unit_price)} à ${money(last.unit_price)} dirhams sur les ${chart.length} derniers achats`}
-              >
-                {chart.map((h, i) => (
-                  <GrowBar key={i} index={i} style={st.bar} height={space.xl + ((h.unit_price - chartLow) / chartSpan) * 72} color={i === chart.length - 1 ? colors.blue : colors.barSoft} />
-                ))}
-              </View>
-              <View style={st.axis}>
-                <Text style={t.meta}>{shortDate(chart[0].date)}</Text>
-                <Text style={t.meta}>{shortDate(last.date)}</Text>
-              </View>
-            </>
-          )}
-          <View style={st.stats}>
-            <View style={[st.stat, { backgroundColor: colors.soft }]}>
-              <Text style={[st.statLabel, { color: colors.softText }]}>Plus bas</Text>
-              <Text style={st.statValue}>{money(low)}</Text>
-            </View>
-            <View style={[st.stat, { backgroundColor: colors.upBg }, ui.upBox]}>
-              <Text style={[st.statLabel, { color: colors.upText }]}>Plus haut</Text>
-              <Text style={st.statValue}>{money(high)}</Text>
-            </View>
-            <View style={[st.stat, { backgroundColor: colors.neutral }]}>
-              <Text style={[st.statLabel, { color: colors.muted }]}>Moyenne</Text>
-              <Text style={st.statValue}>{money(avg)}</Text>
-            </View>
-          </View>
-        </Card></FadeIn>
-
-        <SectionTitle>Dernier prix par magasin</SectionTitle>
-        <ListGroup>
+        <SectionHeader title="Dernier prix par magasin" />
+        <Group>
           {stores.map((h, i) => (
-            <ListRow
+            <Row
               key={h.store}
-              label={`${h.store}, ${money(h.unit_price)} dirhams`}
               first={i === 0}
+              label={`${h.store}, ${money(h.unit_price)} dirhams`}
               leading={<Tile kind="store" text={h.store} />}
               title={h.store}
               meta={shortDate(h.date)}
               price={money(h.unit_price)}
-              verdict={i === 0 && stores.length > 1 && stores[1].unit_price > h.unit_price ? <Chip label="Le moins cher" tone="down" /> : null}
+              chip={i === 0 && stores.length > 1 && stores[1].unit_price > h.unit_price ? <PriceChip dir="down" label="Le moins cher" /> : null}
             />
           ))}
-        </ListGroup>
+        </Group>
 
-        <SectionTitle>Tous les achats</SectionTitle>
-        <ListGroup>
+        {aliases.length > 0 ? (
+          <>
+            <SectionHeader title="Autres noms reconnus" />
+            <Group>
+              {aliases.map((a, i) => (
+                <Row
+                  key={a}
+                  first={i === 0}
+                  dense
+                  title={<Text style={st.alias} numberOfLines={1}>{a.toUpperCase()}</Text>}
+                  meta="lu sur un ticket"
+                  right={<IconButton icon="close" label={`Oublier ${a}`} onPress={async () => { await removeAlias(db, a); load(); }} />}
+                />
+              ))}
+            </Group>
+          </>
+        ) : null}
+
+        <SectionHeader title="Tous les achats" />
+        <Group>
           {[...history].reverse().slice(0, 40).map((h, i) => (
-            <ListRow key={i} first={i === 0} title={h.store} meta={shortDate(h.date)} price={money(h.unit_price)} />
+            <Row key={i} first={i === 0} dense title={h.store} meta={`${shortDate(h.date)}${h.promo ? ' · promo' : ''}`} price={money(h.unit_price)} />
           ))}
-        </ListGroup>
+        </Group>
       </ScrollView>
     </Screen>
   );
 }
 
 const st = sheet(() => ({
-  pad: { padding: space.lg },
-  content: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xxl },
-  head: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  name: { fontFamily: fonts.title, fontSize: type.title, color: colors.ink },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, marginTop: space.md },
-  price: { fontFamily: fonts.titleBold, fontSize: type.priceHero, letterSpacing: -1.5, color: colors.ink, flexShrink: 1, ...tabular },
-  priceUnit: { fontFamily: fonts.bodyMedium, fontSize: type.bodyLg, color: colors.muted },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
+  pad: { paddingHorizontal: size.screen },
+  content: { paddingHorizontal: size.screen, paddingBottom: space.section, gap: space.md },
+  head: { gap: space.sm },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  name: { ...text('titleLg'), color: colors.ink },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm, marginTop: space.sm },
+  price: { ...text('display'), color: colors.ink, flexShrink: 1 },
+  priceUnit: { ...text('title'), color: colors.muted },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.sm },
   edit: { gap: space.md },
-  input: { minHeight: 48, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  block: { marginTop: space.lg, gap: space.md, padding: space.lg },
-  blockHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm },
-  blockTitle: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink, flex: 1 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: space.xs, height: 96 },
-  bar: { flex: 1, maxWidth: 28, borderTopLeftRadius: space.sm, borderTopRightRadius: space.sm, borderBottomLeftRadius: space.xs, borderBottomRightRadius: space.xs },
-  axis: { flexDirection: 'row', justifyContent: 'space-between' },
+  block: { backgroundColor: colors.surfaceContainer, borderRadius: radius.card, padding: space.lg, gap: space.md, marginTop: space.lg },
+  blockTitle: { ...text('title'), color: colors.ink },
+  axis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
   stats: { flexDirection: 'row', gap: space.sm },
-  stat: { flex: 1, borderRadius: radius.md, paddingHorizontal: space.md, paddingVertical: space.sm },
-  statLabel: { fontFamily: fonts.bodyBold, fontSize: type.caption },
-  statValue: { fontFamily: fonts.titleBold, fontSize: type.bodyLg, color: colors.ink, ...tabular },
+  stat: { flex: 1, ...bubble('sm'), paddingVertical: space.md, paddingHorizontal: space.md, gap: space.xxs },
+  statLabel: { ...text('labelSm') },
+  statValue: { ...text('priceRow') },
+  actions: { flexDirection: 'row', gap: space.sm },
+  alias: { ...text('label'), color: colors.ink, letterSpacing: 0.4 },
 }));

@@ -1,78 +1,106 @@
+// Produits (tab): the whole price memory, search first. Each row: last price as the
+// hero, the price per kg / L when the pack size is known, a sparkline and the last move.
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { FlatList, ScrollView, Text, View } from 'react-native';
 import { Icon } from '@/components/icon';
-import { router, useFocusEffect } from 'expo-router';
+import { ChangeChip, Empty, Field, Pill, Row, Screen, ScreenTitle, Sparkline, Tile, openNewTrip, t } from '@/components/ui';
+import { listProducts, recentPrices, type ProductRow } from '@/db';
+import { basePrice, money, pctChange, perUnit as per, plural } from '@/format';
 import { useSQLiteContext } from '@/sqlite';
-import { useCallback, useState } from 'react';
-import { FlatList, Text, TextInput, View } from 'react-native';
-import { FadeIn } from '@/components/motion';
-import { ChangeChip, Empty, Header, ListRow, Screen, Tile } from '@/components/ui';
-import { listProducts, type ProductRow } from '@/db';
-import { money, plural } from '@/format';
-import { colors, fonts, shadow, sheet, useTheme } from '@/theme';
-import { radius, space, type } from '@/tokens';
+import { colors, sheet, useTheme } from '@/theme';
+import { radius, size, space } from '@/tokens';
+
+type Sort = 'recent' | 'frequent' | 'name' | 'moves';
+const SORTS: { key: Sort; label: string }[] = [
+  { key: 'recent', label: 'Récents' },
+  { key: 'frequent', label: 'Fréquents' },
+  { key: 'moves', label: 'En hausse' },
+  { key: 'name', label: 'A–Z' },
+];
 
 export default function Products() {
   useTheme();
   const db = useSQLiteContext();
+  const params = useLocalSearchParams<{ sort?: string }>();
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<Sort>(params.sort === 'moves' ? 'moves' : 'recent');
   const [rows, setRows] = useState<ProductRow[] | null>(null);
+  const [sparks, setSparks] = useState<Record<number, number[]>>({});
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
-      listProducts(db, search).then((res) => alive && setRows(res));
-      return () => {
-        alive = false;
-      };
-    }, [db, search]),
+      Promise.all([listProducts(db, search, sort === 'moves' ? 'recent' : sort), recentPrices(db)]).then(([res, sp]) => {
+        if (!alive) return;
+        setRows(res.filter((p) => !/timbre/i.test(p.name)));
+        setSparks(sp);
+      });
+      return () => { alive = false; };
+    }, [db, search, sort]),
   );
+
+  const shown = useMemo(() => {
+    if (!rows || sort !== 'moves') return rows ?? [];
+    return rows
+      .map((p) => ({ p, c: pctChange(p.prev_price, p.last_price) }))
+      .filter((x) => x.c !== null && x.c > 0.05)
+      .sort((a, b) => (b.c as number) - (a.c as number))
+      .map((x) => x.p);
+  }, [rows, sort]);
 
   const nothingYet = rows !== null && rows.length === 0 && search.trim() === '';
 
   return (
-    <Screen>
-      <Header title="Mes produits" />
+    <Screen tab="products">
+      <ScreenTitle title="Produits" meta={rows && !nothingYet ? plural(rows.length, 'produit', 'produits') : undefined} />
       {nothingYet ? (
         <View style={st.pad}>
-          <Empty title="Aucun produit pour l'instant" text="Les produits apparaissent ici dès que tu enregistres une course." action={{ label: 'Noter une course', icon: 'add', onPress: () => router.push('/trip/new') }} />
+          <Empty icon="products" darija="Walou hna" title="Aucun produit pour l'instant" text="Chaque article d'une course arrive ici, avec son prix dans chaque magasin." action={{ label: 'Nouvelle course', icon: 'plus', onPress: () => openNewTrip('manual') }} />
         </View>
       ) : (
         <>
-          <View style={st.searchBox}>
-            <Icon name="search" size={20} color={colors.muted} />
-            <TextInput
-              accessibilityLabel="Chercher un produit"
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Chercher un produit"
-              placeholderTextColor={colors.muted}
-              style={st.search}
-              autoCorrect={false}
-              returnKeyType="search"
-            />
+          <View style={st.search}>
+            <View style={st.searchIcon}><Icon name="search" size={size.iconDense} color={colors.muted} /></View>
+            <Field accessibilityLabel="Chercher un produit" value={search} onChangeText={setSearch} placeholder="Chercher un produit" autoCorrect={false} returnKeyType="search" style={st.searchField} />
+          </View>
+          <View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.sorts}>
+              {SORTS.map((x) => <Pill key={x.key} label={x.label} active={sort === x.key} onPress={() => setSort(x.key)} icon={x.key === 'moves' ? 'priceUp' : undefined} />)}
+            </ScrollView>
           </View>
           <FlatList
-            data={rows ?? []}
+            data={shown}
             keyExtractor={(p) => String(p.id)}
             contentContainerStyle={st.list}
             keyboardShouldPersistTaps="handled"
-            ListHeaderComponent={rows ? <Text style={st.count}>{plural(rows.length, "produit", "produits")}</Text> : undefined}
-            ListEmptyComponent={rows ? <Empty title="Aucun résultat" text={`Aucun produit ne correspond à « ${search.trim()} ».`} /> : undefined}
-            renderItem={({ item: p, index }) => (
-              <FadeIn index={index}>
-              <ListRow
-                label={p.name}
-                onPress={() => router.push(`/product/${p.id}`)}
-                first={index === 0}
-                last={index === (rows?.length ?? 0) - 1}
-                leading={<Tile text={p.name} />}
-                title={p.name}
-                meta={`Acheté ${p.n} fois · par ${p.unit}`}
-                price={money(p.last_price ?? 0)}
-                unit="DH"
-                verdict={<ChangeChip from={p.prev_price} to={p.last_price} />}
-              />
-              </FadeIn>
-            )}
+            initialNumToRender={14}
+            ListEmptyComponent={rows ? (
+              <Text style={[t.body, st.none]}>{sort === 'moves' && !search ? "Aucun prix n'a monté à ton dernier achat. Mzyan." : `Aucun produit ne correspond à « ${search.trim()} ».`}</Text>
+            ) : undefined}
+            renderItem={({ item: p, index }) => {
+              const base = p.last_price !== null && p.unit !== 'kg' && p.unit !== 'L' ? basePrice(p.last_price, p.unit, p.name) : null;
+              return (
+                <View style={[st.cell, index === 0 && st.cellFirst, index === shown.length - 1 && st.cellLast]}>
+                  <Row
+                    first={index === 0}
+                    label={`${p.name}, ${money(p.last_price ?? 0)} dirhams`}
+                    onPress={() => router.push(`/product/${p.id}`)}
+                    leading={<Tile text={p.name} />}
+                    title={p.name}
+                    meta={
+                      <View style={st.meta}>
+                        <Sparkline values={sparks[p.id] ?? []} width={48} height={16} />
+                        <Text style={t.meta} numberOfLines={1}>{`${plural(p.n, 'achat', 'achats')}${base ? ` · ${money(base.price)} DH/${base.base}` : ''}`}</Text>
+                      </View>
+                    }
+                    price={money(p.last_price ?? 0)}
+                    unit={`DH${per(p.unit)}`}
+                    chip={<ChangeChip from={p.prev_price} to={p.last_price} />}
+                  />
+                </View>
+              );
+            }}
           />
         </>
       )}
@@ -81,11 +109,15 @@ export default function Products() {
 }
 
 const st = sheet(() => ({
-  pad: { padding: space.lg },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginHorizontal: space.lg, marginTop: space.xs, paddingHorizontal: space.lg, minHeight: 48, borderRadius: radius.pill, backgroundColor: colors.card, ...shadow },
-  search: { flex: 1, minHeight: 48, fontFamily: fonts.body, fontSize: type.bodyLg, color: colors.ink },
-  list: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl },
-  count: { fontFamily: fonts.bodyBold, fontSize: type.caption, color: colors.muted, paddingHorizontal: space.xs, paddingBottom: space.sm },
-  grow: { flex: 1, minWidth: 0 },
-  right: { alignItems: 'flex-end', gap: space.xs },
+  pad: { paddingHorizontal: size.screen },
+  search: { marginHorizontal: size.screen, justifyContent: 'center' },
+  searchIcon: { position: 'absolute', left: space.lg, zIndex: 1 },
+  searchField: { paddingLeft: space.x3 + space.xs },
+  sorts: { gap: space.sm, paddingHorizontal: size.screen, paddingVertical: space.md },
+  list: { paddingHorizontal: size.screen, paddingBottom: space.section },
+  cell: { backgroundColor: colors.surfaceContainer, overflow: 'hidden' },
+  cellFirst: { borderTopLeftRadius: radius.card, borderTopRightRadius: radius.card },
+  cellLast: { borderBottomLeftRadius: radius.card, borderBottomRightRadius: radius.card },
+  none: { textAlign: 'center', paddingVertical: space.x3 },
+  meta: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
 }));

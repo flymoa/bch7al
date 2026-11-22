@@ -1,16 +1,20 @@
-// The app's own receipt camera: a bubble-shaped frame over the live view, flash,
-// gallery and file shortcuts. The photo goes to the trip screen, which reads it.
+// The receipt camera: a bulle-shaped frame over the live view, flash, gallery and manual
+// shortcuts. No shutter sound. The photo goes to the trip screen, which reads it.
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { Icon } from '@/components/icon';
 import { Alert } from '@/alert';
+import { Icon } from '@/components/icon';
+import { Button } from '@/components/ui';
 import { setPendingPhoto } from '@/scan';
-import { bubble, colors, fonts, sheet, useTheme } from '@/theme';
-import { radius, space, type } from '@/tokens';
+import { bubble, colors, fonts, sheet, text, useTheme } from '@/theme';
+import { brand, bulle, radius, size, space } from '@/tokens';
+
+const WHITE = brand.white;
+const GLASS = 'rgba(14,19,64,0.55)';
 
 export default function Camera() {
   useTheme();
@@ -39,40 +43,30 @@ export default function Camera() {
     return (
       <SafeAreaView style={[st.screen, st.center]}>
         <View style={st.askBox}>
-          <Icon name="camera-outline" size={type.h1} color={colors.blue} />
+          <Icon name="camera" size={size.iconEmpty} color={colors.primary} weight="duotone" duotone={colors.primaryContainer} />
           <Text style={st.askTitle}>Autorise l'appareil photo</Text>
           <Text style={st.askText}>Pour lire tes tickets de caisse. Les photos restent sur ton téléphone, sauf si la lecture Gemini est activée.</Text>
-          <Pressable accessibilityRole="button" onPress={requestPerm} style={st.askBtn}>
-            <Text style={st.askBtnText}>Autoriser</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => router.replace('/trip/new?scan=gallery')} style={st.askLink}>
-            <Text style={st.askLinkText}>Choisir une photo à la place</Text>
-          </Pressable>
+          <Button label="Autoriser" icon="camera" onPress={requestPerm} style={st.stretch} />
+          <Button label="Choisir une photo à la place" kind="quiet" icon="gallery" onPress={() => router.replace('/trip/new?scan=gallery')} style={st.stretch} />
         </View>
       </SafeAreaView>
     );
   }
 
-  // Frame corners follow the logo's bubble: round corners, the bottom-left one tighter.
+  // Frame corners follow the logo's bubble: round corners, the bottom-left one sharp.
   const { w, h } = box;
-  const R = radius.lg, r = radius.sm, L = space.xxxl;
+  const R = bulle.hero.r, r = bulle.hero.tail, L = space.x3 + space.sm;
   return (
     <View style={st.screen}>
       <CameraView ref={cam} style={StyleSheet.absoluteFill} facing="back" enableTorch={torch} onCameraReady={() => setReady(true)} />
       <SafeAreaView style={st.overlay}>
         <View style={st.top}>
           <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} style={st.round}>
-            <Icon name="chevron-back" size={24} color={colors.white} />
+            <Icon name="back" color={WHITE} />
           </Pressable>
           <Text style={st.title}>Scanner le ticket</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={torch ? 'Éteindre le flash' : 'Allumer le flash'}
-            accessibilityState={{ selected: torch }}
-            onPress={() => setTorch((x) => !x)}
-            style={[st.round, torch && st.roundOn]}
-          >
-            <Icon name="flash" size={22} color={torch ? colors.night : colors.white} />
+          <Pressable accessibilityRole="button" accessibilityLabel={torch ? 'Éteindre le flash' : 'Allumer le flash'} accessibilityState={{ selected: torch }} onPress={() => setTorch((x) => !x)} style={[st.round, torch && st.roundOn]}>
+            <Icon name={torch ? 'flash' : 'flashOff'} color={torch ? brand.night : WHITE} weight={torch ? 'fill' : 'regular'} />
           </Pressable>
         </View>
 
@@ -84,26 +78,24 @@ export default function Camera() {
                 `M${w - L} 3H${w - R - 3}A${R} ${R} 0 0 1 ${w - 3} ${R + 3}V${L}`,
                 `M${w - 3} ${h - L}V${h - R - 3}A${R} ${R} 0 0 1 ${w - R - 3} ${h - 3}H${w - L}`,
                 `M${L} ${h - 3}H${r + 3}A${r} ${r} 0 0 1 3 ${h - r - 3}V${h - L}`,
-              ].map((d) => (
-                <Path key={d} d={d} fill="none" stroke={colors.nightBlue} strokeWidth={5} strokeLinecap="round" />
-              ))}
+              ].map((d) => <Path key={d} d={d} fill="none" stroke={WHITE} strokeWidth={4} strokeLinecap="round" />)}
             </Svg>
           ) : null}
         </View>
 
-        <View style={[st.hint, bubble(radius.lg)]}>
-          <Text style={st.hintText}>{busy ? 'Je lis le ticket…' : 'Mets tout le ticket dans le cadre, bien à plat'}</Text>
+        <View style={st.hint}>
+          <Text style={st.hintText}>{busy ? 'Photo prise…' : 'Tout le ticket dans le cadre, bien à plat et éclairé'}</Text>
         </View>
 
         <View style={st.bottom}>
           <Pressable accessibilityRole="button" accessibilityLabel="Choisir une photo" onPress={() => router.replace('/trip/new?scan=gallery')} style={st.side}>
-            <Icon name="images-outline" size={24} color={colors.white} />
+            <Icon name="gallery" color={WHITE} />
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Prendre la photo" accessibilityState={{ disabled: !ready || busy }} onPress={shoot} style={st.shutter}>
-            {busy ? <ActivityIndicator color={colors.white} /> : <View style={st.shutterIn} />}
+            {busy ? <ActivityIndicator color={brand.majorelle} /> : <View style={st.shutterIn} />}
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Saisir à la main" onPress={() => router.replace('/trip/new')} style={st.side}>
-            <Icon name="create-outline" size={22} color={colors.white} />
+            <Icon name="manual" color={WHITE} />
           </Pressable>
         </View>
       </SafeAreaView>
@@ -112,25 +104,22 @@ export default function Camera() {
 }
 
 const st = sheet(() => ({
-  screen: { flex: 1, backgroundColor: colors.night },
-  center: { alignItems: 'center', justifyContent: 'center', padding: space.xl },
-  overlay: { flex: 1, paddingHorizontal: space.lg },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: space.sm },
-  round: { width: 48, height: 48, borderRadius: radius.pill, backgroundColor: colors.nightSoft, alignItems: 'center', justifyContent: 'center' },
-  roundOn: { backgroundColor: colors.white },
-  title: { fontFamily: fonts.bodyBold, fontSize: type.bodyLg, color: colors.white },
-  frame: { flex: 1, marginVertical: space.xl, marginHorizontal: space.xxl },
-  hint: { alignSelf: 'center', backgroundColor: colors.nightSoft, paddingHorizontal: space.lg, paddingVertical: space.md },
-  hintText: { fontFamily: fonts.bodyMedium, fontSize: type.body, color: colors.white },
-  bottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.xl, paddingBottom: space.lg },
-  side: { width: 56, height: 56, borderRadius: radius.md, backgroundColor: colors.nightSoft, alignItems: 'center', justifyContent: 'center' },
-  shutter: { width: 80, height: 80, borderRadius: radius.pill, borderWidth: 4, borderColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  shutterIn: { width: 64, height: 64, borderRadius: radius.pill, backgroundColor: colors.blue },
-  askBox: { backgroundColor: colors.card, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', gap: space.md, maxWidth: 360 },
-  askTitle: { fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, textAlign: 'center' },
-  askText: { fontFamily: fonts.body, fontSize: type.body, lineHeight: 22, color: colors.muted, textAlign: 'center' },
-  askBtn: { alignSelf: 'stretch', minHeight: 56, borderRadius: radius.pill, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
-  askBtnText: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.white },
-  askLink: { minHeight: 48, justifyContent: 'center' },
-  askLinkText: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.blue },
+  screen: { flex: 1, backgroundColor: brand.night },
+  center: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  askBox: { alignItems: 'center', gap: space.md, paddingHorizontal: space.section, alignSelf: 'stretch' },
+  askTitle: { ...text('headlineSm'), color: colors.ink, textAlign: 'center' },
+  askText: { ...text('bodySm'), color: colors.muted, textAlign: 'center', marginBottom: space.md },
+  stretch: { alignSelf: 'stretch' },
+  overlay: { flex: 1, justifyContent: 'space-between' },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, paddingTop: space.sm },
+  title: { fontFamily: fonts.textSemi, fontSize: 16, lineHeight: 24, color: WHITE },
+  round: { width: size.touch, height: size.touch, borderRadius: radius.pill, backgroundColor: GLASS, alignItems: 'center', justifyContent: 'center' },
+  roundOn: { backgroundColor: WHITE },
+  frame: { flex: 1, marginHorizontal: space.section, marginVertical: space.xxl },
+  hint: { alignSelf: 'center', backgroundColor: GLASS, ...bubble('sm'), paddingHorizontal: space.lg, paddingVertical: space.sm, marginHorizontal: space.xxl },
+  hintText: { fontFamily: fonts.textMedium, fontSize: 14, lineHeight: 20, color: WHITE, textAlign: 'center' },
+  bottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingVertical: space.xxl },
+  side: { width: 56, height: 56, borderRadius: radius.pill, backgroundColor: GLASS, alignItems: 'center', justifyContent: 'center' },
+  shutter: { width: 80, height: 80, ...bubble('hero'), backgroundColor: WHITE, alignItems: 'center', justifyContent: 'center' },
+  shutterIn: { width: 56, height: 56, ...bubble('lg'), backgroundColor: brand.majorelle },
 }));

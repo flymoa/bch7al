@@ -6,12 +6,12 @@ function show(title: string, message: string | undefined, buttons: Btn[]) {
   const back = document.createElement('div');
   back.setAttribute('role', 'dialog');
   back.setAttribute('aria-modal', 'true');
-  back.style.cssText = 'position:fixed;inset:0;background:rgba(18,19,61,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px;font-family:Rubik_400Regular,sans-serif';
+  back.style.cssText = 'position:fixed;inset:0;background:rgba(14,19,64,.45);display:flex;align-items:center;justify-content:center;z-index:9999;padding:24px;font-family:IBMPlexSansArabic_400Regular,sans-serif';
   const box = document.createElement('div');
-  box.style.cssText = 'background:#fff;border-radius:22px;padding:22px;max-width:340px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.2)';
+  box.style.cssText = 'background:#fff;border-radius:999px;padding:22px;max-width:340px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.2)';
   const h = document.createElement('div');
   h.textContent = title;
-  h.style.cssText = 'font-family:Rubik_600SemiBold,sans-serif;font-size:19px;color:#12133D;margin-bottom:8px';
+  h.style.cssText = 'font-family:IBMPlexSansArabic_600SemiBold,sans-serif;font-size:19px;color:#0E1340;margin-bottom:8px';
   box.appendChild(h);
   if (message) {
     const p = document.createElement('div');
@@ -27,7 +27,7 @@ function show(title: string, message: string | undefined, buttons: Btn[]) {
     el.textContent = b.text ?? 'OK';
     const danger = b.style === 'destructive';
     const cancel = b.style === 'cancel';
-    el.style.cssText = `min-height:44px;padding:0 18px;border-radius:22px;border:${cancel ? '2px solid #C8CCFF' : '0'};background:${cancel ? '#fff' : danger ? '#B42318' : '#3D3BD9'};color:${cancel ? '#12133D' : '#fff'};font-family:Rubik_600SemiBold,sans-serif;font-size:15px;cursor:pointer`;
+    el.style.cssText = `min-height:44px;padding:0 18px;border-radius:999px;border:${cancel ? '2px solid #DAD9E5' : '0'};background:${cancel ? '#fff' : danger ? '#8C4383' : '#2E3FD1'};color:${cancel ? '#0E1340' : '#fff'};font-family:IBMPlexSansArabic_600SemiBold,sans-serif;font-size:15px;cursor:pointer`;
     el.onclick = () => { close(); b.onPress?.(); };
     row.appendChild(el);
   });

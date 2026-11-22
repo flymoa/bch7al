@@ -1,7 +1,7 @@
 // Web preview: no camera, so "scanning" runs the real receipt reader on sample receipts
 // exactly as the phone reads them. Photo = Marjane, Galerie = an Arabic receipt.
 import { parseReceipt } from './receipt';
-import type { ScanResult } from './scan';
+import type { Photo, ScanResult } from './scan';
 
 export const scanAvailable = false;
 
@@ -34,5 +34,9 @@ export function setPendingPhoto(_p: { uri: string; base64?: string | null; mimeT
 
 export async function scanReceipt(source: 'camera' | 'gallery' | 'photo', _geminiKey?: string | null, _geminiModel?: string | null): Promise<ScanResult | null> {
   await new Promise((r) => setTimeout(r, 600));
-  return { ...parseReceipt(source === 'camera' ? MARJANE : SOUFI), date: null, engine: 'phone' };
+  return { ...parseReceipt(source === 'camera' ? MARJANE : SOUFI), date: null, engine: 'phone', photo: { uri: source } };
+}
+
+export async function readPhoto(asset: Photo): Promise<ScanResult> {
+  return { ...parseReceipt(asset.uri === 'camera' ? MARJANE : SOUFI), date: null, engine: 'phone', photo: asset };
 }

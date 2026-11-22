@@ -1,6 +1,7 @@
 // Browser preview only: same API as expo-sqlite, backed by sql.js and saved in localStorage.
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import initSqlJs from 'sql.js/dist/sql-wasm.js';
+import { seedDemo } from './demo';
 
 const KEY = 'bch7al-preview-db';
 const Ctx = createContext<any>(null);
@@ -42,6 +43,7 @@ export function SQLiteProvider({ onInit, children }: { databaseName: string; onI
         let saved: string | null = null; try { saved = localStorage.getItem(KEY); } catch {}
         const d = wrap(saved ? new SQL.Database(fromB64(saved)) : new SQL.Database());
         if (onInit) await onInit(d);
+        if (!/[?&]vide/.test(location.search)) await seedDemo(d as any);
         setDb(d);
       } catch (e) { setErr(String((e as Error).message ?? e)); }
     })();

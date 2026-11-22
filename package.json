@@ -1,9 +1,10 @@
 {
   "name": "bch7al",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@expo-google-fonts/rubik": "^0.4.2",
+    "@expo-google-fonts/ibm-plex-sans-arabic": "^0.4.2",
+    "@expo-google-fonts/kufam": "^0.4.1",
     "@expo/vector-icons": "^15.1.1",
     "@infinitered/react-native-mlkit-text-recognition": "^5.0.1",
     "expo": "~58.0.24",
@@ -20,6 +21,8 @@
     "expo-splash-screen": "~58.0.14",
     "expo-sqlite": "~58.0.16",
     "expo-status-bar": "~58.0.5",
+    "expo-system-ui": "~58.0.7",
+    "phosphor-react-native": "^3.0.6",
     "react": "19.3.0",
     "react-dom": "^19.3.0",
     "react-native": "0.88.1",
@@ -42,7 +45,9 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "build:apk": "eas build -p android --profile preview",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "npx tsx scripts/test-db.ts && npx tsx scripts/test-receipt.ts && npx tsx scripts/test-gemini.ts && npx tsx scripts/test-fixes.ts && npx tsx scripts/test-v4.ts",
+    "design:doc": "npx tsx scripts/design-doc.ts"
   },
   "private": true
 }

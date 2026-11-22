@@ -1,21 +1,36 @@
+// Réglages: backup first (data lives only on this phone), then budget, Gemini, appearance.
 import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import { useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useSQLiteContext } from '@/sqlite';
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, View, TextInput } from 'react-native';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { Alert } from '@/alert';
-import { Button, Card, Header, Pill, Screen } from '@/components/ui';
+import { Mark } from '@/components/brand';
+import { Icon, type IconName } from '@/components/icon';
+import { Button, Field, Pill, Screen, TopBar, t } from '@/components/ui';
 import { counts, exportCsv, getPref, importCsv, setPref as savePref } from '@/db';
 import { geminiCheck } from '@/gemini';
-import { money, parseNumber, plural, todayIso } from '@/format';
-import { colors, fonts, sheet, useTheme } from '@/theme';
-import { radius, space, tabular, type } from '@/tokens';
+import { longDate, money, parseNumber, plural, todayIso } from '@/format';
+import { useSQLiteContext } from '@/sqlite';
+import { colors, sheet, text, useTheme } from '@/theme';
+import { radius, size, space } from '@/tokens';
+
+function Section({ icon, title, children }: { icon: IconName; title: string; children: ReactNode }) {
+  return (
+    <View style={st.card}>
+      <View style={st.cardHead}>
+        <Icon name={icon} color={colors.primary} />
+        <Text style={st.title}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
 
 export default function Settings() {
-  const { pref, setPref } = useTheme();
+  const { pref, setPref, scheme } = useTheme();
   const db = useSQLiteContext();
   const [stats, setStats] = useState({ trips: 0, products: 0, items: 0 });
   const [busy, setBusy] = useState(false);
@@ -24,12 +39,15 @@ export default function Settings() {
   const [visionKey, setVisionKey] = useState('');
   const [visionSaved, setVisionSaved] = useState(false);
   const [visionMsg, setVisionMsg] = useState('');
+  const [model, setModel] = useState<string | null>(null);
+  const [lastBackup, setLastBackup] = useState<string | null>(null);
 
   useEffect(() => {
     getPref(db, 'geminiKey').then((k) => {
       setVisionKey(k ?? '');
       setVisionSaved(!!k);
     });
+    getPref(db, 'geminiModel').then(setModel);
   }, [db]);
 
   const saveVision = async () => {
@@ -43,9 +61,10 @@ export default function Settings() {
     setBusy(true);
     setVisionMsg('Vérification de la clé…');
     try {
-      const model = await geminiCheck(k);
+      const used = await geminiCheck(k);
       await savePref(db, 'geminiKey', k);
-      await savePref(db, 'geminiModel', model);
+      await savePref(db, 'geminiModel', used);
+      setModel(used);
       setVisionSaved(true);
       setVisionMsg('Clé valide. Les tickets seront lus avec Gemini (français et arabe).');
     } catch (e) {
@@ -78,7 +97,10 @@ export default function Settings() {
     setBudgetSaved(money(v).replace(',00', ''));
   };
 
-  const refresh = useCallback(async () => setStats(await counts(db)), [db]);
+  const refresh = useCallback(async () => {
+    setStats(await counts(db));
+    setLastBackup(await getPref(db, 'lastBackup'));
+  }, [db]);
   useFocusEffect(
     useCallback(() => {
       refresh();
@@ -97,6 +119,7 @@ export default function Settings() {
       if (!(await Sharing.isAvailableAsync())) throw new Error("Le partage de fichiers n'est pas disponible sur cet appareil.");
       await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', dialogTitle: 'Sauvegarder mes courses' });
       await savePref(db, 'lastBackup', todayIso());
+      setLastBackup(todayIso());
     } catch (e) {
       Alert.alert('La sauvegarde a échoué', String((e as Error).message ?? e));
     } finally {
@@ -139,10 +162,9 @@ export default function Settings() {
 
   return (
     <Screen>
-      <Header title="Réglages" />
-      <ScrollView contentContainerStyle={st.content}>
-        <Card style={st.card}>
-          <Text style={st.title}>Mes données</Text>
+      <TopBar title="Réglages" />
+      <ScrollView contentContainerStyle={st.content} keyboardShouldPersistTaps="handled">
+        <Section icon="export" title="Mes données">
           <View style={st.counts}>
             {[
               [stats.trips, stats.trips > 1 ? 'courses' : 'course'],
@@ -151,88 +173,65 @@ export default function Settings() {
             ].map(([n, l]) => (
               <View key={String(l)} style={st.count}>
                 <Text style={st.countNum}>{n}</Text>
-                <Text style={st.countLabel}>{l}</Text>
+                <Text style={t.meta}>{l}</Text>
               </View>
             ))}
           </View>
-          <Text style={st.text}>Tout est enregistré sur ce téléphone. Seules les photos de tickets partent sur Internet, et seulement si la lecture Gemini est activée (plus bas).</Text>
-        </Card>
+          <Text style={t.body}>
+            Tout est sur ce téléphone, sans compte. Perdre le téléphone, c'est perdre l'historique : sauvegarde régulièrement vers Drive, ton e-mail ou WhatsApp. Le fichier s'ouvre aussi dans Excel.
+          </Text>
+          <Text style={st.status}>{lastBackup ? `Dernière sauvegarde : ${longDate(lastBackup)}` : 'Aucune sauvegarde pour le moment'}</Text>
+          <Button label="Sauvegarder mes courses" icon="export" onPress={doExport} disabled={busy} />
+          <Button label="Restaurer une sauvegarde" icon="import" kind="outline" onPress={doImport} disabled={busy} />
+        </Section>
 
-        <Card style={st.card}>
-          <Text style={st.title}>Budget du mois</Text>
-          <Text style={st.text}>L'accueil montre combien il te reste. Laisse vide pour ne pas suivre de budget.</Text>
-          <View style={st.budgetRow}>
-            <TextInput
-              accessibilityLabel="Budget du mois en dirhams"
-              value={budget}
-              onChangeText={setBudget}
-              placeholder="Ex. 2000"
-              placeholderTextColor={colors.muted}
-              keyboardType="decimal-pad"
-              style={[st.input, st.shrink]}
-            />
+        <Section icon="money" title="Budget du mois">
+          <Text style={t.body}>L'accueil montre combien il te reste. Laisse vide pour ne pas suivre de budget.</Text>
+          <View style={st.inline}>
+            <Field accessibilityLabel="Budget du mois en dirhams" value={budget} onChangeText={setBudget} placeholder="Ex. 2000" keyboardType="decimal-pad" onCard style={st.flex} />
             <Text style={st.mad}>DH</Text>
           </View>
-          <Button label={budget.trim() === budgetSaved ? 'Budget enregistré' : 'Enregistrer le budget'} tone={budget.trim() === budgetSaved ? 'light' : 'primary'} onPress={saveBudget} disabled={busy} />
-        </Card>
+          <Button label={budget.trim() === budgetSaved ? 'Budget enregistré' : 'Enregistrer le budget'} kind={budget.trim() === budgetSaved ? 'outline' : 'primary'} onPress={saveBudget} disabled={busy} />
+        </Section>
 
-        <Card style={st.card}>
-          <Text style={st.title}>Lecture précise des tickets (Gemini)</Text>
-          <Text style={st.text}>
-            Avec une clé Gemini, la photo du ticket est lue en ligne par Google : noms en arabe compris, photos penchées, tickets groupés par rayon. C'est gratuit et sans carte bancaire. Sans clé ou sans internet, le téléphone lit le ticket lui-même.
+        <Section icon="scan" title="Lecture des tickets (Gemini)">
+          <Text style={t.body}>
+            Avec une clé Gemini, la photo du ticket est lue en ligne par Google : noms en arabe, photos penchées, tickets groupés par rayon. Gratuit, sans carte bancaire. Sans clé ou sans internet, le téléphone lit le ticket lui-même.
           </Text>
-          <Text style={st.text}>
-            Pour avoir ta clé : ouvre aistudio.google.com avec ton compte Google, touche « Get API key » puis « Create API key », copie la clé et colle-la ici. Avec la formule gratuite, Google peut utiliser les photos envoyées pour améliorer ses services.
+          <Text style={t.body}>
+            Pour la clé : aistudio.google.com → « Get API key » → « Create API key », puis colle-la ici. Avec la formule gratuite, Google peut utiliser les photos envoyées pour améliorer ses services : un ticket de caisse contient peu de choses privées, mais tu le sais.
           </Text>
-          <TextInput
+          <Field
             accessibilityLabel="Clé Gemini"
             value={visionKey}
-            onChangeText={(v) => {
-              setVisionKey(v);
-              setVisionMsg('');
-            }}
+            onChangeText={(v) => { setVisionKey(v); setVisionMsg(''); }}
             placeholder="Colle ta clé ici (AIza…)"
-            placeholderTextColor={colors.muted}
             autoCapitalize="none"
             autoCorrect={false}
             secureTextEntry={visionSaved && !visionMsg}
-            style={st.keyInput}
+            onCard
           />
           <Button
             label={visionKey.trim() || !visionSaved ? 'Vérifier et enregistrer' : 'Retirer la clé'}
-            tone={visionSaved && !visionMsg ? 'light' : 'primary'}
+            kind={visionSaved && !visionMsg ? 'outline' : 'primary'}
             onPress={saveVision}
             disabled={busy || (!visionKey.trim() && !visionSaved)}
           />
-          {visionMsg ? <Text style={st.text}>{visionMsg}</Text> : visionSaved ? <Text style={st.text}>La lecture Gemini est activée.</Text> : null}
-        </Card>
+          {visionMsg ? <Text style={st.status}>{visionMsg}</Text> : visionSaved ? <Text style={st.status}>Lecture Gemini activée{model ? ` · modèle ${model}` : ''}. Si la limite gratuite du jour est atteinte, l'app passe au modèle suivant puis au téléphone.</Text> : null}
+        </Section>
 
-        <Card style={st.card}>
-          <Text style={st.title}>Apparence</Text>
+        <Section icon={scheme === 'dark' ? 'moon' : 'sun'} title="Apparence">
           <View style={st.row}>
             <Pill label="Automatique" active={pref === 'system'} onPress={() => setPref('system')} />
             <Pill label="Clair" active={pref === 'light'} onPress={() => setPref('light')} />
             <Pill label="Sombre" active={pref === 'dark'} onPress={() => setPref('dark')} />
           </View>
-          <Text style={st.text}>Automatique suit le réglage de ton téléphone.</Text>
-        </Card>
-
-        <Card style={st.card}>
-          <Text style={st.title}>Sauvegarde</Text>
-          <Text style={st.text}>
-            Crée un fichier avec toutes tes courses. Envoie-le vers Google Drive, ton e-mail ou WhatsApp pour le garder en lieu sûr. Il s'ouvre aussi dans Excel.
-          </Text>
-          <Button label="Sauvegarder mes courses" icon="share-outline" onPress={doExport} disabled={busy} />
-        </Card>
-
-        <Card style={st.card}>
-          <Text style={st.title}>Restaurer</Text>
-          <Text style={st.text}>Recharge un fichier de sauvegarde, par exemple après un changement de téléphone. Les données actuelles sont remplacées.</Text>
-          <Button label="Restaurer une sauvegarde" icon="download-outline" tone="light" onPress={doImport} disabled={busy} />
-        </Card>
+          <Text style={t.meta}>Automatique suit le réglage de ton téléphone.</Text>
+        </Section>
 
         <View style={st.about}>
-          <Text style={st.aboutText}>bch7al? · version {Constants.expoConfig?.version ?? '3.0.0'}</Text>
+          <Mark size={28} />
+          <Text style={t.meta}>bch7al? · version {Constants.expoConfig?.version ?? '4.0.0'} · Majorelle Nuit</Text>
         </View>
       </ScrollView>
     </Screen>
@@ -240,20 +239,17 @@ export default function Settings() {
 }
 
 const st = sheet(() => ({
-  content: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xl, gap: space.md },
-  card: { gap: space.md, padding: space.lg },
-  title: { fontFamily: fonts.title, fontSize: type.bodyLg, color: colors.ink },
-  text: { fontFamily: fonts.body, fontSize: type.body, color: colors.muted, lineHeight: type.body + space.sm },
+  flex: { flex: 1 },
+  content: { paddingHorizontal: size.screen, paddingBottom: space.section, gap: space.md },
+  card: { backgroundColor: colors.surfaceContainer, borderRadius: radius.card, padding: space.lg, gap: space.md },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  title: { ...text('title'), color: colors.ink },
+  counts: { flexDirection: 'row', gap: space.sm },
+  count: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center' },
+  countNum: { ...text('headlineSm'), color: colors.ink },
+  status: { ...text('bodySm'), fontFamily: text('label').fontFamily, color: colors.ink },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  mad: { ...text('title'), color: colors.muted },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  keyInput: { minHeight: 48, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, fontFamily: fonts.body, fontSize: type.body, color: colors.ink, backgroundColor: colors.card },
-  budgetRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  shrink: { flex: 1, minWidth: 0 },
-  input: { flex: 1, minHeight: 56, borderRadius: radius.md, borderWidth: 2, borderColor: colors.border, paddingHorizontal: space.md, fontFamily: fonts.titleBold, fontSize: type.title, color: colors.ink, backgroundColor: colors.card, ...tabular },
-  counts: { flexDirection: 'row', gap: space.xl },
-  count: { gap: space.xs },
-  countNum: { fontFamily: fonts.titleBold, fontSize: type.h1, color: colors.ink, ...tabular },
-  countLabel: { fontFamily: fonts.body, fontSize: type.caption, color: colors.muted },
-  mad: { fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.muted },
-  about: { alignItems: 'center', paddingTop: space.sm },
-  aboutText: { fontFamily: fonts.body, fontSize: type.caption, color: colors.muted },
+  about: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm, paddingVertical: space.xxl },
 }));

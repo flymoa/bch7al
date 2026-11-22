@@ -6,14 +6,14 @@ import { cleanName, productKey, parseCsv, parseNumber, toCsv, verdict, type Verd
 export type Db = SQLiteDatabase;
 
 export type TripRow = { id: number; date: string; store: string; total: number; n: number };
-export type ItemRow = { id: number; product_id: number; name: string; unit: string; qty: number; unit_price: number };
+export type ItemRow = { id: number; product_id: number; name: string; unit: string; qty: number; unit_price: number; promo: number };
 export type ProductRow = { id: number; name: string; unit: string; n: number; last_price: number | null; prev_price: number | null; avg_price: number | null };
-export type HistoryRow = { date: string; store: string; unit_price: number; qty: number };
+export type HistoryRow = { date: string; store: string; unit_price: number; qty: number; promo: number };
 export type MonthSummary = { trips: number; total: number; items: number };
-export type NewItem = { name: string; unit: string; qty: number; unitPrice: number };
+export type NewItem = { name: string; unit: string; qty: number; unitPrice: number; /** bought on promotion: kept out of the usual price */ promo?: boolean };
 export type NewTrip = { id?: number; store: string; date: string; items: NewItem[] };
 
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 export async function migrate(db: Db): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -71,6 +71,22 @@ export async function migrate(db: Db): Promise<void> {
     await rekeyArabic(db);
     version = 4;
     await db.execAsync(`PRAGMA user_version = 4`); // each step is saved, so a closed app resumes cleanly
+  }
+  if (version === 4) {
+    // v4 app: promo flag on each price, and aliases so a receipt spelling
+    // ("LAIT CENTRALE 1L DEMI") keeps pointing at the product it was linked to.
+    // Safe to resume: the column is only added if a previous run did not get that far.
+    const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(items)', []);
+    if (!cols.some((c) => c.name === 'promo')) await db.execAsync('ALTER TABLE items ADD COLUMN promo INTEGER NOT NULL DEFAULT 0;');
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS aliases (
+        key TEXT PRIMARY KEY NOT NULL,
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS aliases_product ON aliases(product_id);
+    `);
+    version = 5;
+    await db.execAsync(`PRAGMA user_version = 5`);
   }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
 }
@@ -136,7 +152,9 @@ async function storeId(db: Db, name: string): Promise<number> {
 async function productId(db: Db, name: string, unit: string): Promise<number> {
   const clean = cleanName(name);
   const key = productKey(clean);
-  const found = await db.getFirstAsync<{ id: number; unit: string }>('SELECT id, unit FROM products WHERE key = ?', [key]);
+  const found =
+    (await db.getFirstAsync<{ id: number; unit: string }>('SELECT id, unit FROM products WHERE key = ?', [key])) ??
+    (await db.getFirstAsync<{ id: number; unit: string }>('SELECT p.id, p.unit FROM aliases a JOIN products p ON p.id = a.product_id WHERE a.key = ?', [key]));
   if (found && found.unit === unit) return found.id;
   if (found) {
     // Unit changed (e.g. pièce -> paquet). With no other purchase recorded, just switch the unit;
@@ -166,16 +184,19 @@ const PRODUCT_SELECT = `
     (SELECT COUNT(*) FROM items i WHERE i.product_id = p.id) AS n,
     -- "usual price": the average of the last 3 purchases, so old prices don't drag it down
     (SELECT AVG(x.unit_price) FROM (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
-      WHERE i.product_id = p.id ORDER BY t.date DESC, i.id DESC LIMIT 3) x) AS avg_price,
+      WHERE i.product_id = p.id AND i.promo = 0 ORDER BY t.date DESC, i.id DESC LIMIT 3) x) AS avg_price,
     (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
       WHERE i.product_id = p.id ORDER BY t.date DESC, i.id DESC LIMIT 1) AS last_price,
     (SELECT i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id
       WHERE i.product_id = p.id ORDER BY t.date DESC, i.id DESC LIMIT 1 OFFSET 1) AS prev_price
   FROM products p`;
 
-export async function listProducts(db: Db, search = '', order: 'name' | 'frequent' = 'name', limit = 500): Promise<ProductRow[]> {
+export async function listProducts(db: Db, search = '', order: 'name' | 'frequent' | 'recent' = 'name', limit = 500): Promise<ProductRow[]> {
   const key = productKey(search);
-  const orderBy = order === 'frequent' ? 'n DESC, p.name' : 'p.name COLLATE NOCASE';
+  const orderBy =
+    order === 'frequent' ? 'n DESC, p.name'
+    : order === 'recent' ? '(SELECT MAX(t.date) FROM items i JOIN trips t ON t.id = i.trip_id WHERE i.product_id = p.id) DESC, p.name'
+    : 'p.name COLLATE NOCASE';
   return db.getAllAsync<ProductRow>(
     `${PRODUCT_SELECT} WHERE p.key LIKE ? ORDER BY ${orderBy} LIMIT ?`,
     ['%' + key.replace(/[%_]/g, '') + '%', limit],
@@ -188,7 +209,7 @@ export async function getProduct(db: Db, id: number): Promise<ProductRow | null>
 
 export async function productHistory(db: Db, id: number): Promise<HistoryRow[]> {
   return db.getAllAsync<HistoryRow>(
-    `SELECT t.date, s.name AS store, i.unit_price, i.qty
+    `SELECT t.date, s.name AS store, i.unit_price, i.qty, i.promo
      FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id
      WHERE i.product_id = ? ORDER BY t.date ASC, i.id ASC`,
     [id],
@@ -203,16 +224,68 @@ export async function updateProduct(db: Db, id: number, name: string, unit: stri
   const clean = cleanName(name);
   const key = productKey(clean);
   if (!key) throw new Error('Nom vide');
+  const old = await db.getFirstAsync<{ key: string }>('SELECT key FROM products WHERE id = ?', [id]);
   const other = await db.getFirstAsync<{ id: number }>('SELECT id FROM products WHERE key = ? AND id <> ?', [key, id]);
   if (other) {
     await db.withTransactionAsync(async () => {
       await db.runAsync('UPDATE items SET product_id = ? WHERE product_id = ?', [other.id, id]);
+      await db.runAsync('UPDATE aliases SET product_id = ? WHERE product_id = ?', [other.id, id]);
       await db.runAsync('DELETE FROM products WHERE id = ?', [id]);
+      // the old spelling now finds the product it was merged into
+      if (old?.key) await db.runAsync('INSERT OR REPLACE INTO aliases (key, product_id) VALUES (?, ?)', [old.key, other.id]);
     });
     return other.id;
   }
-  await db.runAsync('UPDATE products SET name = ?, key = ?, unit = ? WHERE id = ?', [clean, key, unit, id]);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM aliases WHERE key = ?', [key]);
+    await db.runAsync('UPDATE products SET name = ?, key = ?, unit = ? WHERE id = ?', [clean, key, unit, id]);
+    if (old?.key && old.key !== key) await db.runAsync('INSERT OR REPLACE INTO aliases (key, product_id) VALUES (?, ?)', [old.key, id]);
+  });
   return id;
+}
+
+// ---------- aliases: other spellings of a product ----------
+
+/** Remembers that `name` (e.g. a receipt line) is this product. Ignored if it is already its name. */
+export async function addAlias(db: Db, name: string, productIdValue: number): Promise<void> {
+  const key = productKey(cleanName(name));
+  if (!key) return;
+  const own = await db.getFirstAsync<{ id: number }>('SELECT id FROM products WHERE key = ?', [key]);
+  if (own) return; // a real product has this exact name
+  await db.runAsync('INSERT OR REPLACE INTO aliases (key, product_id) VALUES (?, ?)', [key, productIdValue]);
+}
+
+export async function listAliases(db: Db, productIdValue: number): Promise<string[]> {
+  const rows = await db.getAllAsync<{ key: string }>('SELECT key FROM aliases WHERE product_id = ? ORDER BY key', [productIdValue]);
+  return rows.map((r) => r.key);
+}
+
+export async function removeAlias(db: Db, key: string): Promise<void> {
+  await db.runAsync('DELETE FROM aliases WHERE key = ?', [key]);
+}
+
+/** The product a typed or scanned name already points to (own name or alias), if any. */
+export async function findProduct(db: Db, name: string): Promise<ProductRow | null> {
+  const key = productKey(cleanName(name));
+  if (!key) return null;
+  return db.getFirstAsync<ProductRow>(
+    `${PRODUCT_SELECT} WHERE p.key = ? OR p.id = (SELECT product_id FROM aliases WHERE key = ?)`,
+    [key, key],
+  );
+}
+
+/** The last few prices of every product, oldest first, for the list sparklines. */
+export async function recentPrices(db: Db, per = 8): Promise<Record<number, number[]>> {
+  const rows = await db.getAllAsync<{ product_id: number; unit_price: number }>(
+    `SELECT i.product_id, i.unit_price FROM items i JOIN trips t ON t.id = i.trip_id ORDER BY t.date DESC, i.id DESC`,
+    [],
+  );
+  const out: Record<number, number[]> = {};
+  for (const r of rows) {
+    const list = (out[r.product_id] ??= []);
+    if (list.length < per) list.unshift(r.unit_price);
+  }
+  return out;
 }
 
 // ---------- trips ----------
@@ -250,7 +323,7 @@ export async function getTrip(db: Db, id: number): Promise<{ trip: TripRow; item
   const trip = await db.getFirstAsync<TripRow>(`${TRIP_SELECT} WHERE t.id = ? GROUP BY t.id`, [id]);
   if (!trip) return null;
   const items = await db.getAllAsync<ItemRow>(
-    `SELECT i.id, i.product_id, p.name, p.unit, i.qty, i.unit_price
+    `SELECT i.id, i.product_id, p.name, p.unit, i.qty, i.unit_price, i.promo
      FROM items i JOIN products p ON p.id = i.product_id WHERE i.trip_id = ? ORDER BY i.id`,
     [id],
   );
@@ -274,7 +347,7 @@ async function writeTrip(db: Db, trip: NewTrip): Promise<number> {
   }
   for (const it of trip.items) {
     const pid = await productId(db, it.name, it.unit);
-    await db.runAsync('INSERT INTO items (trip_id, product_id, qty, unit_price) VALUES (?, ?, ?, ?)', [id, pid, it.qty, it.unitPrice]);
+    await db.runAsync('INSERT INTO items (trip_id, product_id, qty, unit_price, promo) VALUES (?, ?, ?, ?, ?)', [id, pid, it.qty, it.unitPrice, it.promo ? 1 : 0]);
   }
   await dropUnusedProducts(db);
   return id;
@@ -307,25 +380,29 @@ export async function deleteTrip(db: Db, id: number): Promise<void> {
 
 const LIST_MARK = '#liste';
 const BUDGET_MARK = '#budget';
+const ALIAS_MARK = '#alias';
 
 export const CSV_HEADER = ['date', 'magasin', 'produit', 'unite', 'quantite', 'prix_unitaire', 'total'];
 
 export async function exportCsv(db: Db): Promise<{ csv: string; rows: number }> {
-  const rows = await db.getAllAsync<{ trip_id: number; date: string; store: string; name: string; unit: string; qty: number; unit_price: number }>(
-    `SELECT t.id AS trip_id, t.date, s.name AS store, p.name, p.unit, i.qty, i.unit_price
+  const rows = await db.getAllAsync<{ trip_id: number; date: string; store: string; name: string; unit: string; qty: number; unit_price: number; promo: number }>(
+    `SELECT t.id AS trip_id, t.date, s.name AS store, p.name, p.unit, i.qty, i.unit_price, i.promo
      FROM items i JOIN trips t ON t.id = i.trip_id JOIN stores s ON s.id = t.store_id JOIN products p ON p.id = i.product_id
      ORDER BY t.date, t.id, i.id`,
     [],
   );
-  const out: (string | number)[][] = [[...CSV_HEADER, 'course']];
+  const out: (string | number)[][] = [[...CSV_HEADER, 'promo', 'course']];
   for (const r of rows) {
-    out.push([r.date, r.store, r.name, r.unit, r.qty, r.unit_price, Math.round(r.qty * r.unit_price * 100) / 100, r.trip_id]);
+    out.push([r.date, r.store, r.name, r.unit, r.qty, r.unit_price, Math.round(r.qty * r.unit_price * 100) / 100, r.promo ? 1 : 0, r.trip_id]);
   }
+  // Other spellings ride along too, so a restore keeps the receipt links.
+  const aliases = await db.getAllAsync<{ key: string; name: string }>('SELECT a.key, p.name FROM aliases a JOIN products p ON p.id = a.product_id ORDER BY a.key', []);
+  for (const a of aliases) out.push([ALIAS_MARK, '', a.name, a.key, '', '', '', '', '']);
   // The shopping list and the budget ride along on marked lines at the end.
   const list = await db.getAllAsync<{ name: string; done: number }>('SELECT name, done FROM list_items ORDER BY id', []);
-  for (const l of list) out.push([LIST_MARK, '', l.name, '', l.done ? 1 : 0, '', '', '']);
+  for (const l of list) out.push([LIST_MARK, '', l.name, '', l.done ? 1 : 0, '', '', '', '']);
   const budget = await getPref(db, 'budget');
-  if (budget) out.push([BUDGET_MARK, '', '', '', '', budget, '', '']);
+  if (budget) out.push([BUDGET_MARK, '', '', '', '', budget, '', '', '']);
   return { csv: toCsv(out), rows: rows.length };
 }
 
@@ -344,6 +421,8 @@ export async function importCsv(db: Db, text: string): Promise<{ trips: number; 
   };
   const cDate = col('date'), cStore = col('magasin'), cName = col('produit'), cUnit = col('unite'), cQty = col('quantite'), cPrice = col('prix_unitaire');
   const cTrip = head.indexOf('course');
+  const cPromo = head.indexOf('promo');
+  const aliases: { name: string; key: string }[] = [];
 
   const trips = new Map<string, NewTrip>();
   const list: { name: string; done: boolean }[] = [];
@@ -358,6 +437,11 @@ export async function importCsv(db: Db, text: string): Promise<{ trips: number; 
     }
     if (mark === BUDGET_MARK) {
       budget = (r[cPrice] ?? '').trim() || null;
+      return;
+    }
+    if (mark === ALIAS_MARK) {
+      const key = (r[cUnit] ?? '').trim();
+      if (key && productKey(r[cName] ?? '')) aliases.push({ name: cleanName(r[cName]), key });
       return;
     }
     if (r.every((c) => !c.trim())) return;
@@ -375,12 +459,13 @@ export async function importCsv(db: Db, text: string): Promise<{ trips: number; 
       trip = { store, date, items: [] };
       trips.set(tripKey, trip);
     }
-    trip.items.push({ name, unit: (r[cUnit] ?? '').trim() || 'pièce', qty: q, unitPrice: price });
+    trip.items.push({ name, unit: (r[cUnit] ?? '').trim() || 'pièce', qty: q, unitPrice: price, promo: cPromo >= 0 && (r[cPromo] ?? '').trim() === '1' });
     items++;
   });
 
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM items', []);
+    await db.runAsync('DELETE FROM aliases', []);
     await db.runAsync('DELETE FROM trips', []);
     await db.runAsync('DELETE FROM products', []);
     await db.runAsync('DELETE FROM stores', []);
@@ -392,6 +477,10 @@ export async function importCsv(db: Db, text: string): Promise<{ trips: number; 
       }
     }
     if (budget) await setPref(db, 'budget', budget);
+    for (const a of aliases) {
+      const p = await db.getFirstAsync<{ id: number }>('SELECT id FROM products WHERE key = ?', [productKey(a.name)]);
+      if (p) await db.runAsync('INSERT OR IGNORE INTO aliases (key, product_id) VALUES (?, ?)', [a.key, p.id]);
+    }
   });
   return { trips: trips.size, items };
 }
@@ -431,6 +520,8 @@ export type MonthStats = {
   /** Spend-weighted average price change vs. the last price paid before this month, in %. null when nothing to compare. */
   inflation: number | null;
   compared: number;
+  /** DH this month's basket cost more (or less) only because prices moved: Σ (now − before) × qty. */
+  priceEffect: number;
 };
 
 function prevMonth(month: string): string {
@@ -454,13 +545,13 @@ export async function monthStats(db: Db, month: string): Promise<MonthStats> {
     [month],
   );
   // For each product bought this month: latest price this month vs. latest price before the month started.
-  const rows = await db.getAllAsync<{ id: number; name: string; unit: string; now: number; before: number | null; spend: number }>(
+  const rows = await db.getAllAsync<{ id: number; name: string; unit: string; now: number; before: number | null; spend: number; qty: number }>(
     `SELECT p.id, p.name, p.unit,
        (SELECT i2.unit_price FROM items i2 JOIN trips t2 ON t2.id = i2.trip_id
          WHERE i2.product_id = p.id AND substr(t2.date, 1, 7) = ?1 ORDER BY t2.date DESC, i2.id DESC LIMIT 1) AS now,
        (SELECT i3.unit_price FROM items i3 JOIN trips t3 ON t3.id = i3.trip_id
          WHERE i3.product_id = p.id AND t3.date < ?1 || '-01' ORDER BY t3.date DESC, i3.id DESC LIMIT 1) AS before,
-       SUM(i.qty * i.unit_price) AS spend
+       SUM(i.qty * i.unit_price) AS spend, SUM(i.qty) AS qty
      FROM items i JOIN trips t ON t.id = i.trip_id JOIN products p ON p.id = i.product_id
      WHERE substr(t.date, 1, 7) = ?1 GROUP BY p.id`,
     [month],
@@ -470,8 +561,11 @@ export async function monthStats(db: Db, month: string): Promise<MonthStats> {
     .map((r) => ({ id: r.id, name: r.name, unit: r.unit, before: r.before as number, now: r.now, spend: r.spend, change: ((r.now - (r.before as number)) / (r.before as number)) * 100 }));
   const weight = moves.reduce((a, m) => a + m.spend, 0);
   const inflation = moves.length && weight > 0 ? moves.reduce((a, m) => a + m.change * m.spend, 0) / weight : null;
+  const priceEffect = rows
+    .filter((r) => r.before !== null && r.before > 0 && !/timbre/i.test(r.name))
+    .reduce((a, r) => a + (r.now - (r.before as number)) * r.qty, 0);
   moves.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
-  return { month, total: sum.total, trips: sum.trips, prevTotal: prev.total, byStore, topProducts, moves, inflation, compared: moves.length };
+  return { month, total: sum.total, trips: sum.trips, prevTotal: prev.total, byStore, topProducts, moves, inflation, compared: moves.length, priceEffect: Math.round(priceEffect * 100) / 100 };
 }
 
 // ---------- "bch7al ?" : what do I usually pay, and where is it cheapest ----------
@@ -503,7 +597,7 @@ export async function tripVerdicts(db: Db, tripId: number): Promise<Record<numbe
   const rows = await db.getAllAsync<{ id: number; unit_price: number; usual: number | null }>(
     `SELECT i.id, i.unit_price,
        (SELECT AVG(x.unit_price) FROM (SELECT o.unit_price FROM items o JOIN trips ot ON ot.id = o.trip_id
-          WHERE o.product_id = i.product_id AND ot.date < t.date ORDER BY ot.date DESC, o.id DESC LIMIT 3) x) AS usual
+          WHERE o.product_id = i.product_id AND o.promo = 0 AND ot.date < t.date ORDER BY ot.date DESC, o.id DESC LIMIT 3) x) AS usual
      FROM items i JOIN trips t ON t.id = i.trip_id WHERE i.trip_id = ?`,
     [tripId],
   );

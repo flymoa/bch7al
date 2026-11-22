@@ -1,9 +1,9 @@
-// A short message that slides up from the bottom, e.g. after saving a trip.
-import { Icon } from '@/components/icon';
+// A short message that rises from the bottom, e.g. after saving a trip (inverse surface).
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Text } from 'react-native';
-import { colors, fonts, sheet } from '@/theme';
-import { radius, space, type } from '@/tokens';
+import { Icon } from '@/components/icon';
+import { bubble, colors, motion, sheet, spring, text } from '@/theme';
+import { space } from '@/tokens';
 
 type Listener = (msg: string) => void;
 const listeners = new Set<Listener>();
@@ -22,9 +22,9 @@ export function ToastHost() {
       setMsg(m);
       v.setValue(0);
       Animated.sequence([
-        Animated.spring(v, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 8 }),
+        Animated.spring(v, { toValue: 1, useNativeDriver: true, ...spring(motion.spatial.default) }),
         Animated.delay(1800),
-        Animated.timing(v, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0, duration: motion.fadeMs, useNativeDriver: true }),
       ]).start(() => setMsg(null));
     };
     listeners.add(l);
@@ -36,15 +36,15 @@ export function ToastHost() {
     <Animated.View
       pointerEvents="none"
       accessibilityLiveRegion="polite"
-      style={[st.toast, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }] }]}
+      style={[st.toast, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }]}
     >
-      <Icon name="checkmark-circle" size={22} color={colors.accent} />
+      <Icon name="check" color={colors.inverseOnSurface} weight="bold" />
       <Text style={st.text}>{msg}</Text>
     </Animated.View>
   );
 }
 
 const st = sheet(() => ({
-  toast: { position: 'absolute', left: space.xl, right: space.xl, bottom: space.xxxl * 2, backgroundColor: colors.ink, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, elevation: 10 },
-  text: { flex: 1, fontFamily: fonts.bodyBold, fontSize: type.body, color: colors.onInk },
+  toast: { position: 'absolute', left: space.xl, right: space.xl, bottom: 112, backgroundColor: colors.inverseSurface, ...bubble('sm'), paddingHorizontal: space.lg, paddingVertical: space.md, flexDirection: 'row', alignItems: 'center', gap: space.md, elevation: 10 },
+  text: { flex: 1, ...text('label'), color: colors.inverseOnSurface },
 }));
