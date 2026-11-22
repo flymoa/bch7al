@@ -2,7 +2,7 @@
   "expo": {
     "name": "bch7al?",
     "slug": "bch7al",
-    "version": "4.0.2",
+    "version": "4.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -32,12 +32,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0E1340",
-          "image": "./assets/splash-icon.png",
-          "imageWidth": 160,
-          "dark": {
-            "backgroundColor": "#0E1340",
-            "image": "./assets/splash-icon.png"
-          }
+          "image": "./assets/splash-blank.png",
+          "imageWidth": 200
         }
       ],
       [

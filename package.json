@@ -1,6 +1,6 @@
 {
   "name": "bch7al",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/ibm-plex-sans-arabic": "^0.4.2",

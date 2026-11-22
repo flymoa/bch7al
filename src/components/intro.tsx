@@ -1,4 +1,4 @@
-// Opening animation (v4 « Majorelle Nuit »). The phone's launch screen is the same plain
+// Opening animation (v4 « Majorelle Nuit »). The phone launch screen is plain night ink with NO logo (splash-blank.png), the same plain
 // night ink, so the hand-over is seamless. Icon done in 460 ms, never held:
 // 0–280 ms the white bubble pops (0.72 → 1, slight overshoot), 160–460 ms the 7 draws
 // itself in Majorelle, then — as soon as the app is ready — a 200 ms exit: the bubble
