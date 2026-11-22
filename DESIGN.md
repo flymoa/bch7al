@@ -119,7 +119,7 @@ Elevation: shadows only on things that float (fab, sheet), tinted night. Lists a
 
 Material 3 springs (damping ratio / stiffness). Spatial (things that move): fast 0.9/1400 · default 0.9/700 · slow 0.9/300. Effects (colour, opacity, no overshoot): fast 1/3800 · default 1/1600 · slow 1/800.
 
-Opening: night background, the white bulle pops in 280 ms, the 7 draws from 160 ms for 300 ms, then a 200 ms exit as soon as the app is ready — never held. Lists fade in 180 ms with a 30 ms stagger. Reduce-motion turns all of it off.
+Opening: night background, the white bulle pops in 320 ms, the 7 draws from 200 ms for 420 ms, the name and slogan rise from 520 ms, a 650 ms hold to read « 3ref taman, chri mzyan. », then a 320 ms exit (about 1.8 s in all, no extra wait). Lists fade in 180 ms with a 30 ms stagger. Reduce-motion turns all of it off.
 
 ## Icons — Phosphor (MIT)
 

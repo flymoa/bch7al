@@ -189,7 +189,9 @@ export const elevation = {
 export const motion = {
   spatial: { fast: { ratio: 0.9, stiffness: 1400 }, default: { ratio: 0.9, stiffness: 700 }, slow: { ratio: 0.9, stiffness: 300 } },
   effects: { fast: { ratio: 1, stiffness: 3800 }, default: { ratio: 1, stiffness: 1600 }, slow: { ratio: 1, stiffness: 800 } },
-  splash: { bubbleMs: 280, sevenStartMs: 160, sevenMs: 300, exitMs: 200 }, // icon done at 460 ms, never held
+  // ~1.6 s in all: bubble pops, the 7 draws, the name and slogan rise, a short hold to read
+  // « 3ref taman, chri mzyan. », then a calm exit. Same rhythm as the v3 intro he validated.
+  splash: { bubbleMs: 320, sevenStartMs: 200, sevenMs: 420, wordStartMs: 520, wordMs: 300, holdMs: 650, exitMs: 320 },
   fadeMs: 180,
   stagger: 30,
 } as const;
