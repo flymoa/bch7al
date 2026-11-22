@@ -109,7 +109,7 @@ Elevation: shadows only on things that float (${Object.keys(elevation).join(', '
 
 Material 3 springs (damping ratio / stiffness). Spatial (things that move): ${Object.entries(motion.spatial).map(([k, v]) => `${k} ${v.ratio}/${v.stiffness}`).join(' · ')}. Effects (colour, opacity, no overshoot): ${Object.entries(motion.effects).map(([k, v]) => `${k} ${v.ratio}/${v.stiffness}`).join(' · ')}.
 
-Opening: night background, the white bulle pops in ${motion.splash.bubbleMs} ms, the 7 draws from ${motion.splash.sevenStartMs} ms for ${motion.splash.sevenMs} ms, then a ${motion.splash.exitMs} ms exit as soon as the app is ready — never held. Lists fade in ${motion.fadeMs} ms with a ${motion.stagger} ms stagger. Reduce-motion turns all of it off.
+Opening: night background, the white bulle pops in ${motion.splash.bubbleMs} ms, the 7 draws from ${motion.splash.sevenStartMs} ms for ${motion.splash.sevenMs} ms, the name and slogan rise from ${motion.splash.wordStartMs} ms, a ${motion.splash.holdMs} ms hold to read « 3ref taman, chri mzyan. », then a ${motion.splash.exitMs} ms exit (about 1.8 s in all, no extra wait). Lists fade in ${motion.fadeMs} ms with a ${motion.stagger} ms stagger. Reduce-motion turns all of it off.
 
 ## Icons — Phosphor (MIT)
 

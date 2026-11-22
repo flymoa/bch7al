@@ -15,6 +15,7 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void }) {
   const pop = useRef(new Animated.Value(0)).current;
   const draw = useRef(new Animated.Value(0)).current;
+  const word = useRef(new Animated.Value(0)).current;
   const out = useRef(new Animated.Value(0)).current;
   const [played, setPlayed] = useState(false);
   const m = motion.splash;
@@ -25,17 +26,22 @@ export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void })
       .catch(() => false)
       .then((reduce) => {
         if (cancelled) return;
-        if (reduce) { pop.setValue(1); draw.setValue(1); setPlayed(true); return; }
+        if (reduce) { pop.setValue(1); draw.setValue(1); word.setValue(1); setPlayed(true); return; }
         Animated.parallel([
           Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...spring({ ratio: 0.7, stiffness: 700 }) }),
           Animated.sequence([
             Animated.delay(m.sevenStartMs),
             Animated.timing(draw, { toValue: 1, duration: m.sevenMs, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }),
           ]),
+          Animated.sequence([
+            Animated.delay(m.wordStartMs),
+            Animated.timing(word, { toValue: 1, duration: m.wordMs, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.delay(m.holdMs), // time to read the slogan
+          ]),
         ]).start(() => !cancelled && setPlayed(true));
       });
     return () => { cancelled = true; };
-  }, [pop, draw, m.sevenStartMs, m.sevenMs]);
+  }, [pop, draw, word, m.sevenStartMs, m.sevenMs, m.wordStartMs, m.wordMs, m.holdMs]);
 
   useEffect(() => {
     if (!played || !ready) return;
@@ -52,7 +58,7 @@ export function Intro({ ready, onDone }: { ready: boolean; onDone: () => void })
           <Circle cx={50} cy={73.5} r={6.2} fill={brand.majorelle} />
         </Svg>
       </Animated.View>
-      <Animated.View style={{ alignItems: 'center', opacity: draw }}>
+      <Animated.View style={{ alignItems: 'center', opacity: word, transform: [{ translateY: word.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] }}>
         <Text style={st.word}>bch7al?</Text>
         <Text style={st.tag}>3ref taman, chri mzyan.</Text>
       </Animated.View>
