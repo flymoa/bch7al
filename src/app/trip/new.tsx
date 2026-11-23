@@ -225,7 +225,7 @@ export default function TripForm() {
     setStampText(res.stamp ? money(res.stamp) : '');
     // Not read on the ticket: never guessed, the user is asked.
     if (!res.stamp && res.items.length > 0) {
-      Alert.alert('T2ked wach droit de timbre kayn ?', "Ma lqitouch f le ticket. Ila khlesti b l'flouss (espèces), ghaykoun mktoub f le ticket.", [
+      Alert.alert('T2ked wach droit de timbre kayn ?', undefined, [
         { text: 'La', style: 'cancel', onPress: () => showToast('Wakha') },
         {
           text: 'Iyeh',
