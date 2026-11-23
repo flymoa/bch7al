@@ -233,7 +233,7 @@ export default function Settings() {
 
         <View style={st.about}>
           <Mark size={28} />
-          <Text style={t.meta}>bch7al? · version {Constants.expoConfig?.version ?? '4.0.3'}{schema ? ` · base v${schema.version}${schema.ok ? '' : ' (à réparer)'}` : ''}</Text>
+          <Text style={t.meta}>bch7al? · version {Constants.expoConfig?.version ?? '4.0.4'}{schema ? ` · base v${schema.version}${schema.ok ? '' : ' (à réparer)'}` : ''}</Text>
         </View>
       </ScrollView>
     </Screen>
