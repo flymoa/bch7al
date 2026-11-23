@@ -43,9 +43,9 @@ assert.throws(() => geminiToReceipt('désolé'), /liste/);
 // The new reply shape: stamp duty in its own field
 const own = geminiToReceipt('{"store":"BIM","date":null,"total":8.98,"article_count":1,"stamp_duty":0.08,"items":[{"name":"GAUFRETTE","qty":1,"unit":"piece","unit_price":8.9,"line_total":8.9}]}');
 assert.deepEqual([own.items.length, own.stamp], [1, 0.08]);
-// Not printed (or skipped by Gemini) but the total is articles + 0.25 %: inferred
+// Not on the ticket: never guessed from the total
 const inferred = geminiToReceipt('{"store":"BIM","date":null,"total":100.25,"article_count":1,"stamp_duty":null,"items":[{"name":"HUILE","qty":1,"unit":"piece","unit_price":100,"line_total":100}]}');
-assert.equal(inferred.stamp, 0.25);
+assert.equal(inferred.stamp, null);
 // Paid by card: total = articles, no stamp
 assert.equal(fix.stamp, null);
 console.log('gemini: ok');

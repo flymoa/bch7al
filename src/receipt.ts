@@ -26,19 +26,9 @@ export type ReceiptResult = {
   stamp: number | null;
 };
 
-/** Moroccan stamp duty on cash payments: 0.25 % of the amount. */
-export const STAMP_RATE = 0.0025;
-
-/**
- * When the stamp line was not read but the ticket total is the articles plus 0.25 %,
- * the difference is the stamp duty. Anything else is left alone (a misread, a discount).
- */
-export function inferStamp(items: ReceiptItem[], total: number | null, stamp: number | null): number | null {
-  if (stamp !== null && stamp > 0) return Math.round(stamp * 100) / 100;
-  if (total === null) return null;
-  const lines = items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
-  const gap = Math.round((total - lines) * 100) / 100;
-  return gap > 0 && Math.abs(gap - lines * STAMP_RATE) <= 0.02 ? gap : null;
+/** The stamp duty only as printed on the ticket: never guessed from the total. */
+export function inferStamp(_items: ReceiptItem[], _total: number | null, stamp: number | null): number | null {
+  return stamp !== null && stamp > 0 ? Math.round(stamp * 100) / 100 : null;
 }
 
 // Article code at the start of a line, tolerant of camera misreads:
