@@ -22,7 +22,24 @@ export type ReceiptResult = {
   expected: number | null;
   /** The rows as read, to show the user what the camera saw. */
   rows: string[];
+  /** Droit de timbre (cash payment tax): kept on the trip, never a product. */
+  stamp: number | null;
 };
+
+/** Moroccan stamp duty on cash payments: 0.25 % of the amount. */
+export const STAMP_RATE = 0.0025;
+
+/**
+ * When the stamp line was not read but the ticket total is the articles plus 0.25 %,
+ * the difference is the stamp duty. Anything else is left alone (a misread, a discount).
+ */
+export function inferStamp(items: ReceiptItem[], total: number | null, stamp: number | null): number | null {
+  if (stamp !== null && stamp > 0) return Math.round(stamp * 100) / 100;
+  if (total === null) return null;
+  const lines = items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  const gap = Math.round((total - lines) * 100) / 100;
+  return gap > 0 && Math.abs(gap - lines * STAMP_RATE) <= 0.02 ? gap : null;
+}
 
 // Article code at the start of a line, tolerant of camera misreads:
 // "(4)2000002693406", "1)2707827014620", "(l)7622202376115", "(1)27009970305B2".
@@ -163,6 +180,7 @@ export function parseReceipt(rawRows: string[]): ReceiptResult {
   const items: ReceiptItem[] = [];
   let pendingQty: { qty: number; unitPrice: number } | null = null;
   let expected: number | null = null;
+  let stamp: number | null = null;
   let sawTotal = false;
   // A product line without a price; its "2 x 2.50  5.00" comes on the next line (Marjane).
   let pendingName: string | null = null;
@@ -189,16 +207,14 @@ export function parseReceipt(rawRows: string[]): ReceiptResult {
       continue;
     }
 
-    // Stamp duty is part of what was paid: keep it as its own line so the trip total matches.
+    // Stamp duty is part of what was paid, but it is a tax, not an article: kept apart.
     if (STAMP.test(row)) {
       let amount = row.match(/(\d+[.,]\d{2})\s*(?:dh|dhs|mad)?\s*$/i)?.[1] ?? null;
       for (const j of [idx + 1, idx - 1]) {
         if (amount) break;
         amount = rows[j]?.match(/^\s*(\d+[.,]\d{2})\s*(?:dh|dhs|mad)?\s*$/i)?.[1] ?? null;
       }
-      if (amount && num(amount) > 0 && !items.some((i) => i.name === STAMP_DUTY)) {
-        items.push({ name: STAMP_DUTY, qty: 1, unitPrice: num(amount), unit: 'pièce' });
-      }
+      if (amount && num(amount) > 0 && stamp === null) stamp = num(amount);
       continue;
     }
     // A lone amount next to the stamp duty label belongs to it.
@@ -313,7 +329,7 @@ export function parseReceipt(rawRows: string[]): ReceiptResult {
     sinceGroup += lineTotal;
   }
 
-  return { store, date, items, total, expected, rows: rawRows };
+  return { store, date, items, total, expected, rows: rawRows, stamp: inferStamp(items, total, stamp) };
 }
 
 /**

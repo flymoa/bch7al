@@ -67,7 +67,7 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
     }
   }
   const fellBack = !!geminiKey;
-  if (lines.length === 0) return { store: null, date: null, items: [], total: null, expected: null, rows: [], engine: 'phone', warning, photo: asset, fellBack };
+  if (lines.length === 0) return { store: null, date: null, items: [], total: null, expected: null, rows: [], stamp: null, engine: 'phone', warning, photo: asset, fellBack };
   return { ...parseReceipt(toRows(lines)), engine: 'phone', warning, photo: asset, fellBack };
 }
 

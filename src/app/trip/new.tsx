@@ -13,7 +13,6 @@ import { showToast } from '@/components/toast';
 import { Button, CheckChip, Empty, Field, Group, IconButton, Notice, Pill, PriceChip, Screen, Tile, TopBar, VerdictChip, s as ui, t } from '@/components/ui';
 import { addAlias, findProduct, getPref, getTrip, listProducts, listStores, saveTrip, setPref, type ProductRow } from '@/db';
 import { addDays, cleanName, closestName, dh, longDate, money, parseNumber, perUnit, plural, productKey, qty as fmtQty, qtyLabel, todayIso, verdict } from '@/format';
-import { STAMP_DUTY } from '@/receipt';
 import { readPhoto, scanAvailable, scanReceipt, type Photo, type ScanResult } from '@/scan';
 import { useSQLiteContext } from '@/sqlite';
 import { bubble, colors, DEFAULT_STORES, floatShadow, price as pc, sheet, text, UNITS, useTheme } from '@/theme';
@@ -48,6 +47,8 @@ export default function TripForm() {
   const [otherStore, setOtherStore] = useState(false);
   const [date, setDate] = useState(todayIso());
   const [items, setItems] = useState<Line[]>([]);
+  /** Droit de timbre: a tax on cash payments, kept on the trip, never a product. */
+  const [stamp, setStamp] = useState(0);
   const [name, setName] = useState('');
   const [unit, setUnit] = useState<string>(UNITS[0]);
   const [unitPicked, setUnitPicked] = useState(false);
@@ -80,6 +81,7 @@ export default function TripForm() {
       if (existing) {
         setStore(existing.trip.store);
         setDate(existing.trip.date);
+        setStamp(existing.trip.stamp ?? 0);
         // Editing: comparing with "last time" would include this very trip, so it is not shown.
         setItems(existing.items.map((it) => ({ id: nextLineId++, name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unit_price, last: null, known: true, promo: !!it.promo })));
       } else {
@@ -105,7 +107,7 @@ export default function TripForm() {
     const unitPrice = measured && priceMode === 'total' ? p / q : p;
     return { qty: Math.round(q * 1000) / 1000, unitPrice: Math.round(unitPrice * 10000) / 10000, paid: q * unitPrice };
   })();
-  const hint = !editId && match && sameUnit && computed && price.trim() && match.name !== STAMP_DUTY ? verdict(computed.unitPrice, match.avg_price) : null;
+  const hint = !editId && match && sameUnit && computed && price.trim() ? verdict(computed.unitPrice, match.avg_price) : null;
 
   const basketKeys = new Set(items.map((it) => productKey(it.name)));
   const suggestions = products
@@ -175,7 +177,7 @@ export default function TripForm() {
     update(it.id, { name: it.suggest.name, raw: it.raw ?? it.name, known: true, last: editId || !same ? null : it.suggest.avg, suggest: undefined });
   };
 
-  const total = items.reduce((sum, it) => sum + it.qty * it.unitPrice, 0);
+  const total = items.reduce((sum, it) => sum + it.qty * it.unitPrice, 0) + stamp;
 
   /** Fills the basket from a scan result (replacing an earlier scan's lines on retry). */
   const applyScan = async (res: ScanResult) => {
@@ -205,7 +207,7 @@ export default function TripForm() {
       }
       let close: ProductRow | null = null;
       try {
-        close = !existing && !it.unnamed && it.name !== STAMP_DUTY ? closestName(it.name, products.filter((p) => !/timbre/i.test(p.name))) : null;
+        close = !existing && !it.unnamed ? closestName(it.name, products.filter((p) => !/timbre/i.test(p.name))) : null;
       } catch {
         close = null;
       }
@@ -216,12 +218,13 @@ export default function TripForm() {
       });
     }
     setItems((cur) => [...cur.filter((x) => !x.scanned), ...lines.map((l) => ({ ...l, id: nextLineId++ }))]);
-    const products_ = res.items.filter((i) => i.name !== STAMP_DUTY);
+    setStamp(res.stamp ?? 0);
+    const products_ = res.items;
     const units = products_.reduce((n, i) => n + (i.unit === 'pièce' && Number.isInteger(i.qty) ? i.qty : 1), 0);
     setScan({
       count: products_.length,
       total: res.total,
-      lines: res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0),
+      lines: res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0) + (res.stamp ?? 0),
       missing: res.expected !== null && res.expected > units ? res.expected - units : 0,
       unnamed: res.items.filter((i) => i.unnamed).length,
       warning: res.warning,
@@ -257,7 +260,7 @@ export default function TripForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const verdicts = items.map((it) => (it.name === STAMP_DUTY ? null : verdict(it.unitPrice, it.last)));
+  const verdicts = items.map((it) => verdict(it.unitPrice, it.last));
   const n = (k: 'good' | 'normal' | 'high') => verdicts.filter((v) => v?.kind === k).length;
 
   const save = async () => {
@@ -268,7 +271,7 @@ export default function TripForm() {
     setSaving(true);
     try {
       await setPref(db, 'lastStore', cleanName(store));
-      await saveTrip(db, { id: editId, store, date, items: items.map((it) => ({ name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unitPrice, promo: it.promo })) });
+      await saveTrip(db, { id: editId, store, date, stamp, items: items.map((it) => ({ name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unitPrice, promo: it.promo })) });
       for (const it of items) {
         if (!it.raw) continue;
         // Remembering a spelling is a bonus: the trip is already saved if this fails.
@@ -445,14 +448,12 @@ export default function TripForm() {
           ) : (
             <Group>
               {[...items].reverse().map((it, k) => {
-                const v = it.name === STAMP_DUTY ? null : verdict(it.unitPrice, it.last);
-                const stamp = it.name === STAMP_DUTY;
+                const v = verdict(it.unitPrice, it.last);
                 const dup = !it.unnamed && items.filter((x) => !x.unnamed && productKey(x.name) === productKey(it.name)).length > 1;
                 const notes = [
-                  stamp ? 'taxe, gardée sur la course' : null,
-                  it.scanned && !it.unnamed && !stamp ? 'lu sur le ticket' : null,
+                  it.scanned && !it.unnamed ? 'lu sur le ticket' : null,
                   it.otherUnit ? `au ${it.unit}, noté à part` : null,
-                  v === null && !(it.known || it.scanned || stamp) ? 'nouveau produit' : null,
+                  v === null && !(it.known || it.scanned) ? 'nouveau produit' : null,
                 ].filter(Boolean);
                 return (
                   <Pop key={it.id}>
@@ -483,7 +484,7 @@ export default function TripForm() {
                           <Button compact kind="quiet" label="Non" onPress={() => update(it.id, { suggest: undefined })} />
                         </View>
                       ) : null}
-                      {stamp ? null : (
+                      {(
                         <View style={st.lineActions}>
                           <View style={st.stepper}>
                             <Pressable accessibilityRole="button" accessibilityLabel={`Retirer ${fmtQty(stepFor(it.unit))} ${it.unit}`} onPress={() => changeQty(it.id, -1)} style={st.step}><Icon name="minus" size={size.iconDense} /></Pressable>
@@ -502,6 +503,17 @@ export default function TripForm() {
               })}
             </Group>
           )}
+          {stamp > 0 ? (
+            <View style={st.stampRow} accessibilityLabel={`Droit de timbre ${money(stamp)} dirhams, taxe payée en espèces`}>
+              <Icon name="receipt" size={size.iconDense} color={colors.muted} />
+              <View style={ui.flex}>
+                <Text style={t.name}>Droit de timbre</Text>
+                <Text style={t.meta}>Taxe sur le paiement en espèces · pas un produit</Text>
+              </View>
+              <Text style={t.price}>{money(stamp)}</Text>
+              <IconButton icon="delete" label="Retirer le droit de timbre (payé par carte)" tone="danger" onPress={() => setStamp(0)} />
+            </View>
+          ) : null}
         </ScrollView>
 
         <View style={st.footer}>
@@ -519,6 +531,7 @@ export default function TripForm() {
 const st = sheet(() => ({
   content: { paddingHorizontal: size.screen, paddingBottom: space.section, gap: space.md },
   headActions: { flexDirection: 'row', gap: space.sm },
+  stampRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: size.row, paddingHorizontal: space.lg, borderRadius: radius.card, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
   summary: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: size.row, paddingHorizontal: space.lg, ...bubble('lg'), backgroundColor: colors.surfaceContainer },
   setup: { gap: space.md, paddingBottom: space.sm },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },

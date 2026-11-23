@@ -93,10 +93,9 @@ console.log('All receipt checks passed.', r.items.length, 'items:', r.items.map(
       ['Fromage Fume Nature', 1, 14.62, 'pièce'],
       ['Chewing Gum Original', 1, 3.95, 'pièce'],
       ['Champignon De Paris', 0.628, 51.95, 'kg'],
-      ['Droit de timbre', 1, 0.29, 'pièce'],
     ],
   );
-  const paid = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  const paid = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0) + (res.stamp ?? 0);
   assert.ok(Math.abs(paid - 116.96) < 0.02, 'items + stamp duty = what was paid');
   console.log('Carrefour receipt read:', res.items.length, 'items, total', res.total);
 }
@@ -173,9 +172,8 @@ console.log('Misread checks passed.');
     ['Piles ALC4P LR06 Pow', 1, 12.5],
     ['Piles LR03 4PC Power', 1, 12.5],
     ['Gauf Caco CENTRO142G', 1, 8.9],
-    ['Droit de timbre', 1, 0.08],
   ]);
-  const sum = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  const sum = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0) + (res.stamp ?? 0);
   assert.equal(Math.round(sum * 100) / 100, 33.98, 'items + stamp duty = what was paid');
 }
 
@@ -207,13 +205,13 @@ console.log('Misread checks passed.');
     [1, 28, 'pièce'], [1, 7, 'pièce'], [2, 9, 'pièce'], [0.045, 240, 'kg'], [0.06, 90, 'kg'],
     [1, 10, 'pièce'], [1, 24, 'pièce'], [1, 33, 'pièce'], [1, 7, 'pièce'],
   ]);
-  const sum = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  const sum = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0) + (res.stamp ?? 0);
   assert.equal(Math.round(sum * 100) / 100, 143.2);
 }
 // Stamp duty misread as "Tihbre" is still the stamp duty, not a product.
 {
   const res = parseReceipt(['Carrefour Market', '(1)7622202376115  CHEWING GUM  3.95', 'DONT DOIT DE TIHBRE : 0.29']);
-  assert.deepEqual(res.items.map((i) => i.name), ['Chewing Gum', 'Droit de timbre']);
+  assert.deepEqual(res.items.map((i) => i.name), ['Chewing Gum']);
 }
 console.log('BIM and Arabic checks passed.');
 
@@ -248,9 +246,8 @@ console.log('BIM and Arabic checks passed.');
     ['Color Naturals 5 Cha', 1, 34.5],
     ['Gaufrette Balc', 1, 2.95],
     ['Bisc Flute Choc 22.5', 2, 2.5],
-    ['Droit de timbre', 1, 0.22],
   ]);
-  const paid = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0);
+  const paid = res.items.reduce((a, i) => a + i.qty * i.unitPrice, 0) + (res.stamp ?? 0);
   assert.equal(Math.round(paid * 100) / 100, 87.37);
 }
 
@@ -264,7 +261,8 @@ console.log('BIM and Arabic checks passed.');
   ];
   for (const v of variants) {
     const res = parseReceipt(v);
-    assert.deepEqual(res.items.map((i) => [i.name, i.unitPrice]), [['Gauf Caco CENTRO142G', 8.9], ['Droit de timbre', 0.08]], v.join(' | '));
+    assert.deepEqual(res.items.map((i) => [i.name, i.unitPrice]), [['Gauf Caco CENTRO142G', 8.9]], v.join(' | '));
+    assert.equal(res.stamp, 0.08, 'stamp kept apart: ' + v.join(' | '));
     assert.equal(res.total, 8.98, v.join(' | '));
   }
 }
@@ -309,7 +307,6 @@ let marjaneLines: OcrLine[] = [];
     ['Color Naturals 5 Cha', 1, 34.5],
     ['Gaufrette Balc', 1, 2.95],
     ['Bisc Flute Choc 22.5', 2, 2.5],
-    ['Droit de timbre', 1, 0.22],
   ], toRows(lines).join('\n'));
   console.log('Tilted Marjane photo read correctly.');
 }
@@ -327,7 +324,7 @@ let marjaneLines: OcrLine[] = [];
   for (const deg of [-5, -3, -1.5, 0, 1.5, 3, 5]) {
     const res = parseReceipt(toRows(rotate(marjaneLines, deg)));
     assert.equal(res.total, 87.37, `Marjane at ${deg}°`);
-    assert.deepEqual(res.items.map((i) => i.unitPrice), [22.95, 21.75, 34.5, 2.95, 2.5, 0.22], `Marjane at ${deg}°: ` + res.items.map((i) => i.name).join(', '));
+    assert.deepEqual(res.items.map((i) => i.unitPrice), [22.95, 21.75, 34.5, 2.95, 2.5], `Marjane at ${deg}°: ` + res.items.map((i) => i.name).join(', '));
   }
   console.log('Tilt from -5° to +5° reads correctly.');
 }

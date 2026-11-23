@@ -2,14 +2,14 @@
 // answers with the list of articles, so Arabic names, tilted photos and grouped receipts
 // are read directly. The conversion code is separate from the network call so it can be
 // tested in Node.
-import { knownStore, STAMP_DUTY, UNNAMED, type ReceiptItem, type ReceiptResult } from './receipt';
+import { inferStamp, knownStore, UNNAMED, type ReceiptItem, type ReceiptResult } from './receipt';
 
 /** Tried in this order; the first one the key may use is remembered. */
 export const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 const URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 
 const PROMPT = `Tu lis la photo d'un ticket de caisse marocain (français et/ou arabe). Réponds uniquement avec un objet JSON :
-{"store": string|null, "date": "AAAA-MM-JJ"|null, "total": number|null, "article_count": number|null,
+{"store": string|null, "date": "AAAA-MM-JJ"|null, "total": number|null, "article_count": number|null, "stamp_duty": number|null,
  "items": [{"name": string, "qty": number, "unit": "piece"|"kg", "unit_price": number, "line_total": number}]}
 
 Règles :
@@ -19,7 +19,7 @@ Règles :
 - "2 x 2,50" veut dire qty 2 et unit_price 2.50. "line_total" = le montant imprimé pour la ligne.
 - Une remise sur un article se retire de son line_total et de son unit_price.
 - Ne mets PAS dans items : sous-totaux de rayon, lignes TOTAL, TVA, paiement (espèces, carte), rendu, points de fidélité.
-- Le droit de timbre, s'il est imprimé, est un article : name "Droit de timbre", qty 1. Une seule fois, même s'il est imprimé deux fois.
+- Le droit de timbre (« DROITS DE TIMBRE », souvent près de ESPECES) n'est PAS un article : ne le mets pas dans items, mets son montant dans "stamp_duty" (une seule fois, même s'il est imprimé deux fois). S'il n'est pas imprimé, "stamp_duty" = null.
 - "total" : le total à payer TTC, droit de timbre compris. "article_count" : le nombre d'articles imprimé sur le ticket, sinon null.
 - "store" : l'enseigne (Marjane, Carrefour, BIM...). "date" : la date d'achat.
 - Les nombres utilisent un point décimal. Si un chiffre est illisible, déduis-le des autres colonnes de la ligne ; sinon laisse l'article avec ce que tu lis.`;
@@ -31,6 +31,7 @@ const SCHEMA = {
     date: { type: ['string', 'null'] },
     total: { type: ['number', 'null'] },
     article_count: { type: ['number', 'null'] },
+    stamp_duty: { type: ['number', 'null'] },
     items: {
       type: 'array',
       items: {
@@ -46,7 +47,7 @@ const SCHEMA = {
       },
     },
   },
-  required: ['store', 'date', 'total', 'article_count', 'items'],
+  required: ['store', 'date', 'total', 'article_count', 'stamp_duty', 'items'],
 };
 
 const n = (v: unknown): number | null => {
@@ -82,7 +83,7 @@ export function geminiToReceipt(text: string): ReceiptResult {
     throw new Error('La réponse de Gemini est incomplète.');
   }
   const items: ReceiptItem[] = [];
-  let stamp = false;
+  let stamp: number | null = n(data.stamp_duty);
   for (const raw of Array.isArray(data.items) ? data.items : []) {
     let qty = n(raw?.qty) ?? 1;
     let unitPrice = n(raw?.unit_price);
@@ -97,10 +98,9 @@ export function geminiToReceipt(text: string): ReceiptResult {
       else if (Number.isInteger(qty)) unitPrice = line / qty;
     }
     const name = String(raw?.name ?? '').replace(/\s+/g, ' ').trim();
+    // Gemini sometimes still lists it as an article: take the amount, keep it out of the items.
     if (STAMP.test(name)) {
-      if (stamp) continue;
-      stamp = true;
-      items.push({ name: STAMP_DUTY, qty: 1, unitPrice: round(line ?? unitPrice, 2), unit: 'pièce' });
+      if (stamp === null || stamp <= 0) stamp = round(line ?? unitPrice, 2);
       continue;
     }
     if (/^(sous[- ]?)?total\b|^t\.?v\.?a\b|^rendu\b|^esp[eè]ces?\b/i.test(name)) continue;
@@ -118,6 +118,7 @@ export function geminiToReceipt(text: string): ReceiptResult {
     total: n(data.total),
     expected: count !== null && count > 0 ? Math.round(count) : null,
     rows: items.map((i) => `${i.name}  ${i.qty} x ${i.unitPrice.toFixed(2)}`),
+    stamp: inferStamp(items, n(data.total), stamp),
   };
 }
 
