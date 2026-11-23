@@ -5,15 +5,21 @@ import { cleanName, productKey, parseCsv, parseNumber, toCsv, verdict, type Verd
 
 export type Db = SQLiteDatabase;
 
-export type TripRow = { id: number; date: string; store: string; total: number; n: number };
+/** total includes the stamp duty; n counts products only. */
+export type TripRow = { id: number; date: string; store: string; total: number; n: number; stamp: number };
 export type ItemRow = { id: number; product_id: number; name: string; unit: string; qty: number; unit_price: number; promo: number };
 export type ProductRow = { id: number; name: string; unit: string; n: number; last_price: number | null; prev_price: number | null; avg_price: number | null };
 export type HistoryRow = { date: string; store: string; unit_price: number; qty: number; promo: number };
 export type MonthSummary = { trips: number; total: number; items: number };
 export type NewItem = { name: string; unit: string; qty: number; unitPrice: number; /** bought on promotion: kept out of the usual price */ promo?: boolean };
-export type NewTrip = { id?: number; store: string; date: string; items: NewItem[] };
+/** stamp: droit de timbre paid in cash — a tax on the trip, never a product. */
+export type NewTrip = { id?: number; store: string; date: string; items: NewItem[]; stamp?: number };
 
-const DATABASE_VERSION = 5;
+/** Products named like this were the stamp duty saved as a line before v6. */
+const STAMP_NAME = /t[il1]mbre/i;
+const STAMP_LABEL = 'Droit de timbre';
+
+const DATABASE_VERSION = 6;
 
 export async function migrate(db: Db): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -88,7 +94,36 @@ export async function migrate(db: Db): Promise<void> {
     version = 5;
     await db.execAsync(`PRAGMA user_version = 5`);
   }
+  if (version === 5) {
+    await ensureSchema(db); // a phone ahead of its schema may lack the aliases table used below
+    await db.withTransactionAsync(async () => {
+      await moveStampItems(db);
+    });
+    version = 6;
+    await db.execAsync(`PRAGMA user_version = 6`);
+  }
   await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
+}
+
+async function stampColumn(db: Db): Promise<void> {
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(trips)', []);
+  if (cols.length > 0 && !cols.some((c) => c.name === 'stamp')) await db.execAsync('ALTER TABLE trips ADD COLUMN stamp REAL NOT NULL DEFAULT 0;');
+}
+
+/** Old trips kept the stamp duty as a product line: move it onto the trip. */
+async function moveStampItems(db: Db): Promise<void> {
+  const products = await db.getAllAsync<{ id: number; name: string }>('SELECT id, name FROM products', []);
+  const ids = products.filter((p) => STAMP_NAME.test(p.name)).map((p) => p.id);
+  for (const pid of ids) {
+    await db.runAsync(
+      `UPDATE trips SET stamp = stamp + COALESCE((SELECT SUM(qty * unit_price) FROM items WHERE trip_id = trips.id AND product_id = ?), 0)
+       WHERE id IN (SELECT trip_id FROM items WHERE product_id = ?)`,
+      [pid, pid],
+    );
+    await db.runAsync('DELETE FROM aliases WHERE product_id = ?', [pid]);
+    await db.runAsync('DELETE FROM items WHERE product_id = ?', [pid]);
+    await db.runAsync('DELETE FROM products WHERE id = ?', [pid]);
+  }
 }
 
 /**
@@ -147,6 +182,7 @@ export async function ensureSchema(db: Db): Promise<void> {
     CREATE TABLE IF NOT EXISTS aliases (key TEXT PRIMARY KEY NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE);
     CREATE INDEX IF NOT EXISTS aliases_product ON aliases(product_id);
   `);
+  await stampColumn(db);
 }
 
 /** Runs on every open: SQLite only enforces foreign keys when asked to. */
@@ -318,8 +354,8 @@ export async function recentPrices(db: Db, per = 8): Promise<Record<number, numb
 // ---------- trips ----------
 
 const TRIP_SELECT = `
-  SELECT t.id, t.date, s.name AS store,
-    COALESCE(SUM(i.qty * i.unit_price), 0) AS total, COUNT(i.id) AS n
+  SELECT t.id, t.date, s.name AS store, t.stamp,
+    COALESCE(SUM(i.qty * i.unit_price), 0) + t.stamp AS total, COUNT(i.id) AS n
   FROM trips t JOIN stores s ON s.id = t.store_id LEFT JOIN items i ON i.trip_id = t.id`;
 
 export async function listTrips(db: Db, month?: string, limit = 1000): Promise<TripRow[]> {
@@ -339,8 +375,10 @@ export async function listMonths(db: Db): Promise<string[]> {
 
 export async function monthSummary(db: Db, month: string): Promise<MonthSummary> {
   const row = await db.getFirstAsync<MonthSummary>(
-    `SELECT COUNT(DISTINCT t.id) AS trips, COALESCE(SUM(i.qty * i.unit_price), 0) AS total, COUNT(i.id) AS items
-     FROM trips t LEFT JOIN items i ON i.trip_id = t.id WHERE substr(t.date, 1, 7) = ?`,
+    `SELECT COUNT(DISTINCT t.id) AS trips,
+       COALESCE(SUM(i.qty * i.unit_price), 0) + (SELECT COALESCE(SUM(stamp), 0) FROM trips WHERE substr(date, 1, 7) = ?1) AS total,
+       COUNT(i.id) AS items
+     FROM trips t LEFT JOIN items i ON i.trip_id = t.id WHERE substr(t.date, 1, 7) = ?1`,
     [month],
   );
   return row ?? { trips: 0, total: 0, items: 0 };
@@ -362,17 +400,24 @@ async function dropUnusedProducts(db: Db): Promise<void> {
   await db.runAsync('DELETE FROM products WHERE id NOT IN (SELECT DISTINCT product_id FROM items)', []);
 }
 
+/** The trip's stamp duty, plus any line still named "Droit de timbre" (old backups, typed by hand). */
+function stampOf(trip: NewTrip): number {
+  const lines = trip.items.filter((it) => STAMP_NAME.test(it.name)).reduce((a, it) => a + it.qty * it.unitPrice, 0);
+  return Math.round(((trip.stamp ?? 0) + lines) * 100) / 100;
+}
+
 async function writeTrip(db: Db, trip: NewTrip): Promise<number> {
   const sid = await storeId(db, trip.store);
   let id = trip.id;
   if (id) {
-    await db.runAsync('UPDATE trips SET store_id = ?, date = ? WHERE id = ?', [sid, trip.date, id]);
+    await db.runAsync('UPDATE trips SET store_id = ?, date = ?, stamp = ? WHERE id = ?', [sid, trip.date, stampOf(trip), id]);
     await db.runAsync('DELETE FROM items WHERE trip_id = ?', [id]);
   } else {
-    const res = await db.runAsync('INSERT INTO trips (store_id, date) VALUES (?, ?)', [sid, trip.date]);
+    const res = await db.runAsync('INSERT INTO trips (store_id, date, stamp) VALUES (?, ?, ?)', [sid, trip.date, stampOf(trip)]);
     id = res.lastInsertRowId;
   }
   for (const it of trip.items) {
+    if (STAMP_NAME.test(it.name)) continue;
     const pid = await productId(db, it.name, it.unit);
     await db.runAsync('INSERT INTO items (trip_id, product_id, qty, unit_price, promo) VALUES (?, ?, ?, ?, ?)', [id, pid, it.qty, it.unitPrice, it.promo ? 1 : 0]);
   }
@@ -385,6 +430,7 @@ export async function saveTrip(db: Db, trip: NewTrip): Promise<number> {
   if (!cleanName(trip.store)) throw new Error('Magasin manquant');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trip.date)) throw new Error('Date invalide');
   if (trip.items.length === 0) throw new Error('Aucun article');
+  if (!((trip.stamp ?? 0) >= 0)) throw new Error('Droit de timbre invalide');
   for (const it of trip.items) {
     if (!productKey(it.name) || !(it.qty > 0) || !(it.unitPrice >= 0)) throw new Error('Article invalide : ' + it.name);
   }
@@ -422,6 +468,12 @@ export async function exportCsv(db: Db): Promise<{ csv: string; rows: number }> 
   for (const r of rows) {
     out.push([r.date, r.store, r.name, r.unit, r.qty, r.unit_price, Math.round(r.qty * r.unit_price * 100) / 100, r.promo ? 1 : 0, r.trip_id]);
   }
+  // The stamp duty rides along as a line of its trip; the import folds it back onto the trip.
+  const stamps = await db.getAllAsync<{ id: number; date: string; store: string; stamp: number }>(
+    'SELECT t.id, t.date, s.name AS store, t.stamp FROM trips t JOIN stores s ON s.id = t.store_id WHERE t.stamp > 0 ORDER BY t.date, t.id',
+    [],
+  );
+  for (const t of stamps) out.push([t.date, t.store, STAMP_LABEL, 'pièce', 1, t.stamp, t.stamp, 0, t.id]);
   // Other spellings ride along too, so a restore keeps the receipt links.
   const aliases = await db.getAllAsync<{ key: string; name: string }>('SELECT a.key, p.name FROM aliases a JOIN products p ON p.id = a.product_id ORDER BY a.key', []);
   for (const a of aliases) out.push([ALIAS_MARK, '', a.name, a.key, '', '', '', '', '']);

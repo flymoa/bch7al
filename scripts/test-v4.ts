@@ -122,10 +122,36 @@ async function main() {
     INSERT INTO trips VALUES (1, 1, '2026-09-01'); INSERT INTO items VALUES (1, 1, 1, 2, 9.5);
     PRAGMA user_version = 5;`);
   await D.onOpen(ahead);
-  assert.deepEqual(await D.schemaInfo(ahead), { version: 5, ok: true });
+  assert.deepEqual(await D.schemaInfo(ahead), { version: 6, ok: true });
   assert.equal((await D.getTrip(ahead, 1))!.items[0].promo, 0, 'trip opens');
   assert.equal((await D.listProducts(ahead)).length, 1, 'products list works');
   assert.equal(await D.findProduct(ahead, 'Sucre').then((p) => p!.name), 'Sucre', 'scan lookup works');
+  // v6: the stamp duty saved as a product line moves onto its trip, and the product disappears
+  const stamped = adapter();
+  await stamped.execAsync(`CREATE TABLE stores (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, key TEXT NOT NULL UNIQUE);
+    CREATE TABLE products (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, key TEXT NOT NULL UNIQUE, unit TEXT NOT NULL DEFAULT 'pièce');
+    CREATE TABLE trips (id INTEGER PRIMARY KEY NOT NULL, store_id INTEGER NOT NULL REFERENCES stores(id), date TEXT NOT NULL);
+    CREATE TABLE items (id INTEGER PRIMARY KEY NOT NULL, trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE, product_id INTEGER NOT NULL REFERENCES products(id), qty REAL NOT NULL, unit_price REAL NOT NULL, promo INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE aliases (key TEXT PRIMARY KEY NOT NULL, product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE);
+    INSERT INTO stores VALUES (1, 'BIM', 'bim');
+    INSERT INTO products VALUES (1, 'Sucre', 'sucre', 'kg'); INSERT INTO products VALUES (2, 'Droit de timbre', 'droit de timbre', 'pièce');
+    INSERT INTO trips VALUES (1, 1, '2026-11-01'); INSERT INTO items VALUES (1, 1, 1, 2, 9.5, 0); INSERT INTO items VALUES (2, 1, 2, 1, 0.05, 0);
+    PRAGMA user_version = 5;`);
+  await D.onOpen(stamped);
+  const st1 = (await D.getTrip(stamped, 1))!;
+  assert.deepEqual([st1.items.map((i) => i.name), st1.trip.stamp, st1.trip.total, st1.trip.n], [['Sucre'], 0.05, 19.05, 1]);
+  assert.deepEqual((await D.listProducts(stamped)).map((p) => p.name), ['Sucre'], 'stamp duty is not a product');
+  assert.equal((await D.monthSummary(stamped, '2026-11')).total, 19.05, 'month total keeps the tax');
+  // saving / editing a trip with its stamp, and a backup round trip
+  const id = await D.saveTrip(stamped, { store: 'Marjane', date: '2026-11-20', stamp: 0.25, items: [{ name: 'Huile', unit: 'pièce', qty: 1, unitPrice: 100 }] });
+  assert.equal((await D.getTrip(stamped, id))!.trip.total, 100.25);
+  await D.saveTrip(stamped, { id, store: 'Marjane', date: '2026-11-20', stamp: 0, items: [{ name: 'Huile', unit: 'pièce', qty: 1, unitPrice: 100 }] });
+  assert.equal((await D.getTrip(stamped, id))!.trip.stamp, 0, 'paid by card: stamp removed');
+  const { csv: stampCsv } = await D.exportCsv(stamped);
+  await D.importCsv(stamped, stampCsv);
+  const back = (await D.listTrips(stamped)).find((t) => t.date === '2026-11-01')!;
+  assert.deepEqual([back.stamp, back.total, back.n], [0.05, 19.05, 1], 'backup keeps the stamp on its trip');
+  assert.equal((await D.listProducts(stamped)).some((p) => /timbre/i.test(p.name)), false);
   console.log('v4 tests passed');
 }
 

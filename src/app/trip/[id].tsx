@@ -7,7 +7,6 @@ import { showToast } from '@/components/toast';
 import { Button, Empty, Group, PriceChip, Row, Screen, Tile, TopBar, VerdictChip, t } from '@/components/ui';
 import { deleteTrip, getTrip, tripVerdicts, type ItemRow, type TripRow } from '@/db';
 import { longDate, money, perUnit, plural, qtyLabel, type Verdict } from '@/format';
-import { STAMP_DUTY } from '@/receipt';
 import { useSQLiteContext } from '@/sqlite';
 import { bubble, colors, sheet, text, useTheme } from '@/theme';
 import { radius, size, space } from '@/tokens';
@@ -99,21 +98,29 @@ export default function TripDetail() {
         <Group>
           {items.map((it, i) => {
             const v = verdicts[it.id] ?? null;
-            const stamp = it.name === STAMP_DUTY;
             return (
               <Row
                 key={it.id}
                 first={i === 0}
                 label={`Voir ${it.name}`}
-                onPress={stamp ? undefined : () => router.push(`/product/${it.product_id}`)}
+                onPress={() => router.push(`/product/${it.product_id}`)}
                 leading={<Tile text={it.name} />}
                 title={it.name}
-                meta={stamp ? 'taxe, pas un produit' : `${qtyLabel(it.qty, it.unit)} × ${money(it.unit_price)}${perUnit(it.unit)}${it.promo ? ' · promo' : ''}`}
+                meta={`${qtyLabel(it.qty, it.unit)} × ${money(it.unit_price)}${perUnit(it.unit)}${it.promo ? ' · promo' : ''}`}
                 price={money(it.qty * it.unit_price)}
                 chip={v ? <VerdictChip v={v} /> : null}
               />
             );
           })}
+          {trip.stamp > 0 ? (
+            <Row
+              label={`Droit de timbre ${money(trip.stamp)} dirhams`}
+              leading={<Tile text="Droit de timbre" />}
+              title="Droit de timbre"
+              meta="taxe sur le paiement en espèces"
+              price={money(trip.stamp)}
+            />
+          ) : null}
         </Group>
         <View style={st.actions}>
           <Button label="Modifier" icon="edit" kind="tonal" style={st.flex} onPress={() => router.push(`/trip/new?id=${trip.id}`)} />
