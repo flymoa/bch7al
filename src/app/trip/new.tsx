@@ -48,7 +48,11 @@ export default function TripForm() {
   const [date, setDate] = useState(todayIso());
   const [items, setItems] = useState<Line[]>([]);
   /** Droit de timbre: a tax on cash payments, kept on the trip, never a product. */
-  const [stamp, setStamp] = useState(0);
+  const [stampText, setStampText] = useState('');
+  const stampValue = parseNumber(stampText);
+  const stamp = stampValue > 0 ? Math.round(stampValue * 100) / 100 : 0;
+  const stampRef = useRef<TextInputInstance>(null);
+  const stampY = useRef(0);
   const [name, setName] = useState('');
   const [unit, setUnit] = useState<string>(UNITS[0]);
   const [unitPicked, setUnitPicked] = useState(false);
@@ -81,7 +85,7 @@ export default function TripForm() {
       if (existing) {
         setStore(existing.trip.store);
         setDate(existing.trip.date);
-        setStamp(existing.trip.stamp ?? 0);
+        setStampText(existing.trip.stamp ? money(existing.trip.stamp) : '');
         // Editing: comparing with "last time" would include this very trip, so it is not shown.
         setItems(existing.items.map((it) => ({ id: nextLineId++, name: it.name, unit: it.unit, qty: it.qty, unitPrice: it.unit_price, last: null, known: true, promo: !!it.promo })));
       } else {
@@ -218,7 +222,20 @@ export default function TripForm() {
       });
     }
     setItems((cur) => [...cur.filter((x) => !x.scanned), ...lines.map((l) => ({ ...l, id: nextLineId++ }))]);
-    setStamp(res.stamp ?? 0);
+    setStampText(res.stamp ? money(res.stamp) : '');
+    // Not read on the ticket: never guessed, the user is asked.
+    if (!res.stamp && res.items.length > 0) {
+      Alert.alert('T2ked wach droit de timbre kayn ?', "Ma lqitouch f le ticket. Ila khlesti b l'flouss (espèces), ghaykoun mktoub f le ticket.", [
+        { text: 'La', style: 'cancel', onPress: () => showToast('Wakha') },
+        {
+          text: 'Iyeh',
+          onPress: () => {
+            scrollRef.current?.scrollTo({ y: Math.max(0, stampY.current - space.lg), animated: true });
+            setTimeout(() => stampRef.current?.focus(), 300);
+          },
+        },
+      ]);
+    }
     const products_ = res.items;
     const units = products_.reduce((n, i) => n + (i.unit === 'pièce' && Number.isInteger(i.qty) ? i.qty : 1), 0);
     setScan({
@@ -267,6 +284,7 @@ export default function TripForm() {
     if (!cleanName(store)) { setSetupOpen(true); return setError('Choisis le magasin.'); }
     if (items.length === 0) return setError('Ajoute au moins un article.');
     if (items.some((it) => it.unnamed)) return setError('Écris le nom des articles marqués « Nom à écrire » (bouton Modifier).');
+    if (stampText.trim() && !(stampValue >= 0)) return setError('Le droit de timbre doit être un montant, ex. 0,25.');
     if (productKey(name) || price.trim()) return setError("Un article est en cours de saisie. Touche + pour l'ajouter, ou efface-le.");
     setSaving(true);
     try {
@@ -503,17 +521,24 @@ export default function TripForm() {
               })}
             </Group>
           )}
-          {stamp > 0 ? (
-            <View style={st.stampRow} accessibilityLabel={`Droit de timbre ${money(stamp)} dirhams, taxe payée en espèces`}>
-              <Icon name="receipt" size={size.iconDense} color={colors.muted} />
-              <View style={ui.flex}>
-                <Text style={t.name}>Droit de timbre</Text>
-                <Text style={t.meta}>Taxe sur le paiement en espèces · pas un produit</Text>
-              </View>
-              <Text style={t.price}>{money(stamp)}</Text>
-              <IconButton icon="delete" label="Retirer le droit de timbre (payé par carte)" tone="danger" onPress={() => setStamp(0)} />
+          <View style={st.stampRow} onLayout={(e) => { stampY.current = e.nativeEvent.layout.y; }}>
+            <Icon name="receipt" size={size.iconDense} color={colors.muted} />
+            <View style={ui.flex}>
+              <Text style={t.name}>Droit de timbre</Text>
+              <Text style={t.meta}>Taxe du paiement en espèces · pas un produit</Text>
             </View>
-          ) : null}
+            <Field
+              ref={stampRef}
+              accessibilityLabel="Droit de timbre en dirhams"
+              value={stampText}
+              onChangeText={(v) => { setStampText(v); setError(''); }}
+              placeholder="0,00"
+              keyboardType="decimal-pad"
+              selectTextOnFocus
+              style={st.stampField}
+            />
+            {stampText ? <IconButton icon="delete" label="Retirer le droit de timbre (payé par carte)" tone="danger" onPress={() => setStampText('')} /> : null}
+          </View>
         </ScrollView>
 
         <View style={st.footer}>
@@ -531,6 +556,7 @@ export default function TripForm() {
 const st = sheet(() => ({
   content: { paddingHorizontal: size.screen, paddingBottom: space.section, gap: space.md },
   headActions: { flexDirection: 'row', gap: space.sm },
+  stampField: { width: 92, textAlign: 'right' },
   stampRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: size.row, paddingHorizontal: space.lg, borderRadius: radius.card, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.line },
   summary: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: size.row, paddingHorizontal: space.lg, ...bubble('lg'), backgroundColor: colors.surfaceContainer },
   setup: { gap: space.md, paddingBottom: space.sm },
