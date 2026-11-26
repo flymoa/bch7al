@@ -48,4 +48,9 @@ const inferred = geminiToReceipt('{"store":"BIM","date":null,"total":100.25,"art
 assert.equal(inferred.stamp, null);
 // Paid by card: total = articles, no stamp
 assert.equal(fix.stamp, null);
+const short = geminiToReceipt('{"store":"BIM","date":null,"total":19.5,"article_count":2,"stamp_duty":null,"items":[{"n":"LAIT","q":2,"k":false,"p":null,"t":13},{"n":"TOMATE","q":0.75,"k":true,"p":8,"t":6}]}');
+assert.equal(short.items.length, 2);
+assert.equal(short.items[0].unitPrice, 6.5);
+assert.equal(short.items[1].unit, 'kg');
+assert.equal(short.items[1].unitPrice, 8);
 console.log('gemini: ok');

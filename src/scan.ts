@@ -71,12 +71,12 @@ export async function readPhoto(asset: Photo, geminiKey?: string | null, geminiM
   return { ...parseReceipt(toRows(lines)), engine: 'phone', warning, photo: asset, fellBack };
 }
 
-/** Long edge 1600 px, JPEG 0.7: about 250-400 KB instead of several MB. */
+/** Width 1400 px, JPEG 0.65: about 250-400 KB instead of several MB. */
 async function shrink(uri: string): Promise<string> {
   const ctx = ImageManipulator.manipulate(uri);
-  ctx.resize({ width: 1600 });
+  ctx.resize({ width: 1400 });
   const img = await ctx.renderAsync();
-  const out = await img.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
+  const out = await img.saveAsync({ compress: 0.65, format: SaveFormat.JPEG, base64: true });
   if (!out.base64) throw new Error('Photo illisible');
   return out.base64;
 }

@@ -10,14 +10,15 @@ const URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 
 const PROMPT = `Tu lis la photo d'un ticket de caisse marocain (français et/ou arabe). Réponds uniquement avec un objet JSON :
 {"store": string|null, "date": "AAAA-MM-JJ"|null, "total": number|null, "article_count": number|null, "stamp_duty": number|null,
- "items": [{"name": string, "qty": number, "unit": "piece"|"kg", "unit_price": number, "line_total": number}]}
+ "items": [{"n": string, "q": number, "k": boolean, "p": number|null, "t": number}]}
+Clés des articles : n = nom, q = quantité (ou poids en kilos), k = true si vendu au poids, p = prix du kilo (seulement si k est true, sinon null), t = montant imprimé de la ligne.
 
 Règles :
 - Une entrée par article acheté, dans l'ordre du ticket. Ne saute aucun article et n'en invente aucun.
-- "name" : le nom tel qu'il est imprimé (l'arabe reste en arabe), sans code-barres, sans code TVA, sans prix. Si le nom est illisible ou absent, mets "".
-- Article au poids : "unit" = "kg", "qty" = le poids en kilos, "unit_price" = le prix du kilo. Sinon "unit" = "piece".
-- "2 x 2,50" veut dire qty 2 et unit_price 2.50. "line_total" = le montant imprimé pour la ligne.
-- Une remise sur un article se retire de son line_total et de son unit_price.
+- "n" : le nom tel qu'il est imprimé (l'arabe reste en arabe), sans code-barres, sans code TVA, sans prix. Si le nom est illisible ou absent, mets "".
+- Article au poids : "k" = true, "q" = le poids en kilos, "p" = le prix du kilo. Sinon "k" = false et "p" = null.
+- "2 x 2,50" veut dire q = 2 et t = 5.00 (t = le montant imprimé pour la ligne).
+- Une remise sur un article se retire de son "t".
 - Ne mets PAS dans items : sous-totaux de rayon, lignes TOTAL, TVA, paiement (espèces, carte), rendu, points de fidélité.
 - Le droit de timbre (« DROITS DE TIMBRE », souvent près de ESPECES) n'est PAS un article : ne le mets pas dans items, mets son montant dans "stamp_duty" (une seule fois, même s'il est imprimé deux fois). S'il n'est pas imprimé, "stamp_duty" = null.
 - "total" : le total à payer TTC, droit de timbre compris. "article_count" : le nombre d'articles imprimé sur le ticket, sinon null.
@@ -37,13 +38,13 @@ const SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          name: { type: 'string' },
-          qty: { type: 'number' },
-          unit: { type: 'string', enum: ['piece', 'kg'] },
-          unit_price: { type: 'number' },
-          line_total: { type: 'number' },
+          n: { type: 'string' },
+          q: { type: 'number' },
+          k: { type: 'boolean' },
+          p: { type: ['number', 'null'] },
+          t: { type: 'number' },
         },
-        required: ['name', 'qty', 'unit', 'unit_price', 'line_total'],
+        required: ['n', 'q', 'k', 'p', 't'],
       },
     },
   },
@@ -85,19 +86,19 @@ export function geminiToReceipt(text: string): ReceiptResult {
   const items: ReceiptItem[] = [];
   let stamp: number | null = n(data.stamp_duty);
   for (const raw of Array.isArray(data.items) ? data.items : []) {
-    let qty = n(raw?.qty) ?? 1;
-    let unitPrice = n(raw?.unit_price);
-    const line = n(raw?.line_total);
+    let qty = n(raw?.q ?? raw?.qty) ?? 1;
+    let unitPrice = n(raw?.p ?? raw?.unit_price);
+    const line = n(raw?.t ?? raw?.line_total);
     if (qty <= 0) qty = 1;
     if (unitPrice === null && line !== null) unitPrice = line / qty;
     if (unitPrice === null || unitPrice <= 0) continue;
-    const kg = raw?.unit === 'kg' || !Number.isInteger(qty);
+    const kg = raw?.k === true || raw?.unit === 'kg' || !Number.isInteger(qty);
     // The printed line amount is the most reliable number: make the others agree with it.
     if (line !== null && line > 0 && Math.abs(qty * unitPrice - line) > 0.06) {
       if (kg) qty = round(line / unitPrice, 3);
       else if (Number.isInteger(qty)) unitPrice = line / qty;
     }
-    const name = String(raw?.name ?? '').replace(/\s+/g, ' ').trim();
+    const name = String(raw?.n ?? raw?.name ?? '').replace(/\s+/g, ' ').trim();
     // Gemini sometimes still lists it as an article: take the amount, keep it out of the items.
     if (STAMP.test(name)) {
       if (stamp === null || stamp <= 0) stamp = round(line ?? unitPrice, 2);
@@ -172,24 +173,28 @@ export async function geminiCheck(apiKey: string): Promise<string> {
   return model;
 }
 
+let goodMode = 0;
+
 /** Sends one receipt photo to Gemini and returns its articles. */
 export async function geminiRead(base64: string, mime: string, apiKey: string, preferred?: string | null): Promise<ReceiptResult & { model: string }> {
   const input = [{ type: 'text', text: PROMPT }, { type: 'image', data: base64, mime_type: mime }];
-  const strict = (model: string) => ({
-    model,
-    input,
-    store: false,
-    response_format: { type: 'text', mime_type: 'application/json', schema: SCHEMA },
-    generation_config: { thinking_level: 'low' },
-  });
-  let out: { json: any; model: string };
-  try {
-    out = await ask(strict, apiKey, preferred, 60000);
-  } catch (e) {
-    // An option this model does not accept: ask again with the plain request (the prompt
-    // alone already asks for JSON).
-    if (!(e instanceof GeminiError) || e.status !== 400 || /api key|image/i.test(e.message)) throw e;
-    out = await ask((model) => ({ model, input }), apiKey, preferred, 60000);
+  // Reading a receipt is copying, not reasoning: least thinking first, then the older
+  // setting, then the plain request. The mode that worked is remembered (no repeat 400).
+  const modes: ((model: string) => object)[] = [
+    (model) => ({ model, input, store: false, response_format: { type: 'text', mime_type: 'application/json', schema: SCHEMA }, generation_config: { thinking_level: 'minimal' } }),
+    (model) => ({ model, input, store: false, response_format: { type: 'text', mime_type: 'application/json', schema: SCHEMA }, generation_config: { thinking_level: 'low' } }),
+    (model) => ({ model, input }),
+  ];
+  let out: { json: any; model: string } | undefined;
+  for (let i = goodMode; i < modes.length; i++) {
+    try {
+      out = await ask(modes[i], apiKey, preferred, 25000);
+      goodMode = i;
+      break;
+    } catch (e) {
+      if (i === modes.length - 1 || !(e instanceof GeminiError) || e.status !== 400 || /api key|image/i.test(e.message)) throw e;
+    }
   }
+  if (!out) throw new Error('Gemini a échoué.');
   return { ...geminiToReceipt(geminiText(out.json)), model: out.model };
 }

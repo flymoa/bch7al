@@ -4,7 +4,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta-fast-scan]
   workflow_dispatch:
 
 permissions:
@@ -58,9 +58,11 @@ jobs:
           path: bch7al.apk
 
       - name: Publish to the apk branch
+        env:
+          APK_BRANCH: ${{ github.ref_name == 'main' && 'apk' || 'apk-beta' }}
         run: |
           mkdir out && cp bch7al.apk out/ && cd out
-          git init -q && git checkout -q -b apk
+          git init -q && git checkout -q -b "$APK_BRANCH"
           git config user.name "github-actions" && git config user.email "actions@github.com"
           git add bch7al.apk && git commit -qm "APK from ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" apk
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" "$APK_BRANCH"
