@@ -29,7 +29,7 @@ export default function Camera() {
     if (!cam.current || !ready || busy) return;
     setBusy(true);
     try {
-      const pic = await cam.current.takePictureAsync({ quality: 0.85, shutterSound: false });
+      const pic = await cam.current.takePictureAsync({ quality: 0.7, shutterSound: false, skipProcessing: true });
       setPendingPhoto({ uri: pic.uri, mimeType: 'image/jpeg' });
       router.replace('/trip/new?scan=photo');
     } catch (e) {
